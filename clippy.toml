@@ -1,0 +1,6 @@
+# Clippy configuration
+# See https://rust-lang.github.io/rust-clippy/ for more options
+
+# Allow some common patterns in game development
+avoid-breaking-exported-api = false
+

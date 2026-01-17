@@ -1,13 +1,19 @@
+use crate::components::SaveData;
 use macroquad::prelude::*;
 use std::fs;
-use crate::components::SaveData;
 
 pub fn wrap_around(pos: &mut Vec2) {
-    if pos.x < -20.0 { pos.x = screen_width() + 20.0; } 
-    else if pos.x > screen_width() + 20.0 { pos.x = -20.0; }
-    
-    if pos.y < -20.0 { pos.y = screen_height() + 20.0; } 
-    else if pos.y > screen_height() + 20.0 { pos.y = -20.0; }
+    if pos.x < -20.0 {
+        pos.x = screen_width() + 20.0;
+    } else if pos.x > screen_width() + 20.0 {
+        pos.x = -20.0;
+    }
+
+    if pos.y < -20.0 {
+        pos.y = screen_height() + 20.0;
+    } else if pos.y > screen_height() + 20.0 {
+        pos.y = -20.0;
+    }
 }
 
 const SAVE_FILE: &str = "highscore.json";

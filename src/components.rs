@@ -1,9 +1,12 @@
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq)]
-pub enum PowerupType { Health, RapidFire }
+pub enum PowerupType {
+    Health,
+    RapidFire,
+}
 
 pub enum GameState {
     Menu,
@@ -11,8 +14,16 @@ pub enum GameState {
     GameOver(u32),
 }
 
-pub struct Bullet { pub pos: Vec2, pub vel: Vec2, pub life_time: f32 }
-pub struct EnemyBullet { pub pos: Vec2, pub vel: Vec2, pub life_time: f32 }
+pub struct Bullet {
+    pub pos: Vec2,
+    pub vel: Vec2,
+    pub life_time: f32,
+}
+pub struct EnemyBullet {
+    pub pos: Vec2,
+    pub vel: Vec2,
+    pub life_time: f32,
+}
 
 pub struct Powerup {
     pub pos: Vec2,
@@ -45,7 +56,10 @@ pub struct Ship {
 impl Asteroid {
     pub fn new_large() -> Self {
         Self {
-            pos: vec2(gen_range(0.0, screen_width()), gen_range(0.0, screen_height())),
+            pos: vec2(
+                gen_range(0.0, screen_width()),
+                gen_range(0.0, screen_height()),
+            ),
             vel: vec2(gen_range(-80.0, 80.0), gen_range(-80.0, 80.0)),
             radius: 40.0,
             sides: gen_range(8, 12),
@@ -65,7 +79,11 @@ impl Asteroid {
 impl EnemyShip {
     pub fn new() -> Self {
         let side = gen_range(0, 2);
-        let x = if side == 0 { -30.0 } else { screen_width() + 30.0 };
+        let x = if side == 0 {
+            -30.0
+        } else {
+            screen_width() + 30.0
+        };
         let y = gen_range(50.0, screen_height() - 50.0);
         let speed_x = if side == 0 { 120.0 } else { -120.0 }; // Используй константу или число
         Self {
@@ -80,16 +98,16 @@ impl Ship {
     // Returns true if the game is over
     pub fn take_damage(&mut self, score: u32) -> bool {
         self.lives -= 1;
-        
+
         if self.lives <= 0 {
             // Save score immediately using our system
             crate::systems::save_score(score);
-            return true; // Game Over
+            true // Game Over
         } else {
             // Reset position for next life
             self.pos = vec2(screen_width() / 2.0, screen_height() / 2.0);
             self.vel = vec2(0.0, 0.0);
-            return false; // Still alive
+            false // Still alive
         }
     }
 }

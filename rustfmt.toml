@@ -1,0 +1,12 @@
+# Rustfmt configuration
+# See https://rust-lang.github.io/rustfmt/ for more options
+
+# Use 4 spaces for indentation
+tab_spaces = 4
+
+# Maximum width of each line
+max_width = 100
+
+# Use Unix-style line endings
+newline_style = "Unix"
+
