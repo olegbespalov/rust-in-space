@@ -1,5 +1,5 @@
-use crate::components::*;
 use macroquad::prelude::*;
+use crate::components::{EnemyShip, Ship};
 
 pub fn draw_text_centered(text: &str, y_offset: f32, size: u16, color: Color) {
     let dims = measure_text(text, None, size, 1.0);
@@ -12,16 +12,33 @@ pub fn draw_text_centered(text: &str, y_offset: f32, size: u16, color: Color) {
     );
 }
 
-pub fn draw_ship(ship: &Ship) {
+pub fn draw_ship(ship: &Ship, texture: &Texture2D) {
     let r = ship.rotation.to_radians();
-    let v1 = ship.pos + vec2(r.cos(), r.sin()) * 20.0;
-    let v2 = ship.pos + vec2((r + 2.5).cos(), (r + 2.5).sin()) * 15.0;
-    let v3 = ship.pos + vec2((r - 2.5).cos(), (r - 2.5).sin()) * 15.0;
-    let color = if ship.rapid_fire_timer > 0.0 {
-        PURPLE
-    } else {
-        WHITE
-    };
-    draw_triangle(v1, v2, v3, color);
-    draw_triangle_lines(v1, v2, v3, 2.0, BLUE);
+    draw_texture_ex(
+        texture,
+        ship.pos.x - 20.0,
+        ship.pos.y - 20.0,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(vec2(40.0, 40.0)),
+            rotation: r + std::f32::consts::FRAC_PI_2, // turn the ship nose up
+            ..Default::default()
+        },
+    );
+}
+
+pub fn draw_enemy(enemy: &EnemyShip, texture: &Texture2D) {
+    let sprite_size = vec2(40.0, 40.0);
+
+    draw_texture_ex(
+        texture,
+        enemy.pos.x - sprite_size.x / 2.0,
+        enemy.pos.y - sprite_size.y / 2.0,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(sprite_size),
+            rotation: 0.0, // no rotation for now
+            ..Default::default()
+        },
+    );
 }

@@ -26,6 +26,9 @@ async fn main() {
 
     let mut state = GameState::Menu;
 
+    let ship_texture = load_texture("assets/ship_v1.png").await.unwrap();
+    let enemy_texture = load_texture("assets/enemy_1.png").await.unwrap();
+
     // Game entities
     let mut ship = create_ship();
     let mut bullets: Vec<Bullet> = Vec::new();
@@ -221,10 +224,10 @@ async fn main() {
                     draw_poly_lines(a.pos.x, a.pos.y, a.sides, a.radius, 0.0, 2.0, GRAY);
                 }
                 for e in &enemy_ships {
-                    draw_rectangle(e.pos.x - 15.0, e.pos.y - 5.0, 30.0, 10.0, GREEN);
-                    draw_circle(e.pos.x, e.pos.y - 5.0, 8.0, DARKGREEN);
+                    draw_enemy(e, &enemy_texture);
                 }
-                draw_ship(&ship);
+    
+                draw_ship(&ship, &ship_texture);
 
                 draw_text(
                     &format!("SCORE: {score}  LIVES: {}", ship.lives),
