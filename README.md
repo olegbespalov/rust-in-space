@@ -16,12 +16,16 @@
 - **Classic Space Shooter Controls**: Rotate and thrust your ship with smooth engine mechanics
 - **Asteroid Destruction**: Break large asteroids into smaller fragments, with rare asteroids dropping valuable loot
 - **Enemy Ships**: Battle enemy ships that track and shoot at you
-- **Loot System**: Collect scrap, rare metals, health packs, and weapon boosts
+- **Loot System**: Collect scrap, rare metals, health packs, weapon boosts, and shields
   - **Magnet Effect**: Loot items are automatically attracted to your ship when nearby
   - **Animated Loot**: Items rotate and drift realistically in space
+- **Shield System**: Activate shields that absorb damage before it reaches your health
+- **Weapon Boosts**: Rapid fire mode and big bullet mode for enhanced firepower
 - **Resource Management**: Track rust piles (scrap) and gold (rare metals) separately
 - **Health Point System**: Start with 100 HP - bigger asteroids deal more damage!
+- **Shield System**: Collect shield items to activate temporary shields that absorb damage
 - **Variable Damage**: Damage scales with asteroid size and bullet type
+- **Enemy Health System**: Enemies have 50 HP and take multiple hits to destroy
 - **High Score System**: Your high score is automatically saved and persists between sessions
 
 ## Controls
@@ -92,28 +96,34 @@ The game features a mission-based progression system:
 
 ### Scoring
 - **Asteroids**: 100 points each
-- **Enemy Ships**: 500 points each
+- **Enemy Ships**: 500 points each (10 points per HP, enemies have 50 HP)
 
 ### Loot System
 
 Loot items drop from destroyed asteroids and enemies:
 
 **From Regular Asteroids:**
-- **Rust Piles (Scrap)** (40% chance): 1-3 pieces
-- **Gold (Rare Metal)** (5% chance): 1 piece
+- **Rust Piles (Scrap)** (55% chance): 1-3 pieces
+- **Gold (Rare Metal)** (10% chance): 1 piece
+- **Nothing** (35% chance)
 
 **From Rare Asteroids** (10% chance to spawn, always drop loot):
-- **Gold (Rare Metal)** (50% chance): 2-5 pieces
-- **Rust Piles (Scrap)** (30% chance): 5-9 pieces
-- **Health Pack** (10% chance): Restores health points
-- **Weapon Boost** (10% chance): Rapid fire for 10 seconds
+- **Gold (Rare Metal)** (40% chance): 2-5 pieces
+- **Rust Piles (Scrap)** (20% chance): 5-9 pieces
+- **Health Pack** (15% chance): Restores health points
+- **Rapid Fire Boost** (12% chance): Rapid fire for 10 seconds (3x faster shooting)
+- **Big Bullet Boost** (7% chance): Bigger, more powerful bullets for 15 seconds (20 damage vs 10)
+- **Shield** (6% chance): Activates shield with 50-150 HP that lasts 30 seconds
 
 **From Enemy Ships:**
-- **Rust Piles (Scrap)** (30% chance): 5-9 pieces
-- **Health Pack** (10% chance): Restores health points
-- **Weapon Boost** (5% chance): Rapid fire for 10 seconds
+- **Rust Piles (Scrap)** (45% chance): 5-9 pieces
+- **Health Pack** (15% chance): Restores health points
+- **Rapid Fire Boost** (12% chance): Rapid fire for 10 seconds (3x faster shooting)
+- **Big Bullet Boost** (10% chance): Bigger, more powerful bullets for 15 seconds (20 damage vs 10)
+- **Shield** (10% chance): Activates shield with 30-100 HP that lasts 30 seconds
+- **Nothing** (8% chance)
 
-**Note**: Health packs and weapon boosts do NOT count toward resource collection objectives
+**Note**: Health packs, weapon boosts, and shields do NOT count toward resource collection objectives
 
 **Loot Mechanics:**
 - Items drift and rotate in space for visual appeal
@@ -127,6 +137,11 @@ Loot items drop from destroyed asteroids and enemies:
 ### Gameplay
 
 - **Health System**: Start with 100 HP (displayed as HP: current/max)
+- **Shield System**: 
+  - Shields absorb damage before it reaches your health
+  - Shield HP is displayed when active: "SHIELD: current/max"
+  - Shields have a duration (30 seconds) and deactivate when HP reaches 0 or timer expires
+  - Damage is first applied to shield, then to health if shield is depleted
 - **Damage System**:
   - **Asteroid Collisions**: Damage scales with asteroid size (bigger asteroids = more damage)
     - Base damage: 5 HP per 10 units of radius
@@ -134,13 +149,18 @@ Loot items drop from destroyed asteroids and enemies:
     - Medium fragments (radius 20): ~10 HP damage
     - Small fragments (radius 10): ~5 HP damage
   - **Enemy Bullets**: Deal 15 HP damage
-  - **Player Bullets**: Deal 10 HP damage to enemies
+  - **Player Bullets**: Deal 10 HP damage to enemies (20 HP with big bullet boost)
+  - **Enemy Health**: Enemies have 50 HP and take multiple hits to destroy
 - Complete mission objectives to progress (kills, rust piles, and gold)
 - Destroy asteroids to break them into smaller pieces
-- Rare asteroids (10% spawn chance) have distinct appearance and better loot
+- Rare asteroids (10% spawn chance) have distinct appearance and always drop loot
 - Enemy ships spawn based on mission configuration and track your position
+- Enemies have 50 HP and shoot at you - destroy them to complete kill objectives
 - Collect rust piles and gold separately - missions require specific amounts of each
 - Health packs restore HP (capped at maximum)
+- **Rapid Fire Boost**: Reduces shooting cooldown by 3x for 10 seconds
+- **Big Bullet Boost**: Shoots larger, more powerful bullets (20 damage) for 15 seconds
+- **Shield**: Activates a temporary shield that absorbs damage before it reaches your health
 - When HP reaches 0, your score is saved if it's a new high score
 
 ## Project Structure
@@ -149,14 +169,22 @@ Loot items drop from destroyed asteroids and enemies:
 space_game/
 ├── src/
 │   ├── main.rs      # Main game loop and state management
+│   ├── game.rs      # Game logic, updates, and rendering
 │   ├── components.rs # Game entities and data structures (Ship, Asteroid, Loot, Mission, etc.)
 │   ├── systems.rs   # Game systems (wrapping, save/load, mission generation, loot generation)
 │   ├── draw.rs      # Rendering functions
 │   └── resources.rs # Resource management (texture loading)
 ├── assets/          # Game assets (sprites, textures)
 │   ├── loot/        # Loot item textures
-│   └── ...
+│   │   ├── resources/ # Resource textures (scrap, gold)
+│   │   └── ...       # Power-up textures (health, boosts, shield)
+│   └── ...          # Ship, enemy, asteroid, and bullet textures
+├── scripts/         # Development scripts
+│   └── pre-commit   # Pre-commit hook
 ├── Cargo.toml       # Project dependencies
+├── Makefile         # Build and development commands
+├── rustfmt.toml     # Rust formatting configuration
+├── clippy.toml      # Clippy linter configuration
 └── highscore.json   # Saved high score (auto-generated)
 ```
 
