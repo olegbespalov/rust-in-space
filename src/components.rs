@@ -59,6 +59,7 @@ pub struct EnemyShip {
     pub pos: Vec2,
     pub vel: Vec2,
     pub shoot_timer: f32,
+    pub rotation: f32,
 }
 
 pub struct Ship {
@@ -115,6 +116,7 @@ impl EnemyShip {
             pos: vec2(x, y),
             vel: vec2(speed_x, gen_range(-20.0, 20.0)),
             shoot_timer: 1.5,
+            rotation: 0.0,
         }
     }
 }

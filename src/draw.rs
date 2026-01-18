@@ -103,7 +103,7 @@ pub fn draw_enemy(enemy: &EnemyShip, texture: &Texture2D) {
         WHITE,
         DrawTextureParams {
             dest_size: Some(sprite_size),
-            rotation: 0.0, // Если захочешь вращать врагов: std::f32::consts::PI
+            rotation: enemy.rotation + std::f32::consts::FRAC_PI_2,
             ..Default::default()
         },
     );

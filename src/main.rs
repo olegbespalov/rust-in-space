@@ -16,8 +16,6 @@ const ACCELERATION: f32 = 150.0;
 const BULLET_SPEED: f32 = 400.0;
 const BULLET_LIFETIME: f32 = 2.0;
 const SHOOT_COOLDOWN: f32 = 0.3;
-// const ENEMY_SPEED: f32 = 120.0;
-const ENEMY_SHOOT_INTERVAL: f32 = 1.5;
 
 fn window_conf() -> Conf {
     Conf {
@@ -239,14 +237,19 @@ async fn main() {
                 for e in enemy_ships.iter_mut() {
                     e.pos += e.vel * dt;
                     e.shoot_timer -= dt;
+
+                    let diff = ship.pos - e.pos;
+                    e.rotation = diff.y.atan2(diff.x);
+
                     if e.shoot_timer <= 0.0 {
-                        let dir = (ship.pos - e.pos).normalize();
+                        let bullet_vel = vec2(e.rotation.cos(), e.rotation.sin()) * 250.0;
+
                         enemy_bullets.push(EnemyBullet {
                             pos: e.pos,
-                            vel: dir * 250.0,
+                            vel: bullet_vel,
                             life_time: 4.0,
                         });
-                        e.shoot_timer = ENEMY_SHOOT_INTERVAL;
+                        e.shoot_timer = 2.0;
                     }
                 }
                 enemy_ships.retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
