@@ -17,6 +17,9 @@ const ACCELERATION: f32 = 150.0;
 const BULLET_SPEED: f32 = 400.0;
 const BULLET_LIFETIME: f32 = 2.0;
 const SHOOT_COOLDOWN: f32 = 0.3;
+const PLAYER_BULLET_DAMAGE: f32 = 10.0;
+const ENEMY_BULLET_DAMAGE: f32 = 15.0;
+const BASE_ASTEROID_DAMAGE: f32 = 5.0; // Base damage per 10 units of radius
 
 fn window_conf() -> Conf {
     Conf {
@@ -52,6 +55,7 @@ async fn main() {
     // current mission state
     let mut mission_kills = 0;
     let mut mission_scrap_collected = 0;
+    let mut mission_rare_metal_collected = 0;
 
     let mut enemy_spawn_timer = 0.0;
 
@@ -135,10 +139,23 @@ async fn main() {
 
                 draw_text_centered("OBJECTIVES:", 20.0, 30, GRAY);
 
-                let obj_text = format!(
-                    "- Destroy {} Enemies\n- Collect {} Scrap",
-                    current_mission.target_kills, current_mission.target_scrap
-                );
+                let mut objectives = vec![format!(
+                    "- Destroy {} Enemies",
+                    current_mission.target_kills
+                )];
+                if current_mission.target_scrap > 0 {
+                    objectives.push(format!(
+                        "- Collect {} Rust Piles",
+                        current_mission.target_scrap
+                    ));
+                }
+                if current_mission.target_rare_metal > 0 {
+                    objectives.push(format!(
+                        "- Collect {} Gold",
+                        current_mission.target_rare_metal
+                    ));
+                }
+                let obj_text = objectives.join("\n");
                 draw_text_centered(&obj_text, 70.0, 30, WHITE);
 
                 draw_text_centered("Press [SPACE] to Launch", 200.0, 30, GREEN);
@@ -157,6 +174,7 @@ async fn main() {
                     // reset the mission counters
                     mission_kills = 0;
                     mission_scrap_collected = 0;
+                    mission_rare_metal_collected = 0;
                     enemy_spawn_timer = current_mission.enemy_spawn_interval;
 
                     // reset the ship position (but keep the upgrades if there are any)
@@ -173,6 +191,7 @@ async fn main() {
                 // 1. Check the mission objectives
                 if mission_kills >= current_mission.target_kills
                     && mission_scrap_collected >= current_mission.target_scrap
+                    && mission_rare_metal_collected >= current_mission.target_rare_metal
                 {
                     state = GameState::MissionSuccess;
                 }
@@ -219,6 +238,7 @@ async fn main() {
                         vel: ship_dir * BULLET_SPEED + ship.vel,
                         life_time: BULLET_LIFETIME,
                         style: BulletStyle::Player,
+                        damage: PLAYER_BULLET_DAMAGE,
                     });
                     ship.shoot_timer = current_cooldown;
                 }
@@ -239,6 +259,7 @@ async fn main() {
                             vel: bullet_vel,
                             life_time: 4.0,
                             style: BulletStyle::Enemy,
+                            damage: ENEMY_BULLET_DAMAGE,
                         });
                         e.shoot_timer = 2.0;
                     }
@@ -246,7 +267,8 @@ async fn main() {
                 enemy_ships.retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
 
                 // 2. UPDATE LOOT (Magnet and Collection)
-                loot_items.retain_mut(|item| {
+                let mut items_to_remove = Vec::new();
+                for (i, item) in loot_items.iter_mut().enumerate() {
                     // Animation of slowing down the spread (initial explosion velocity)
                     item.vel *= 0.95;
                     item.pos += item.vel * dt;
@@ -282,24 +304,30 @@ async fn main() {
                         match item.item_type {
                             LootType::Scrap(amount) => {
                                 ship.scrap += amount;
-                                mission_scrap_collected += amount; // Для миссии
+                                mission_scrap_collected += amount; // Count for mission objective
                                                                    // play_sound_pickup();
                             }
                             LootType::RareMetal(amount) => {
                                 ship.rare_metal += amount;
-                                // play_sound_rare();
+                                mission_rare_metal_collected += amount; // Count for mission objective
+                                                                        // play_sound_rare();
                             }
                             LootType::HealthPack(hp) => {
-                                ship.lives += hp;
+                                ship.heal(hp as f32);
+                                // Health packs don't count as resources
                             }
                             LootType::WeaponBoost => {
                                 ship.rapid_fire_timer = 10.0;
+                                // Weapon boosts don't count as resources
                             }
                         }
-                        return false; // Remove from the world
+                        items_to_remove.push(i);
                     }
-                    true // Leave in the world
-                });
+                }
+                // Remove collected items (in reverse order to maintain indices)
+                for &i in items_to_remove.iter().rev() {
+                    loot_items.remove(i);
+                }
 
                 // 4. Update Physics
                 bullets.iter_mut().for_each(|b| {
@@ -371,7 +399,7 @@ async fn main() {
                 // enemy bullet hits the player
                 bullets.retain(|b| {
                     if b.style == BulletStyle::Enemy && (b.pos - ship.pos).length() < 20.0 {
-                        if ship.take_damage(score) {
+                        if ship.take_damage(b.damage, score) {
                             state = GameState::GameOver(score);
                         }
                         false // Remove bullet
@@ -382,8 +410,11 @@ async fn main() {
 
                 for i in (0..asteroids.len()).rev() {
                     if (ship.pos - asteroids[i].pos).length() < asteroids[i].radius + 10.0 {
+                        // Calculate damage based on asteroid size
+                        // Bigger asteroids deal more damage
+                        let asteroid_damage = (asteroids[i].radius / 10.0) * BASE_ASTEROID_DAMAGE;
                         asteroids.remove(i);
-                        if ship.take_damage(score) {
+                        if ship.take_damage(asteroid_damage, score) {
                             state = GameState::GameOver(score);
                         }
                         // break;
@@ -431,7 +462,10 @@ async fn main() {
                 draw_ship(&ship, &resources.ship_body, &resources.ship_flame);
 
                 draw_text(
-                    &format!("SCORE: {score}  LIVES: {}", ship.lives),
+                    &format!(
+                        "SCORE: {score}  HP: {:.0}/{:.0}",
+                        ship.health, ship.max_health
+                    ),
                     20.0,
                     30.0,
                     30.0,
@@ -439,13 +473,20 @@ async fn main() {
                 );
 
                 let status = format!(
-                    "Kills: {}/{}  Scrap: {}/{}",
+                    "Kills: {}/{}  Rust: {}/{}  Gold: {}/{}",
                     mission_kills,
                     current_mission.target_kills,
                     mission_scrap_collected,
-                    current_mission.target_scrap
+                    current_mission.target_scrap,
+                    mission_rare_metal_collected,
+                    current_mission.target_rare_metal
                 );
                 draw_text(&status, 20.0, screen_height() - 30.0, 30.0, WHITE);
+
+                // Display total resources in inventory
+                let inventory =
+                    format!("Resources: Rust {} | Gold {}", ship.scrap, ship.rare_metal);
+                draw_text(&inventory, 20.0, screen_height() - 60.0, 25.0, GRAY);
             }
 
             GameState::MissionSuccess => {
@@ -488,7 +529,8 @@ fn create_ship() -> Ship {
         pos: vec2(screen_width() / 2.0, screen_height() / 2.0),
         vel: vec2(0.0, 0.0),
         rotation: 0.0,
-        lives: 10,
+        health: 100.0,
+        max_health: 100.0,
         shoot_timer: 0.0,
         rapid_fire_timer: 0.0,
         engine: Engine::basic(),

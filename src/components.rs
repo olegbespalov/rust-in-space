@@ -9,8 +9,9 @@ pub struct Mission {
     pub description: String,
 
     // mission objectives
-    pub target_kills: u32, // how many enemies to destroy
-    pub target_scrap: u32, // how many scrap to collect
+    pub target_kills: u32,      // how many enemies to destroy
+    pub target_scrap: u32,      // how many scrap (rust piles) to collect
+    pub target_rare_metal: u32, // how many rare metal (gold) to collect
 
     // level difficulty settings
     pub enemy_spawn_interval: f32,
@@ -36,6 +37,7 @@ pub struct Bullet {
     pub vel: Vec2,
     pub life_time: f32,
     pub style: BulletStyle,
+    pub damage: f32, // Damage dealt by this bullet
 }
 
 pub struct Asteroid {
@@ -56,7 +58,8 @@ pub struct Ship {
     pub pos: Vec2,
     pub vel: Vec2,
     pub rotation: f32,
-    pub lives: i32,
+    pub health: f32,     // Current health points
+    pub max_health: f32, // Maximum health points
     pub shoot_timer: f32,
     pub rapid_fire_timer: f32,
     pub engine: Engine,
@@ -148,19 +151,21 @@ impl EnemyShip {
 
 impl Ship {
     // Returns true if the game is over
-    pub fn take_damage(&mut self, score: u32) -> bool {
-        self.lives -= 1;
+    pub fn take_damage(&mut self, damage: f32, score: u32) -> bool {
+        self.health -= damage;
 
-        if self.lives <= 0 {
+        if self.health <= 0.0 {
             // Save score immediately using our system
             crate::systems::save_score(score);
             true // Game Over
         } else {
-            // Reset position for next life
-            self.pos = vec2(screen_width() / 2.0, screen_height() / 2.0);
-            self.vel = vec2(0.0, 0.0);
             false // Still alive
         }
+    }
+
+    // Restore health (used by health packs)
+    pub fn heal(&mut self, amount: f32) {
+        self.health = (self.health + amount).min(self.max_health);
     }
 }
 

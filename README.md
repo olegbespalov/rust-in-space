@@ -8,6 +8,10 @@
 
 A mission-based space shooter game built with Rust and Macroquad. Complete missions, destroy enemies, collect resources, and progress through increasingly challenging levels!
 
+> *"You're a mercenary pilot, drifting through the outer rim of civilized space. Out here, the only law is what you can enforce with your ship's cannons. The corporations pay well for rust piles and rare metals mined from the asteroid fields, but they don't tell you about the enemy patrols or the void pirates that call these deep space sectors home.*
+> 
+> *Every mission takes you deeper into the unknown. Every asteroid you crack could be your last. But the credits are good, and in this part of the galaxy, that's all that matters. Strap in, pilot. The void awaits."*
+
 ## Features
 
 - **Mission-Based Gameplay**: Complete objectives across multiple levels with increasing difficulty
@@ -17,9 +21,10 @@ A mission-based space shooter game built with Rust and Macroquad. Complete missi
 - **Loot System**: Collect scrap, rare metals, health packs, and weapon boosts
   - **Magnet Effect**: Loot items are automatically attracted to your ship when nearby
   - **Animated Loot**: Items rotate and drift realistically in space
-- **Resource Management**: Track scrap (ordinary currency) and rare metals (premium currency)
+- **Resource Management**: Track rust piles (scrap) and gold (rare metals) separately
+- **Health Point System**: Start with 100 HP - bigger asteroids deal more damage!
+- **Variable Damage**: Damage scales with asteroid size and bullet type
 - **High Score System**: Your high score is automatically saved and persists between sessions
-- **Lives System**: Start with 10 lives and collect health packs to extend your survival
 
 ## Controls
 
@@ -82,8 +87,9 @@ The game features a mission-based progression system:
 - **Briefing Screen**: View mission objectives before launching
 - **Mission Objectives**: Each mission requires completing specific goals:
   - Destroy a certain number of enemies
-  - Collect a certain amount of scrap
-- **Mission Success**: Complete objectives to progress to the next level
+  - Collect a certain amount of rust piles (scrap)
+  - Collect a certain amount of gold (rare metals)
+- **Mission Success**: Complete all objectives to progress to the next level
 - **Progressive Difficulty**: Missions become increasingly challenging with more enemies and asteroids
 
 ### Scoring
@@ -95,35 +101,49 @@ The game features a mission-based progression system:
 Loot items drop from destroyed asteroids and enemies:
 
 **From Regular Asteroids:**
-- **Scrap** (40% chance): 1-3 scrap pieces
-- **Rare Metal** (5% chance): 1 rare metal piece
+- **Rust Piles (Scrap)** (40% chance): 1-3 pieces
+- **Gold (Rare Metal)** (5% chance): 1 piece
 
 **From Rare Asteroids** (10% chance to spawn, always drop loot):
-- **Rare Metal** (50% chance): 2-4 rare metal pieces
-- **Scrap** (30% chance): 5-9 scrap pieces
-- **Health Pack** (10% chance): Restores 1 life
+- **Gold (Rare Metal)** (50% chance): 2-5 pieces
+- **Rust Piles (Scrap)** (30% chance): 5-9 pieces
+- **Health Pack** (10% chance): Restores health points
 - **Weapon Boost** (10% chance): Rapid fire for 10 seconds
 
 **From Enemy Ships:**
-- **Scrap** (30% chance): 5-9 scrap pieces
-- **Health Pack** (10% chance): Restores 1 life
+- **Rust Piles (Scrap)** (30% chance): 5-9 pieces
+- **Health Pack** (10% chance): Restores health points
 - **Weapon Boost** (5% chance): Rapid fire for 10 seconds
+
+**Note**: Health packs and weapon boosts do NOT count toward resource collection objectives
 
 **Loot Mechanics:**
 - Items drift and rotate in space for visual appeal
 - **Magnet Effect**: When within 150 units of your ship, loot is automatically attracted to you
 - Items are collected on contact with your ship
+- **Resource Tracking**: 
+  - Mission objectives track rust piles and gold separately
+  - Your inventory shows total resources collected: "Resources: Rust X | Gold Y"
+  - Mission progress shows: "Kills: X/Y  Rust: X/Y  Gold: X/Y"
 
 ### Gameplay
 
-- Start with 10 lives
-- Complete mission objectives to progress
+- **Health System**: Start with 100 HP (displayed as HP: current/max)
+- **Damage System**:
+  - **Asteroid Collisions**: Damage scales with asteroid size (bigger asteroids = more damage)
+    - Base damage: 5 HP per 10 units of radius
+    - Large asteroids (radius 40): ~20 HP damage
+    - Medium fragments (radius 20): ~10 HP damage
+    - Small fragments (radius 10): ~5 HP damage
+  - **Enemy Bullets**: Deal 15 HP damage
+  - **Player Bullets**: Deal 10 HP damage to enemies
+- Complete mission objectives to progress (kills, rust piles, and gold)
 - Destroy asteroids to break them into smaller pieces
 - Rare asteroids (10% spawn chance) have distinct appearance and better loot
 - Enemy ships spawn based on mission configuration and track your position
-- Collect scrap and rare metals for future upgrades (coming soon)
-- Colliding with asteroids or enemy bullets reduces your lives
-- When all lives are lost, your score is saved if it's a new high score
+- Collect rust piles and gold separately - missions require specific amounts of each
+- Health packs restore HP (capped at maximum)
+- When HP reaches 0, your score is saved if it's a new high score
 
 ## Project Structure
 
