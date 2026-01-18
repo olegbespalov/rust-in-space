@@ -99,53 +99,69 @@ pub fn generate_loot(pos: Vec2, source: LootSource) -> Option<LootItem> {
 
     let (item_type, radius) = match source {
         LootSource::Asteroid => {
-            if roll < 40 {
+            if roll < 55 {
                 (LootType::Scrap(gen_range(1, 4)), 10.0)
             }
-            // 40% chance of scrap
-            else if roll < 45 {
+            // 55% chance of scrap (increased from 40%)
+            else if roll < 65 {
                 (LootType::RareMetal(1), 12.0)
             }
-            // 5% chance of rare metal
+            // 10% chance of rare metal (increased from 5%)
             else {
                 return None;
-            } // 55% chance of nothing
+            } // 35% chance of nothing (decreased from 55%)
         }
         LootSource::RareAsteroid => {
             // Rare asteroids always drop loot (100% chance)
-            if roll < 50 {
+            if roll < 40 {
                 (LootType::RareMetal(gen_range(2, 5)), 12.0)
             }
-            // 50% chance of rare metal
-            else if roll < 80 {
+            // 40% chance of rare metal (decreased from 50% to make room for other items)
+            else if roll < 60 {
                 (LootType::Scrap(gen_range(5, 10)), 10.0)
             }
-            // 30% chance of scrap
-            else if roll < 90 {
+            // 20% chance of scrap (decreased from 25%)
+            else if roll < 75 {
                 (LootType::HealthPack(1), 15.0)
             }
-            // 10% chance of health pack
-            else {
-                (LootType::WeaponBoost, 15.0)
+            // 15% chance of health pack (increased from 10%)
+            else if roll < 87 {
+                (LootType::RapidFireBoost, 15.0)
             }
-            // 10% chance of weapon boost
+            // 12% chance of rapid fire boost (increased from 7%)
+            else if roll < 94 {
+                (LootType::BigBulletBoost, 15.0)
+            }
+            // 7% chance of big bullet boost (increased from 3%)
+            else {
+                // 6% chance of shield with varying HP (50-150 HP) (increased from 5%)
+                (LootType::Shield(gen_range(50, 151)), 15.0)
+            }
         }
         LootSource::EnemySmall => {
-            if roll < 30 {
+            if roll < 45 {
                 (LootType::Scrap(gen_range(5, 10)), 10.0)
             }
-            // Fatter scrap
-            else if roll < 40 {
+            // 45% chance of scrap (increased from 30%)
+            else if roll < 60 {
                 (LootType::HealthPack(1), 15.0)
             }
-            // 10% health pack
-            else if roll < 45 {
-                (LootType::WeaponBoost, 15.0)
+            // 15% health pack (increased from 10%)
+            else if roll < 72 {
+                (LootType::RapidFireBoost, 15.0)
             }
-            // 5% weapon boost
-            else {
+            // 12% rapid fire boost (increased from 4%)
+            else if roll < 82 {
+                (LootType::BigBulletBoost, 15.0)
+            }
+            // 10% big bullet boost (increased from 3%)
+            else if roll < 92 {
+                // 10% chance of shield with varying HP (30-100 HP) (increased from 3%)
+                (LootType::Shield(gen_range(30, 101)), 15.0)
+            } else {
                 return None;
             }
+            // 8% chance of nothing (decreased from 50%)
         } // LootSource::EnemyBoss => {
           //     // Something always drops from the boss
           //     (LootType::RareMetal(gen_range(10, 50)), 20.0)

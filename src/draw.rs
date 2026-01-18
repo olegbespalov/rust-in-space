@@ -1,4 +1,4 @@
-use crate::components::{Asteroid, EnemyShip, Engine, LootItem, LootType, Ship};
+use crate::components::{Asteroid, EnemyShip, Engine, Explosion, LootItem, LootType, Ship};
 use crate::resources::Resources;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
@@ -45,7 +45,12 @@ pub fn draw_background(texture: &Texture2D) {
     );
 }
 
-pub fn draw_ship(ship: &Ship, body_tex: &Texture2D, flame_tex: &Texture2D) {
+pub fn draw_ship(
+    ship: &Ship,
+    body_tex: &Texture2D,
+    flame_tex: &Texture2D,
+    shield_tex: Option<&Texture2D>,
+) {
     let r_rad = ship.rotation.to_radians();
 
     draw_engine(&ship.engine, ship.pos, r_rad, flame_tex);
@@ -63,6 +68,30 @@ pub fn draw_ship(ship: &Ship, body_tex: &Texture2D, flame_tex: &Texture2D) {
             ..Default::default()
         },
     );
+
+    // Draw shield if active
+    if ship.has_shield() {
+        if let Some(shield_texture) = shield_tex {
+            // Shield is a round energetic circle that covers the ship
+            // Make it larger than the ship
+            let shield_size = ship_size * 1.8;
+            // Calculate opacity based on remaining HP (fade as shield weakens)
+            let hp_ratio = ship.shield_hp / ship.shield_max_hp;
+            let alpha = (hp_ratio * 0.7 + 0.3).min(1.0); // Between 0.3 and 1.0
+            let shield_color = Color::new(1.0, 1.0, 1.0, alpha);
+
+            draw_texture_ex(
+                shield_texture,
+                ship.pos.x - shield_size / 2.0,
+                ship.pos.y - shield_size / 2.0,
+                shield_color,
+                DrawTextureParams {
+                    dest_size: Some(vec2(shield_size, shield_size)),
+                    ..Default::default()
+                },
+            );
+        }
+    }
 }
 
 pub fn draw_engine(engine: &Engine, ship_pos: Vec2, ship_rotation_rad: f32, texture: &Texture2D) {
@@ -114,11 +143,13 @@ pub fn draw_loot(item: &LootItem, res: &Resources) {
         LootType::Scrap(_) => &res.loot_scrap,
         LootType::RareMetal(_) => &res.loot_rare,
         LootType::HealthPack(_) => &res.loot_health,
-        LootType::WeaponBoost => &res.loot_weapon,
+        LootType::RapidFireBoost => &res.loot_rapid_fire,
+        LootType::BigBulletBoost => &res.loot_big_bullet,
+        LootType::Shield(_) => &res.loot_shield,
     };
 
-    // Increase size by 1.5x for better visibility
-    let size = vec2(item.radius * 3.0, item.radius * 3.0);
+    // Increase size for better visibility
+    let size = vec2(item.radius * 4.5, item.radius * 4.5);
     draw_texture_ex(
         texture,
         item.pos.x - size.x / 2.0,
@@ -147,6 +178,38 @@ pub fn draw_asteroid(asteroid: &Asteroid, res: &Resources) {
         WHITE,
         DrawTextureParams {
             dest_size: Some(size),
+            ..Default::default()
+        },
+    );
+}
+
+pub fn draw_explosion(expl: &Explosion, res: &Resources) {
+    let texture = &res.explosion;
+
+    // Calculate the width of one frame
+    // If you have 8 frames in a row, the frame width = texture width / 8
+    let frame_width = texture.width() / expl.max_frames as f32;
+    let frame_height = texture.height(); // The height is one
+
+    // Select the needed piece of the texture
+    let source_rect = Rect::new(
+        expl.frame as f32 * frame_width, // X shift
+        0.0,                             // Y is always 0
+        frame_width,
+        frame_height,
+    );
+
+    // Draw
+    let draw_size = vec2(frame_width * expl.scale, frame_height * expl.scale);
+
+    draw_texture_ex(
+        texture,
+        expl.pos.x - draw_size.x / 2.0, // Center
+        expl.pos.y - draw_size.y / 2.0,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(draw_size),
+            source: Some(source_rect), // <--- Magic here
             ..Default::default()
         },
     );

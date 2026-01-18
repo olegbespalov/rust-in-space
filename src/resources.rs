@@ -12,9 +12,13 @@ pub struct Resources {
     pub loot_scrap: Texture2D,
     pub loot_rare: Texture2D,
     pub loot_health: Texture2D,
-    pub loot_weapon: Texture2D,
+    pub loot_rapid_fire: Texture2D,
+    pub loot_big_bullet: Texture2D,
+    pub loot_shield: Texture2D,
+    pub shield_active: Texture2D,
     pub asteroid: Texture2D,
     pub rare_asteroid: Texture2D,
+    pub explosion: Texture2D,
 }
 
 impl Resources {
@@ -48,13 +52,20 @@ impl Resources {
             .await
             .unwrap();
         let loot_health = load_texture("assets/loot/health.png").await.unwrap();
-        let loot_weapon = load_texture("assets/loot/energy.png").await.unwrap();
+        let loot_rapid_fire = load_texture("assets/loot/energy.png").await.unwrap();
+        let loot_big_bullet = load_texture("assets/loot/bigger-ammo.png").await.unwrap();
+        let loot_shield = load_texture("assets/loot/shield.png").await.unwrap();
+        let shield_active = load_texture("assets/shield.png").await.unwrap();
+        shield_active.set_filter(FilterMode::Nearest);
 
         let asteroid = load_texture("assets/asteroid.png").await.unwrap();
         asteroid.set_filter(FilterMode::Nearest);
 
         let rare_asteroid = load_texture("assets/rare_asteroid.png").await.unwrap();
         rare_asteroid.set_filter(FilterMode::Nearest);
+
+        let explosion = load_texture("assets/explosion.png").await.unwrap();
+        explosion.set_filter(FilterMode::Nearest);
 
         Self {
             logo,
@@ -67,9 +78,13 @@ impl Resources {
             loot_scrap,
             loot_rare,
             loot_health,
-            loot_weapon,
+            loot_rapid_fire,
+            loot_big_bullet,
+            loot_shield,
+            shield_active,
             asteroid,
             rare_asteroid,
+            explosion,
         }
     }
 }

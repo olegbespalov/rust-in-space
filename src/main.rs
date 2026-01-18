@@ -18,8 +18,12 @@ const BULLET_SPEED: f32 = 400.0;
 const BULLET_LIFETIME: f32 = 2.0;
 const SHOOT_COOLDOWN: f32 = 0.3;
 const PLAYER_BULLET_DAMAGE: f32 = 10.0;
+const PLAYER_BULLET_RADIUS: f32 = 6.0; // Normal bullet radius
+const BIG_BULLET_DAMAGE: f32 = 20.0; // Big bullet damage (2x normal)
+const BIG_BULLET_RADIUS: f32 = 12.0; // Big bullet radius (2x normal)
 const ENEMY_BULLET_DAMAGE: f32 = 15.0;
 const BASE_ASTEROID_DAMAGE: f32 = 5.0; // Base damage per 10 units of radius
+const SCORE_PER_ENEMY_HP: u32 = 10; // Score points per HP of enemy max health
 
 fn window_conf() -> Conf {
     Conf {
@@ -47,6 +51,7 @@ async fn main() {
     let mut enemy_ships: Vec<EnemyShip> = Vec::new();
     let mut score: u32 = 0;
     let mut loot_items: Vec<LootItem> = Vec::new();
+    let mut explosions: Vec<Explosion> = Vec::new();
 
     // universe state
     let mut current_level_idx: u32 = 1;
@@ -199,6 +204,14 @@ async fn main() {
                 // 1. Timers & Spawning
                 ship.shoot_timer -= dt;
                 ship.rapid_fire_timer -= dt;
+                ship.big_bullet_timer -= dt;
+                if ship.shield_timer > 0.0 {
+                    ship.shield_timer -= dt;
+                    // Deactivate shield when timer expires
+                    if ship.shield_timer <= 0.0 {
+                        ship.shield_hp = 0.0;
+                    }
+                }
                 enemy_spawn_timer -= dt;
                 if enemy_spawn_timer <= 0.0 {
                     enemy_ships.push(EnemyShip::new());
@@ -224,6 +237,16 @@ async fn main() {
                     ship.vel += ship_dir * thrust_force * dt;
                 }
 
+                explosions.retain_mut(|e| {
+                    e.timer += dt;
+                    if e.timer >= e.frame_time {
+                        e.timer = 0.0;
+                        e.frame += 1;
+                    }
+                    // Keep only frames less than the maximum
+                    e.frame < e.max_frames
+                });
+
                 ship.pos += ship.vel * dt;
                 wrap_around(&mut ship.pos);
 
@@ -233,12 +256,19 @@ async fn main() {
                     SHOOT_COOLDOWN
                 };
                 if is_key_down(KeyCode::Space) && ship.shoot_timer <= 0.0 {
+                    // Check if big bullet boost is active
+                    let (damage, radius) = if ship.big_bullet_timer > 0.0 {
+                        (BIG_BULLET_DAMAGE, BIG_BULLET_RADIUS)
+                    } else {
+                        (PLAYER_BULLET_DAMAGE, PLAYER_BULLET_RADIUS)
+                    };
                     bullets.push(Bullet {
                         pos: ship.pos,
                         vel: ship_dir * BULLET_SPEED + ship.vel,
                         life_time: BULLET_LIFETIME,
                         style: BulletStyle::Player,
-                        damage: PLAYER_BULLET_DAMAGE,
+                        damage,
+                        radius,
                     });
                     ship.shoot_timer = current_cooldown;
                 }
@@ -260,6 +290,7 @@ async fn main() {
                             life_time: 4.0,
                             style: BulletStyle::Enemy,
                             damage: ENEMY_BULLET_DAMAGE,
+                            radius: 9.0, // Enemy bullet radius
                         });
                         e.shoot_timer = 2.0;
                     }
@@ -316,9 +347,18 @@ async fn main() {
                                 ship.heal(hp as f32);
                                 // Health packs don't count as resources
                             }
-                            LootType::WeaponBoost => {
+                            LootType::RapidFireBoost => {
                                 ship.rapid_fire_timer = 10.0;
-                                // Weapon boosts don't count as resources
+                                // Rapid fire boosts don't count as resources
+                            }
+                            LootType::BigBulletBoost => {
+                                ship.big_bullet_timer = 15.0;
+                                // Big bullet boosts don't count as resources
+                            }
+                            LootType::Shield(hp) => {
+                                // Activate shield with HP capacity and 30 second duration
+                                ship.activate_shield(hp as f32, 30.0);
+                                // Shields don't count as resources
                             }
                         }
                         items_to_remove.push(i);
@@ -350,7 +390,7 @@ async fn main() {
 
                     let mut hit = false;
                     for i in (0..asteroids.len()).rev() {
-                        if (b.pos - asteroids[i].pos).length() < asteroids[i].radius {
+                        if (b.pos - asteroids[i].pos).length() < asteroids[i].radius + b.radius {
                             score += 100;
                             let is_rare = asteroids[i].is_rare;
                             let asteroid_pos = asteroids[i].pos;
@@ -379,15 +419,23 @@ async fn main() {
                     }
 
                     // bullet hits an enemy
-                    enemy_ships.retain(|e| {
-                        if (b.pos - e.pos).length() < 30.0 {
-                            score += 500;
-                            if let Some(loot) = generate_loot(e.pos, LootSource::EnemySmall) {
-                                loot_items.push(loot);
-                            }
-                            mission_kills += 1;
+                    enemy_ships.retain_mut(|e| {
+                        if (b.pos - e.pos).length() < 30.0 + b.radius {
                             hit = true;
-                            false
+                            // Deal damage to enemy
+                            if e.take_damage(b.damage) {
+                                // Enemy destroyed
+                                let score_gain = (e.max_health as u32) * SCORE_PER_ENEMY_HP;
+                                score += score_gain;
+                                if let Some(loot) = generate_loot(e.pos, LootSource::EnemySmall) {
+                                    loot_items.push(loot);
+                                }
+                                mission_kills += 1;
+                                explosions.push(Explosion::new(e.pos, 0.4));
+                                false // Remove enemy
+                            } else {
+                                true // Enemy still alive
+                            }
                         } else {
                             true
                         }
@@ -398,7 +446,11 @@ async fn main() {
 
                 // enemy bullet hits the player
                 bullets.retain(|b| {
-                    if b.style == BulletStyle::Enemy && (b.pos - ship.pos).length() < 20.0 {
+                    if b.style == BulletStyle::Enemy
+                        && (b.pos - ship.pos).length() < 20.0 + b.radius
+                    {
+                        // Create explosion at impact point
+                        explosions.push(Explosion::new(ship.pos, 0.5));
                         if ship.take_damage(b.damage, score) {
                             state = GameState::GameOver(score);
                         }
@@ -413,7 +465,11 @@ async fn main() {
                         // Calculate damage based on asteroid size
                         // Bigger asteroids deal more damage
                         let asteroid_damage = (asteroids[i].radius / 10.0) * BASE_ASTEROID_DAMAGE;
+                        let asteroid_radius = asteroids[i].radius;
                         asteroids.remove(i);
+                        // Create explosion at impact point, scale based on asteroid size
+                        let explosion_scale = (asteroid_radius / 40.0).clamp(0.3, 0.8);
+                        explosions.push(Explosion::new(ship.pos, explosion_scale));
                         if ship.take_damage(asteroid_damage, score) {
                             state = GameState::GameOver(score);
                         }
@@ -434,11 +490,8 @@ async fn main() {
                     // Calculate rotation from velocity direction
                     let rotation = b.vel.y.atan2(b.vel.x) + std::f32::consts::FRAC_PI_2;
 
-                    // Determine bullet size based on style
-                    let size = match b.style {
-                        BulletStyle::Player => 12.0,
-                        BulletStyle::Enemy => 18.0,
-                    };
+                    // Use bullet radius for size (multiply by 2 for diameter)
+                    let size = b.radius * 2.0;
 
                     draw_texture_ex(
                         texture,
@@ -458,19 +511,28 @@ async fn main() {
                 for e in &enemy_ships {
                     draw_enemy(e, &resources);
                 }
+                for ex in &explosions {
+                    draw_explosion(ex, &resources);
+                }
 
-                draw_ship(&ship, &resources.ship_body, &resources.ship_flame);
-
-                draw_text(
-                    &format!(
-                        "SCORE: {score}  HP: {:.0}/{:.0}",
-                        ship.health, ship.max_health
-                    ),
-                    20.0,
-                    30.0,
-                    30.0,
-                    WHITE,
+                draw_ship(
+                    &ship,
+                    &resources.ship_body,
+                    &resources.ship_flame,
+                    Some(&resources.shield_active),
                 );
+
+                let mut status_text = format!(
+                    "SCORE: {score}  HP: {:.0}/{:.0}",
+                    ship.health, ship.max_health
+                );
+                if ship.has_shield() {
+                    status_text.push_str(&format!(
+                        "  SHIELD: {:.0}/{:.0}",
+                        ship.shield_hp, ship.shield_max_hp
+                    ));
+                }
+                draw_text(&status_text, 20.0, 30.0, 30.0, WHITE);
 
                 let status = format!(
                     "Kills: {}/{}  Rust: {}/{}  Gold: {}/{}",
@@ -536,5 +598,9 @@ fn create_ship() -> Ship {
         engine: Engine::basic(),
         scrap: 0,
         rare_metal: 0,
+        shield_hp: 0.0,
+        shield_max_hp: 0.0,
+        shield_timer: 0.0,
+        big_bullet_timer: 0.0,
     }
 }

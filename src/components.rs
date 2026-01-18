@@ -38,6 +38,7 @@ pub struct Bullet {
     pub life_time: f32,
     pub style: BulletStyle,
     pub damage: f32, // Damage dealt by this bullet
+    pub radius: f32, // Bullet radius (for collision and drawing)
 }
 
 pub struct Asteroid {
@@ -52,6 +53,8 @@ pub struct EnemyShip {
     pub vel: Vec2,
     pub shoot_timer: f32,
     pub rotation: f32,
+    pub health: f32,     // Current health points
+    pub max_health: f32, // Maximum health points
 }
 
 pub struct Ship {
@@ -66,6 +69,14 @@ pub struct Ship {
 
     pub scrap: u32,      // Ordinary money
     pub rare_metal: u32, // Premium money
+
+    // Shield state
+    pub shield_hp: f32,     // Current shield HP (0 if inactive)
+    pub shield_max_hp: f32, // Maximum shield HP capacity
+    pub shield_timer: f32,  // Time remaining for shield (0 if inactive)
+
+    // Weapon boost timers
+    pub big_bullet_timer: f32, // Time remaining for big bullet boost (0 if inactive)
 }
 
 pub struct Engine {
@@ -84,7 +95,9 @@ pub enum LootType {
 
     // Buffs (applied immediately)
     HealthPack(i32), // Health recovery
-    WeaponBoost,     // Temporary weapon upgrade
+    RapidFireBoost,  // Fast ammo boost (reduced cooldown)
+    BigBulletBoost,  // Bigger bullets with more damage
+    Shield(u32),     // Shield with HP capacity
 }
 
 // 2. The entity of the dropped item
@@ -140,19 +153,45 @@ impl EnemyShip {
         };
         let y = gen_range(50.0, screen_height() - 50.0);
         let speed_x = if side == 0 { 120.0 } else { -120.0 }; // Use constant or number
+        let max_health = 50.0;
         Self {
             pos: vec2(x, y),
             vel: vec2(speed_x, gen_range(-20.0, 20.0)),
             shoot_timer: 1.5,
             rotation: 0.0,
+            health: max_health,
+            max_health,
         }
+    }
+
+    // Returns true if the enemy is destroyed
+    pub fn take_damage(&mut self, damage: f32) -> bool {
+        self.health -= damage;
+        self.health <= 0.0
     }
 }
 
 impl Ship {
     // Returns true if the game is over
+    // Damage is first applied to shield if active, then to ship health
     pub fn take_damage(&mut self, damage: f32, score: u32) -> bool {
-        self.health -= damage;
+        // If shield is active, absorb damage with shield first
+        if self.shield_hp > 0.0 {
+            if self.shield_hp >= damage {
+                // Shield absorbs all damage
+                self.shield_hp -= damage;
+                return false; // Ship is safe
+            } else {
+                // Shield is depleted, remaining damage goes to ship
+                let remaining_damage = damage - self.shield_hp;
+                self.shield_hp = 0.0;
+                self.shield_timer = 0.0; // Shield deactivates when HP reaches 0
+                self.health -= remaining_damage;
+            }
+        } else {
+            // No shield, damage goes directly to ship
+            self.health -= damage;
+        }
 
         if self.health <= 0.0 {
             // Save score immediately using our system
@@ -166,6 +205,18 @@ impl Ship {
     // Restore health (used by health packs)
     pub fn heal(&mut self, amount: f32) {
         self.health = (self.health + amount).min(self.max_health);
+    }
+
+    // Activate shield with given HP capacity and duration
+    pub fn activate_shield(&mut self, hp: f32, duration: f32) {
+        self.shield_max_hp = hp;
+        self.shield_hp = hp;
+        self.shield_timer = duration;
+    }
+
+    // Check if shield is active
+    pub fn has_shield(&self) -> bool {
+        self.shield_hp > 0.0 && self.shield_timer > 0.0
     }
 }
 
@@ -189,8 +240,30 @@ impl Engine {
     }
 }
 
+pub struct Explosion {
+    pub pos: Vec2,
+    pub timer: f32,        // Timer for frame change
+    pub frame: usize,      // Текущий кадр (0, 1, 2...)
+    pub max_frames: usize, // How many frames in the texture (e.g. 8)
+    pub frame_time: f32,   // Animation speed (e.g. 0.1 sec per frame)
+    pub scale: f32,        // Explosion size (for boss large, for enemy small)
+}
+
 impl SaveData {
     pub fn new() -> Self {
         Self { high_score: 0 }
+    }
+}
+
+impl Explosion {
+    pub fn new(pos: Vec2, scale: f32) -> Self {
+        Self {
+            pos,
+            timer: 0.0,
+            frame: 0,
+            max_frames: 8,    // Depends on sprite!
+            frame_time: 0.05, // Fast explosion
+            scale,
+        }
     }
 }

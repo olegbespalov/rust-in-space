@@ -1,12 +1,10 @@
 # Rust in Space
 
 <div align="center">
-  <img src="assets/logo.png" alt="Logo" width="200">
+  <img src="assets/logo.png" alt="Logo" width="400">
   
   ![CI](https://github.com/olegbespalov/rust-in-space/workflows/CI/badge.svg)
 </div>
-
-A mission-based space shooter game built with Rust and Macroquad. Complete missions, destroy enemies, collect resources, and progress through increasingly challenging levels!
 
 > *"You're a mercenary pilot, drifting through the outer rim of civilized space. Out here, the only law is what you can enforce with your ship's cannons. The corporations pay well for rust piles and rare metals mined from the asteroid fields, but they don't tell you about the enemy patrols or the void pirates that call these deep space sectors home.*
 > 
@@ -46,7 +44,7 @@ A mission-based space shooter game built with Rust and Macroquad. Complete missi
 1. Clone or download this repository
 2. Navigate to the project directory:
    ```bash
-   cd space_game
+   cd rust-in-space
    ```
 
 3. Run the game:
