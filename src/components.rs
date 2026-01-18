@@ -153,7 +153,7 @@ impl EnemyShip {
         };
         let y = gen_range(50.0, screen_height() - 50.0);
         let speed_x = if side == 0 { 120.0 } else { -120.0 }; // Use constant or number
-        let max_health = 50.0;
+        let max_health = 30.0;
         Self {
             pos: vec2(x, y),
             vel: vec2(speed_x, gen_range(-20.0, 20.0)),

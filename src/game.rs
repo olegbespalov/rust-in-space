@@ -10,9 +10,9 @@ pub const ACCELERATION: f32 = 150.0;
 pub const BULLET_SPEED: f32 = 400.0;
 pub const BULLET_LIFETIME: f32 = 2.0;
 pub const SHOOT_COOLDOWN: f32 = 0.3;
-pub const PLAYER_BULLET_DAMAGE: f32 = 10.0;
+pub const PLAYER_BULLET_DAMAGE: f32 = 15.0;
 pub const PLAYER_BULLET_RADIUS: f32 = 6.0;
-pub const BIG_BULLET_DAMAGE: f32 = 20.0;
+pub const BIG_BULLET_DAMAGE: f32 = 30.0;
 pub const BIG_BULLET_RADIUS: f32 = 12.0;
 pub const ENEMY_BULLET_DAMAGE: f32 = 15.0;
 pub const BASE_ASTEROID_DAMAGE: f32 = 5.0;
@@ -78,8 +78,14 @@ impl Game {
         self.mission_rare_metal_collected = 0;
         self.enemy_spawn_timer = self.current_mission.enemy_spawn_interval;
 
+        // Reset ship position and movement, restore health to full
         self.ship.pos = vec2(screen_width() / 2.0, screen_height() / 2.0);
         self.ship.vel = vec2(0.0, 0.0);
+        self.ship.rotation = 0.0;
+        self.ship.engine.current_thrust = 0.0;
+        // Restore health to 100%
+        self.ship.health = self.ship.max_health;
+        // Note: scrap, rare_metal, shield state, and boost timers are preserved between missions
     }
 
     pub fn next_mission(&mut self) {

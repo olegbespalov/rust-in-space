@@ -25,7 +25,7 @@
 - **Health Point System**: Start with 100 HP - bigger asteroids deal more damage!
 - **Shield System**: Collect shield items to activate temporary shields that absorb damage
 - **Variable Damage**: Damage scales with asteroid size and bullet type
-- **Enemy Health System**: Enemies have 50 HP and take multiple hits to destroy
+- **Enemy Health System**: Enemies have 30 HP and take multiple hits to destroy
 - **High Score System**: Your high score is automatically saved and persists between sessions
 
 ## Controls
@@ -96,7 +96,7 @@ The game features a mission-based progression system:
 
 ### Scoring
 - **Asteroids**: 100 points each
-- **Enemy Ships**: 500 points each (10 points per HP, enemies have 50 HP)
+- **Enemy Ships**: 300 points each (10 points per HP, enemies have 30 HP)
 
 ### Loot System
 
@@ -108,20 +108,19 @@ Loot items drop from destroyed asteroids and enemies:
 - **Nothing** (35% chance)
 
 **From Rare Asteroids** (10% chance to spawn, always drop loot):
-- **Gold (Rare Metal)** (40% chance): 2-5 pieces
-- **Rust Piles (Scrap)** (20% chance): 5-9 pieces
-- **Health Pack** (15% chance): Restores health points
-- **Rapid Fire Boost** (12% chance): Rapid fire for 10 seconds (3x faster shooting)
-- **Big Bullet Boost** (7% chance): Bigger, more powerful bullets for 15 seconds (20 damage vs 10)
-- **Shield** (6% chance): Activates shield with 50-150 HP that lasts 30 seconds
+- **Gold (Rare Metal)** (30% chance): 2-5 pieces
+- **Rust Piles (Scrap)** (15% chance): 5-9 pieces
+- **Health Pack** (25% chance): Restores 25 HP
+- **Rapid Fire Boost** (18% chance): Rapid fire for 10 seconds (3x faster shooting)
+- **Big Bullet Boost** (12% chance): Bigger, more powerful bullets for 15 seconds (30 damage vs 15)
 
 **From Enemy Ships:**
-- **Rust Piles (Scrap)** (45% chance): 5-9 pieces
-- **Health Pack** (15% chance): Restores health points
-- **Rapid Fire Boost** (12% chance): Rapid fire for 10 seconds (3x faster shooting)
-- **Big Bullet Boost** (10% chance): Bigger, more powerful bullets for 15 seconds (20 damage vs 10)
-- **Shield** (10% chance): Activates shield with 30-100 HP that lasts 30 seconds
-- **Nothing** (8% chance)
+- **Rust Piles (Scrap)** (30% chance): 5-9 pieces
+- **Health Pack** (25% chance): Restores 25 HP
+- **Rapid Fire Boost** (18% chance): Rapid fire for 10 seconds (3x faster shooting)
+- **Big Bullet Boost** (12% chance): Bigger, more powerful bullets for 15 seconds (30 damage vs 15)
+- **Shield** (8% chance): Activates shield with 30-100 HP that lasts 30 seconds
+- **Nothing** (7% chance)
 
 **Note**: Health packs, weapon boosts, and shields do NOT count toward resource collection objectives
 
@@ -149,15 +148,15 @@ Loot items drop from destroyed asteroids and enemies:
     - Medium fragments (radius 20): ~10 HP damage
     - Small fragments (radius 10): ~5 HP damage
   - **Enemy Bullets**: Deal 15 HP damage
-  - **Player Bullets**: Deal 10 HP damage to enemies (20 HP with big bullet boost)
-  - **Enemy Health**: Enemies have 50 HP and take multiple hits to destroy
+  - **Player Bullets**: Deal 15 HP damage to enemies (30 HP with big bullet boost)
+  - **Enemy Health**: Enemies have 30 HP and take multiple hits to destroy
 - Complete mission objectives to progress (kills, rust piles, and gold)
 - Destroy asteroids to break them into smaller pieces
 - Rare asteroids (10% spawn chance) have distinct appearance and always drop loot
 - Enemy ships spawn based on mission configuration and track your position
-- Enemies have 50 HP and shoot at you - destroy them to complete kill objectives
+- Enemies have 30 HP and shoot at you - destroy them to complete kill objectives
 - Collect rust piles and gold separately - missions require specific amounts of each
-- Health packs restore HP (capped at maximum)
+- Health packs restore 25 HP (capped at maximum of 100 HP)
 - **Rapid Fire Boost**: Reduces shooting cooldown by 3x for 10 seconds
 - **Big Bullet Boost**: Shoots larger, more powerful bullets (20 damage) for 15 seconds
 - **Shield**: Activates a temporary shield that absorbs damage before it reaches your health
