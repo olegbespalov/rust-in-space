@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Pre-commit hook that runs the same checks as CI
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check formatting
+echo "Checking code formatting..."
+cargo fmt -- --check || {
+    echo "❌ Code formatting check failed!"
+    echo "Run 'make fmt-fix' or 'cargo fmt' to fix formatting issues."
+    exit 1
+}
+
+# Run clippy
+echo "Running clippy..."
+cargo clippy -- -D warnings || {
+    echo "❌ Clippy check failed!"
+    exit 1
+}
+
+# Build
+echo "Building project..."
+cargo build --verbose || {
+    echo "❌ Build failed!"
+    exit 1
+}
+
+# Run tests
+echo "Running tests..."
+cargo test --verbose || {
+    echo "❌ Tests failed!"
+    exit 1
+}
+
+echo "✅ All pre-commit checks passed!"
+exit 0
+

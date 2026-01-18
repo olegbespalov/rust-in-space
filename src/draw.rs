@@ -1,5 +1,5 @@
-use macroquad::prelude::*;
 use crate::components::{EnemyShip, Ship};
+use macroquad::prelude::*;
 
 pub fn draw_text_centered(text: &str, y_offset: f32, size: u16, color: Color) {
     let dims = measure_text(text, None, size, 1.0);

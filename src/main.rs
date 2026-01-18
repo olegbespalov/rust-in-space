@@ -226,7 +226,7 @@ async fn main() {
                 for e in &enemy_ships {
                     draw_enemy(e, &enemy_texture);
                 }
-    
+
                 draw_ship(&ship, &ship_texture);
 
                 draw_text(

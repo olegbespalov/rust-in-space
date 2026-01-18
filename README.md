@@ -36,13 +36,33 @@ A classic space shooter game built with Rust and Macroquad. Navigate through spa
 
 3. Run the game:
    ```bash
-   cargo run --release
+   make run
    ```
 
-   Or for development (debug mode):
+   Or for release mode (optimized):
    ```bash
-   cargo run
+   make run-release
    ```
+
+### Development Commands
+
+This project includes a Makefile with useful commands:
+
+- `make help` - Show all available commands
+- `make run` - Run the game in debug mode
+- `make run-release` - Run the game in release mode (optimized)
+- `make build` - Build the project (debug)
+- `make build-release` - Build the project (release)
+- `make test` - Run tests
+- `make fmt` - Check code formatting
+- `make fmt-fix` - Fix code formatting
+- `make clippy` - Run clippy linter
+- `make check` - Run all checks (fmt, clippy, build, test)
+- `make ci` - Run CI checks (same as CI pipeline)
+- `make clean` - Clean build artifacts
+- `make install-hooks` - Install pre-commit hook
+
+The pre-commit hook automatically runs the same checks as CI before each commit.
 
 ## Game Mechanics
 
