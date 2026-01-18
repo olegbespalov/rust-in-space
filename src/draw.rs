@@ -1,4 +1,4 @@
-use crate::components::{EnemyShip, Engine, Ship};
+use crate::components::{EnemyShip, Engine, LootItem, LootType, Ship};
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 
@@ -107,4 +107,29 @@ pub fn draw_enemy(enemy: &EnemyShip, texture: &Texture2D) {
             ..Default::default()
         },
     );
+}
+
+pub fn draw_loot(item: &LootItem) {
+    match item.item_type {
+        LootType::Scrap(_) => {
+            // Gray "pebble"
+            draw_poly(item.pos.x, item.pos.y, 6, item.radius, 0.0, GRAY);
+            draw_poly_lines(item.pos.x, item.pos.y, 6, item.radius, 0.0, 2.0, WHITE);
+        }
+        LootType::RareMetal(_) => {
+            // Golden diamond
+            draw_poly(item.pos.x, item.pos.y, 4, item.radius, 0.0, GOLD);
+            draw_poly_lines(item.pos.x, item.pos.y, 4, item.radius, 0.0, 2.0, YELLOW);
+        }
+        LootType::HealthPack(_) => {
+            // Green cross (or circle)
+            draw_circle(item.pos.x, item.pos.y, item.radius, GREEN);
+            draw_text("+", item.pos.x - 5.0, item.pos.y + 5.0, 20.0, WHITE);
+        }
+        LootType::WeaponBoost => {
+            // Purple energy
+            draw_circle(item.pos.x, item.pos.y, item.radius, PURPLE);
+            draw_circle_lines(item.pos.x, item.pos.y, item.radius, 2.0, VIOLET);
+        }
+    }
 }

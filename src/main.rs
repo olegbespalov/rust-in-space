@@ -3,7 +3,6 @@ mod draw;
 mod systems;
 
 use macroquad::prelude::*;
-use macroquad::rand::gen_range;
 
 // Re-exporting for convenience
 use components::*;
@@ -20,8 +19,8 @@ const SHOOT_COOLDOWN: f32 = 0.3;
 fn window_conf() -> Conf {
     Conf {
         window_title: "Rust in Space".to_owned(),
-        window_width: 1280,
-        window_height: 720,
+        window_width: 1280 * 2,
+        window_height: 720 * 2,
         high_dpi: true,
         ..Default::default()
     }
@@ -52,7 +51,7 @@ async fn main() {
     let mut asteroids: Vec<Asteroid> = Vec::new();
     let mut enemy_ships: Vec<EnemyShip> = Vec::new();
     let mut score: u32 = 0;
-    let mut powerups = Vec::new();
+    let mut loot_items: Vec<LootItem> = Vec::new();
 
     // universe state
     let mut current_level_idx: u32 = 1;
@@ -122,7 +121,7 @@ async fn main() {
                     bullets.clear();
                     enemy_bullets.clear();
                     asteroids = (0..5).map(|_| Asteroid::new_large()).collect();
-                    powerups.clear();
+                    loot_items.clear();
                     enemy_ships.clear();
                     score = 0;
                     current_level_idx = 1;
@@ -158,7 +157,7 @@ async fn main() {
                     bullets.clear();
                     enemy_bullets.clear();
                     enemy_ships.clear();
-                    powerups.clear();
+                    loot_items.clear();
 
                     // spawn asteroids according to the mission configuration
                     asteroids = (0..current_mission.asteroid_count)
@@ -254,22 +253,47 @@ async fn main() {
                 }
                 enemy_ships.retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
 
-                powerups.retain_mut(|p: &mut Powerup| {
-                    if (ship.pos - p.pos).length() < p.radius + 15.0 {
-                        match p.p_type {
-                            PowerupType::Health => {
-                                ship.lives += 1;
-                                mission_scrap_collected += 1;
+                // 2. UPDATE LOOT (Magnet and Collection)
+                loot_items.retain_mut(|item| {
+                    // Animation of slowing down the spread
+                    item.vel *= 0.95;
+                    item.pos += item.vel * dt;
+
+                    let dist_to_ship = (ship.pos - item.pos).length();
+
+                    // Magnet: if close, fly to the player
+                    if dist_to_ship < 150.0 {
+                        item.magnet_active = true;
+                    }
+
+                    if item.magnet_active {
+                        let dir = (ship.pos - item.pos).normalize();
+                        let magnet_speed = 300.0;
+                        item.pos += dir * magnet_speed * dt;
+                    }
+
+                    // Collection
+                    if dist_to_ship < (72.0 / 2.0 + item.radius) {
+                        match item.item_type {
+                            LootType::Scrap(amount) => {
+                                ship.scrap += amount;
+                                mission_scrap_collected += amount; // Для миссии
+                                                                   // play_sound_pickup();
                             }
-                            PowerupType::RapidFire => {
-                                ship.rapid_fire_timer = 6.0;
-                                mission_scrap_collected += 1;
+                            LootType::RareMetal(amount) => {
+                                ship.rare_metal += amount;
+                                // play_sound_rare();
+                            }
+                            LootType::HealthPack(hp) => {
+                                ship.lives += hp;
+                            }
+                            LootType::WeaponBoost => {
+                                ship.rapid_fire_timer = 10.0;
                             }
                         }
-                        false
-                    } else {
-                        true
+                        return false; // Remove from the world
                     }
+                    true // Leave in the world
                 });
 
                 // 4. Update Physics
@@ -295,18 +319,13 @@ async fn main() {
                     for i in (0..asteroids.len()).rev() {
                         if (b.pos - asteroids[i].pos).length() < asteroids[i].radius {
                             score += 100;
-                            let old = asteroids.remove(i);
-                            if gen_range(0, 10) == 0 {
-                                powerups.push(Powerup {
-                                    pos: old.pos,
-                                    p_type: if gen_range(0, 2) == 0 {
-                                        PowerupType::Health
-                                    } else {
-                                        PowerupType::RapidFire
-                                    },
-                                    radius: 12.0,
-                                });
+                            if let Some(loot) =
+                                generate_loot(asteroids[i].pos, LootSource::Asteroid)
+                            {
+                                loot_items.push(loot);
                             }
+                            let old = asteroids.remove(i);
+
                             if old.radius > 15.0 {
                                 new_asteroids.push(Asteroid::new_fragment(old.pos, old.radius));
                                 new_asteroids.push(Asteroid::new_fragment(old.pos, old.radius));
@@ -320,6 +339,9 @@ async fn main() {
                     enemy_ships.retain(|e| {
                         if (b.pos - e.pos).length() < 30.0 {
                             score += 500;
+                            if let Some(loot) = generate_loot(e.pos, LootSource::EnemySmall) {
+                                loot_items.push(loot);
+                            }
                             mission_kills += 1;
                             hit = true;
                             false
@@ -354,13 +376,8 @@ async fn main() {
                 }
 
                 // 6. Rendering
-                for p in &powerups {
-                    let color = if p.p_type == PowerupType::Health {
-                        GREEN
-                    } else {
-                        PURPLE
-                    };
-                    draw_circle_lines(p.pos.x, p.pos.y, p.radius, 2.0, color);
+                for item in &loot_items {
+                    draw_loot(item);
                 }
                 for b in &bullets {
                     draw_circle(b.pos.x, b.pos.y, 6.0, RED);
@@ -439,5 +456,7 @@ fn create_ship() -> Ship {
         shoot_timer: 0.0,
         rapid_fire_timer: 0.0,
         engine: Engine::basic(),
+        scrap: 0,
+        rare_metal: 0,
     }
 }

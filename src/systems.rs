@@ -1,7 +1,16 @@
 use crate::components::Mission;
 use crate::components::SaveData;
+use crate::components::{LootItem, LootType};
 use macroquad::prelude::*;
+use macroquad::rand::gen_range;
 use std::fs;
+
+// Where does the item drop from?
+pub enum LootSource {
+    Asteroid,
+    EnemySmall,
+    // EnemyBoss, // For future
+}
 
 pub fn wrap_around(pos: &mut Vec2) {
     if pos.x < -20.0 {
@@ -78,4 +87,52 @@ pub fn get_mission(level: u32) -> Mission {
             asteroid_count: 10 + level as usize,
         },
     }
+}
+
+pub fn generate_loot(pos: Vec2, source: LootSource) -> Option<LootItem> {
+    let roll = gen_range(0, 100);
+
+    let (item_type, radius) = match source {
+        LootSource::Asteroid => {
+            if roll < 40 {
+                (LootType::Scrap(gen_range(1, 4)), 10.0)
+            }
+            // 40% chance of scrap
+            else if roll < 45 {
+                (LootType::RareMetal(1), 12.0)
+            }
+            // 5% chance of rare metal
+            else {
+                return None;
+            } // 55% chance of nothing
+        }
+        LootSource::EnemySmall => {
+            if roll < 30 {
+                (LootType::Scrap(gen_range(5, 10)), 10.0)
+            }
+            // Fatter scrap
+            else if roll < 40 {
+                (LootType::HealthPack(1), 15.0)
+            }
+            // 10% health pack
+            else if roll < 45 {
+                (LootType::WeaponBoost, 15.0)
+            }
+            // 5% weapon boost
+            else {
+                return None;
+            }
+        } // LootSource::EnemyBoss => {
+          //     // Something always drops from the boss
+          //     (LootType::RareMetal(gen_range(10, 50)), 20.0)
+          // }
+    };
+
+    Some(LootItem {
+        pos,
+        vel: vec2(gen_range(-50.0, 50.0), gen_range(-50.0, 50.0)), // Fly apart on explosion
+        item_type,
+        radius,
+        magnet_active: false,
+    })
 }

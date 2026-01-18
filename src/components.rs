@@ -2,12 +2,6 @@ use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq)]
-pub enum PowerupType {
-    Health,
-    RapidFire,
-}
-
 #[derive(Clone)]
 pub struct Mission {
     pub level_id: u32,
@@ -42,12 +36,6 @@ pub struct EnemyBullet {
     pub life_time: f32,
 }
 
-pub struct Powerup {
-    pub pos: Vec2,
-    pub p_type: PowerupType,
-    pub radius: f32,
-}
-
 pub struct Asteroid {
     pub pos: Vec2,
     pub vel: Vec2,
@@ -70,6 +58,9 @@ pub struct Ship {
     pub shoot_timer: f32,
     pub rapid_fire_timer: f32,
     pub engine: Engine,
+
+    pub scrap: u32,      // Ordinary money
+    pub rare_metal: u32, // Premium money
 }
 
 pub struct Engine {
@@ -77,6 +68,32 @@ pub struct Engine {
     pub ramp_up: f32,        // Speed of thrust increase
     pub decay: f32,          // Speed of decay
     pub offset: f32,         // Offset of the nozzles relative to the center of the ship
+}
+
+// 1. Types of loot
+#[derive(Clone, PartialEq)]
+pub enum LootType {
+    // Currencies
+    Scrap(u32),     // Scrap (ordinary resource)
+    RareMetal(u32), // Rare metal/Gold (for big upgrades)
+
+    // Buffs (applied immediately)
+    HealthPack(i32), // Health recovery
+    WeaponBoost,     // Temporary weapon upgrade
+}
+
+// 2. The entity of the dropped item
+pub struct LootItem {
+    pub pos: Vec2,
+    pub vel: Vec2,
+    pub item_type: LootType,
+    pub radius: f32,
+    pub magnet_active: bool, // Is the magnet active?
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SaveData {
+    pub high_score: u32,
 }
 
 impl Asteroid {
@@ -157,11 +174,6 @@ impl Engine {
             self.current_thrust = (self.current_thrust - self.decay * dt).max(0.0);
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct SaveData {
-    pub high_score: u32,
 }
 
 impl SaveData {
