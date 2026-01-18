@@ -8,6 +8,7 @@ use std::fs;
 // Where does the item drop from?
 pub enum LootSource {
     Asteroid,
+    RareAsteroid,
     EnemySmall,
     // EnemyBoss, // For future
 }
@@ -106,6 +107,25 @@ pub fn generate_loot(pos: Vec2, source: LootSource) -> Option<LootItem> {
                 return None;
             } // 55% chance of nothing
         }
+        LootSource::RareAsteroid => {
+            // Rare asteroids always drop loot (100% chance)
+            if roll < 50 {
+                (LootType::RareMetal(gen_range(2, 5)), 12.0)
+            }
+            // 50% chance of rare metal
+            else if roll < 80 {
+                (LootType::Scrap(gen_range(5, 10)), 10.0)
+            }
+            // 30% chance of scrap
+            else if roll < 90 {
+                (LootType::HealthPack(1), 15.0)
+            }
+            // 10% chance of health pack
+            else {
+                (LootType::WeaponBoost, 15.0)
+            }
+            // 10% chance of weapon boost
+        }
         LootSource::EnemySmall => {
             if roll < 30 {
                 (LootType::Scrap(gen_range(5, 10)), 10.0)
@@ -128,11 +148,22 @@ pub fn generate_loot(pos: Vec2, source: LootSource) -> Option<LootItem> {
           // }
     };
 
+    // Random slow drift velocity (super slow, like floating in space)
+    let drift_speed = gen_range(5.0, 15.0);
+    let drift_angle = gen_range(0.0, std::f32::consts::PI * 2.0);
+    let drift_vel = vec2(drift_angle.cos(), drift_angle.sin()) * drift_speed;
+
+    // Random rotation speed (can be positive or negative for random direction)
+    let rotation_speed = gen_range(-1.5, 1.5);
+
     Some(LootItem {
         pos,
         vel: vec2(gen_range(-50.0, 50.0), gen_range(-50.0, 50.0)), // Fly apart on explosion
+        drift_vel,
         item_type,
         radius,
         magnet_active: false,
+        rotation: gen_range(0.0, std::f32::consts::PI * 2.0), // Random initial rotation
+        rotation_speed,
     })
 }

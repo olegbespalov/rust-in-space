@@ -1,4 +1,5 @@
-use crate::components::{EnemyShip, Engine, LootItem, LootType, Ship};
+use crate::components::{Asteroid, EnemyShip, Engine, LootItem, LootType, Ship};
+use crate::resources::Resources;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 
@@ -93,43 +94,60 @@ pub fn draw_engine(engine: &Engine, ship_pos: Vec2, ship_rotation_rad: f32, text
     );
 }
 
-pub fn draw_enemy(enemy: &EnemyShip, texture: &Texture2D) {
-    let sprite_size = vec2(60.0, 60.0);
-
+pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
+    let size = vec2(60.0, 60.0);
     draw_texture_ex(
-        texture,
-        enemy.pos.x - sprite_size.x / 2.0,
-        enemy.pos.y - sprite_size.y / 2.0,
+        &res.enemy_small, // TODO: different enemy textures
+        enemy.pos.x - size.x / 2.0,
+        enemy.pos.y - size.y / 2.0,
         WHITE,
         DrawTextureParams {
-            dest_size: Some(sprite_size),
+            dest_size: Some(size),
             rotation: enemy.rotation + std::f32::consts::FRAC_PI_2,
             ..Default::default()
         },
     );
 }
 
-pub fn draw_loot(item: &LootItem) {
-    match item.item_type {
-        LootType::Scrap(_) => {
-            // Gray "pebble"
-            draw_poly(item.pos.x, item.pos.y, 6, item.radius, 0.0, GRAY);
-            draw_poly_lines(item.pos.x, item.pos.y, 6, item.radius, 0.0, 2.0, WHITE);
-        }
-        LootType::RareMetal(_) => {
-            // Golden diamond
-            draw_poly(item.pos.x, item.pos.y, 4, item.radius, 0.0, GOLD);
-            draw_poly_lines(item.pos.x, item.pos.y, 4, item.radius, 0.0, 2.0, YELLOW);
-        }
-        LootType::HealthPack(_) => {
-            // Green cross (or circle)
-            draw_circle(item.pos.x, item.pos.y, item.radius, GREEN);
-            draw_text("+", item.pos.x - 5.0, item.pos.y + 5.0, 20.0, WHITE);
-        }
-        LootType::WeaponBoost => {
-            // Purple energy
-            draw_circle(item.pos.x, item.pos.y, item.radius, PURPLE);
-            draw_circle_lines(item.pos.x, item.pos.y, item.radius, 2.0, VIOLET);
-        }
-    }
+pub fn draw_loot(item: &LootItem, res: &Resources) {
+    let texture = match item.item_type {
+        LootType::Scrap(_) => &res.loot_scrap,
+        LootType::RareMetal(_) => &res.loot_rare,
+        LootType::HealthPack(_) => &res.loot_health,
+        LootType::WeaponBoost => &res.loot_weapon,
+    };
+
+    // Increase size by 1.5x for better visibility
+    let size = vec2(item.radius * 3.0, item.radius * 3.0);
+    draw_texture_ex(
+        texture,
+        item.pos.x - size.x / 2.0,
+        item.pos.y - size.y / 2.0,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(size),
+            rotation: item.rotation,
+            ..Default::default()
+        },
+    );
+}
+
+pub fn draw_asteroid(asteroid: &Asteroid, res: &Resources) {
+    let texture = if asteroid.is_rare {
+        &res.rare_asteroid
+    } else {
+        &res.asteroid
+    };
+
+    let size = vec2(asteroid.radius * 2.0, asteroid.radius * 2.0);
+    draw_texture_ex(
+        texture,
+        asteroid.pos.x - size.x / 2.0,
+        asteroid.pos.y - size.y / 2.0,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(size),
+            ..Default::default()
+        },
+    );
 }

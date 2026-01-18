@@ -1,5 +1,6 @@
 mod components;
 mod draw;
+mod resources;
 mod systems;
 
 use macroquad::prelude::*;
@@ -7,6 +8,7 @@ use macroquad::prelude::*;
 // Re-exporting for convenience
 use components::*;
 use draw::*;
+use resources::Resources;
 use systems::*;
 
 // --- Constants ---
@@ -33,21 +35,11 @@ async fn main() {
 
     let mut state = GameState::Menu;
 
-    let ship_body_tex = load_texture("assets/ship_body.png").await.unwrap();
-    let ship_flame_tex = load_texture("assets/ship_flame.png").await.unwrap();
-    ship_body_tex.set_filter(FilterMode::Nearest);
-    ship_flame_tex.set_filter(FilterMode::Nearest);
-
-    let logo_texture = load_texture("assets/logo.png").await.unwrap();
-    logo_texture.set_filter(FilterMode::Nearest);
-
-    let enemy_texture = load_texture("assets/enemy.png").await.unwrap();
-    let background_texture = load_texture("assets/space_bg.png").await.unwrap();
+    let resources = Resources::new().await;
 
     // Game entities
     let mut ship = create_ship();
     let mut bullets: Vec<Bullet> = Vec::new();
-    let mut enemy_bullets: Vec<EnemyBullet> = Vec::new();
     let mut asteroids: Vec<Asteroid> = Vec::new();
     let mut enemy_ships: Vec<EnemyShip> = Vec::new();
     let mut score: u32 = 0;
@@ -66,12 +58,12 @@ async fn main() {
     loop {
         clear_background(BLACK);
         // draw the background first!
-        draw_background(&background_texture);
+        draw_background(&resources.background);
 
         match state {
             GameState::Menu => {
                 // 1. background
-                draw_background(&background_texture);
+                draw_background(&resources.background);
 
                 // 2. logo animation
                 let time = get_time();
@@ -80,7 +72,7 @@ async fn main() {
                 let target_width = screen_width() * 0.5;
 
                 // calculate the aspect ratio, so the image doesn't get squashed
-                let aspect_ratio = logo_texture.height() / logo_texture.width();
+                let aspect_ratio = resources.logo.height() / resources.logo.width();
                 let target_height = target_width * aspect_ratio;
 
                 // apply the pulse to the already fitted sizes
@@ -93,7 +85,7 @@ async fn main() {
                 let logo_y = screen_height() / 2.0 - logo_h / 2.0 - 50.0;
 
                 draw_texture_ex(
-                    &logo_texture,
+                    &resources.logo,
                     logo_x,
                     logo_y,
                     WHITE,
@@ -119,7 +111,6 @@ async fn main() {
                 if is_key_pressed(KeyCode::Enter) {
                     // ... game initialization ...
                     bullets.clear();
-                    enemy_bullets.clear();
                     asteroids = (0..5).map(|_| Asteroid::new_large()).collect();
                     loot_items.clear();
                     enemy_ships.clear();
@@ -155,7 +146,6 @@ async fn main() {
                 if is_key_pressed(KeyCode::Space) {
                     // level initialization
                     bullets.clear();
-                    enemy_bullets.clear();
                     enemy_ships.clear();
                     loot_items.clear();
 
@@ -228,6 +218,7 @@ async fn main() {
                         pos: ship.pos,
                         vel: ship_dir * BULLET_SPEED + ship.vel,
                         life_time: BULLET_LIFETIME,
+                        style: BulletStyle::Player,
                     });
                     ship.shoot_timer = current_cooldown;
                 }
@@ -243,10 +234,11 @@ async fn main() {
                     if e.shoot_timer <= 0.0 {
                         let bullet_vel = vec2(e.rotation.cos(), e.rotation.sin()) * 250.0;
 
-                        enemy_bullets.push(EnemyBullet {
+                        bullets.push(Bullet {
                             pos: e.pos,
                             vel: bullet_vel,
                             life_time: 4.0,
+                            style: BulletStyle::Enemy,
                         });
                         e.shoot_timer = 2.0;
                     }
@@ -255,9 +247,22 @@ async fn main() {
 
                 // 2. UPDATE LOOT (Magnet and Collection)
                 loot_items.retain_mut(|item| {
-                    // Animation of slowing down the spread
+                    // Animation of slowing down the spread (initial explosion velocity)
                     item.vel *= 0.95;
                     item.pos += item.vel * dt;
+
+                    // Slow constant drift in space (super slow floating)
+                    item.pos += item.drift_vel * dt;
+                    wrap_around(&mut item.pos);
+
+                    // Rotate loot items in space with random speed and direction
+                    item.rotation += item.rotation_speed * dt;
+                    // Wrap rotation to keep it in 0-2π range
+                    if item.rotation > std::f32::consts::PI * 2.0 {
+                        item.rotation -= std::f32::consts::PI * 2.0;
+                    } else if item.rotation < 0.0 {
+                        item.rotation += std::f32::consts::PI * 2.0;
+                    }
 
                     let dist_to_ship = (ship.pos - item.pos).length();
 
@@ -302,11 +307,6 @@ async fn main() {
                     b.life_time -= dt;
                 });
                 bullets.retain(|b| b.life_time > 0.0);
-                enemy_bullets.iter_mut().for_each(|b| {
-                    b.pos += b.vel * dt;
-                    b.life_time -= dt;
-                });
-                enemy_bullets.retain(|b| b.life_time > 0.0);
                 for a in asteroids.iter_mut() {
                     a.pos += a.vel * dt;
                     wrap_around(&mut a.pos);
@@ -315,12 +315,27 @@ async fn main() {
                 // 5. Collision Logic (Condensed)
                 let mut new_asteroids = Vec::new();
                 bullets.retain(|b| {
+                    // Only player bullets can hit asteroids and enemies
+                    if b.style != BulletStyle::Player {
+                        return true;
+                    }
+
                     let mut hit = false;
                     for i in (0..asteroids.len()).rev() {
                         if (b.pos - asteroids[i].pos).length() < asteroids[i].radius {
                             score += 100;
-                            if let Some(loot) =
-                                generate_loot(asteroids[i].pos, LootSource::Asteroid)
+                            let is_rare = asteroids[i].is_rare;
+                            let asteroid_pos = asteroids[i].pos;
+
+                            // Rare asteroids always drop loot
+                            if is_rare {
+                                if let Some(loot) =
+                                    generate_loot(asteroid_pos, LootSource::RareAsteroid)
+                                {
+                                    loot_items.push(loot);
+                                }
+                            } else if let Some(loot) =
+                                generate_loot(asteroid_pos, LootSource::Asteroid)
                             {
                                 loot_items.push(loot);
                             }
@@ -354,8 +369,8 @@ async fn main() {
                 asteroids.extend(new_asteroids);
 
                 // enemy bullet hits the player
-                enemy_bullets.retain(|eb| {
-                    if (eb.pos - ship.pos).length() < 20.0 {
+                bullets.retain(|b| {
+                    if b.style == BulletStyle::Enemy && (b.pos - ship.pos).length() < 20.0 {
                         if ship.take_damage(score) {
                             state = GameState::GameOver(score);
                         }
@@ -377,22 +392,43 @@ async fn main() {
 
                 // 6. Rendering
                 for item in &loot_items {
-                    draw_loot(item);
+                    draw_loot(item, &resources);
                 }
                 for b in &bullets {
-                    draw_circle(b.pos.x, b.pos.y, 6.0, RED);
-                }
-                for b in &enemy_bullets {
-                    draw_circle(b.pos.x, b.pos.y, 9.0, YELLOW);
+                    let texture = match b.style {
+                        BulletStyle::Player => &resources.bullet,
+                        BulletStyle::Enemy => &resources.enemy_bullet,
+                    };
+
+                    // Calculate rotation from velocity direction
+                    let rotation = b.vel.y.atan2(b.vel.x) + std::f32::consts::FRAC_PI_2;
+
+                    // Determine bullet size based on style
+                    let size = match b.style {
+                        BulletStyle::Player => 12.0,
+                        BulletStyle::Enemy => 18.0,
+                    };
+
+                    draw_texture_ex(
+                        texture,
+                        b.pos.x - size / 2.0,
+                        b.pos.y - size / 2.0,
+                        WHITE,
+                        DrawTextureParams {
+                            dest_size: Some(vec2(size, size)),
+                            rotation,
+                            ..Default::default()
+                        },
+                    );
                 }
                 for a in &asteroids {
-                    draw_poly_lines(a.pos.x, a.pos.y, a.sides, a.radius, 0.0, 2.0, GRAY);
+                    draw_asteroid(a, &resources);
                 }
                 for e in &enemy_ships {
-                    draw_enemy(e, &enemy_texture);
+                    draw_enemy(e, &resources);
                 }
 
-                draw_ship(&ship, &ship_body_tex, &ship_flame_tex);
+                draw_ship(&ship, &resources.ship_body, &resources.ship_flame);
 
                 draw_text(
                     &format!("SCORE: {score}  LIVES: {}", ship.lives),

@@ -25,22 +25,24 @@ pub enum GameState {
     GameOver(u32),
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum BulletStyle {
+    Player,
+    Enemy,
+}
+
 pub struct Bullet {
     pub pos: Vec2,
     pub vel: Vec2,
     pub life_time: f32,
-}
-pub struct EnemyBullet {
-    pub pos: Vec2,
-    pub vel: Vec2,
-    pub life_time: f32,
+    pub style: BulletStyle,
 }
 
 pub struct Asteroid {
     pub pos: Vec2,
     pub vel: Vec2,
     pub radius: f32,
-    pub sides: u8,
+    pub is_rare: bool,
 }
 
 pub struct EnemyShip {
@@ -85,10 +87,13 @@ pub enum LootType {
 // 2. The entity of the dropped item
 pub struct LootItem {
     pub pos: Vec2,
-    pub vel: Vec2,
+    pub vel: Vec2,       // Initial explosion velocity (decays)
+    pub drift_vel: Vec2, // Slow constant drift in space
     pub item_type: LootType,
     pub radius: f32,
     pub magnet_active: bool, // Is the magnet active?
+    pub rotation: f32,       // Rotation angle in radians
+    pub rotation_speed: f32, // Rotation speed in radians per second (can be negative)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -98,6 +103,8 @@ pub struct SaveData {
 
 impl Asteroid {
     pub fn new_large() -> Self {
+        // 10% chance of being rare
+        let is_rare = gen_range(0, 100) < 10;
         Self {
             pos: vec2(
                 gen_range(0.0, screen_width()),
@@ -105,16 +112,17 @@ impl Asteroid {
             ),
             vel: vec2(gen_range(-80.0, 80.0), gen_range(-80.0, 80.0)),
             radius: 40.0,
-            sides: gen_range(8, 12),
+            is_rare,
         }
     }
 
     pub fn new_fragment(pos: Vec2, radius: f32) -> Self {
+        // Fragments are never rare
         Self {
             pos,
             vel: vec2(gen_range(-120.0, 120.0), gen_range(-120.0, 120.0)),
             radius: radius / 2.0,
-            sides: gen_range(5, 8),
+            is_rare: false,
         }
     }
 }
@@ -128,7 +136,7 @@ impl EnemyShip {
             screen_width() + 30.0
         };
         let y = gen_range(50.0, screen_height() - 50.0);
-        let speed_x = if side == 0 { 120.0 } else { -120.0 }; // Используй константу или число
+        let speed_x = if side == 0 { 120.0 } else { -120.0 }; // Use constant or number
         Self {
             pos: vec2(x, y),
             vel: vec2(speed_x, gen_range(-20.0, 20.0)),

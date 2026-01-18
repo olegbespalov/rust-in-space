@@ -1,0 +1,75 @@
+use macroquad::prelude::*;
+
+pub struct Resources {
+    pub logo: Texture2D,
+    pub background: Texture2D,
+
+    pub ship_body: Texture2D,
+    pub ship_flame: Texture2D,
+    pub enemy_small: Texture2D,
+    pub bullet: Texture2D,
+    pub enemy_bullet: Texture2D,
+    pub loot_scrap: Texture2D,
+    pub loot_rare: Texture2D,
+    pub loot_health: Texture2D,
+    pub loot_weapon: Texture2D,
+    pub asteroid: Texture2D,
+    pub rare_asteroid: Texture2D,
+}
+
+impl Resources {
+    // Async constructor that will load everything at once
+    pub async fn new() -> Self {
+        let logo = load_texture("assets/logo.png").await.unwrap();
+        logo.set_filter(FilterMode::Nearest);
+
+        let background = load_texture("assets/space_bg.png").await.unwrap();
+        background.set_filter(FilterMode::Nearest);
+
+        let bullet: Texture2D = load_texture("assets/bullet.png").await.unwrap();
+        bullet.set_filter(FilterMode::Nearest);
+
+        let enemy_bullet: Texture2D = load_texture("assets/enemy_bullet.png").await.unwrap();
+        enemy_bullet.set_filter(FilterMode::Nearest);
+
+        let ship_body = load_texture("assets/ship_body.png").await.unwrap();
+        ship_body.set_filter(FilterMode::Nearest);
+
+        let ship_flame = load_texture("assets/ship_flame.png").await.unwrap();
+        ship_flame.set_filter(FilterMode::Nearest);
+
+        let enemy_small = load_texture("assets/enemy.png").await.unwrap();
+        enemy_small.set_filter(FilterMode::Nearest);
+
+        let loot_scrap = load_texture("assets/loot/resources/rust_pile.png")
+            .await
+            .unwrap();
+        let loot_rare = load_texture("assets/loot/resources/gold.png")
+            .await
+            .unwrap();
+        let loot_health = load_texture("assets/loot/health.png").await.unwrap();
+        let loot_weapon = load_texture("assets/loot/energy.png").await.unwrap();
+
+        let asteroid = load_texture("assets/asteroid.png").await.unwrap();
+        asteroid.set_filter(FilterMode::Nearest);
+
+        let rare_asteroid = load_texture("assets/rare_asteroid.png").await.unwrap();
+        rare_asteroid.set_filter(FilterMode::Nearest);
+
+        Self {
+            logo,
+            background,
+            ship_body,
+            ship_flame,
+            enemy_small,
+            bullet,
+            enemy_bullet,
+            loot_scrap,
+            loot_rare,
+            loot_health,
+            loot_weapon,
+            asteroid,
+            rare_asteroid,
+        }
+    }
+}
