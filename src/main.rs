@@ -19,15 +19,33 @@ const SHOOT_COOLDOWN: f32 = 0.3;
 // const ENEMY_SPEED: f32 = 120.0;
 const ENEMY_SHOOT_INTERVAL: f32 = 1.5;
 
-#[macroquad::main("Rust in Space")]
+fn window_conf() -> Conf {
+    Conf {
+        window_title: "Rust in Space".to_owned(),
+        window_width: 1280,
+        window_height: 720,
+        high_dpi: true,
+        ..Default::default()
+    }
+}
+
+#[macroquad::main(window_conf)]
 async fn main() {
     #[allow(unused_assignments)]
     let mut high_score = 0;
 
     let mut state = GameState::Menu;
 
-    let ship_texture = load_texture("assets/ship_v1.png").await.unwrap();
-    let enemy_texture = load_texture("assets/enemy_1.png").await.unwrap();
+    let ship_body_tex = load_texture("assets/ship_body.png").await.unwrap();
+    let ship_flame_tex = load_texture("assets/ship_flame.png").await.unwrap();
+    ship_body_tex.set_filter(FilterMode::Nearest);
+    ship_flame_tex.set_filter(FilterMode::Nearest);
+
+    let logo_texture = load_texture("assets/logo.png").await.unwrap();
+    logo_texture.set_filter(FilterMode::Nearest);
+
+    let enemy_texture = load_texture("assets/enemy.png").await.unwrap();
+    let background_texture = load_texture("assets/space_bg.png").await.unwrap();
 
     // Game entities
     let mut ship = create_ship();
@@ -41,13 +59,60 @@ async fn main() {
 
     loop {
         clear_background(BLACK);
+        // draw the background first!
+        draw_background(&background_texture);
         let dt = get_frame_time();
 
         match state {
             GameState::Menu => {
-                draw_text_centered("RUST IN SPACE", -40.0, 60, WHITE);
-                draw_text_centered("Press [ENTER] to Start", 20.0, 30, YELLOW);
+                // 1. Фон
+                draw_background(&background_texture);
+
+                // 2. Анимация логотипа
+                let time = get_time();
+                let pulse = 1.0 + (time * 2.0).sin() as f32 * 0.05;
+
+                let target_width = screen_width() * 0.5;
+
+                // calculate the aspect ratio, so the image doesn't get squashed
+                let aspect_ratio = logo_texture.height() / logo_texture.width();
+                let target_height = target_width * aspect_ratio;
+
+                // apply the pulse to the already fitted sizes
+                let logo_w = target_width * pulse;
+                let logo_h = target_height * pulse;
+                // ---------------------------
+
+                let logo_x = screen_width() / 2.0 - logo_w / 2.0;
+                // move the logo up a bit above the center, so the text can fit below
+                let logo_y = screen_height() / 2.0 - logo_h / 2.0 - 50.0;
+
+                draw_texture_ex(
+                    &logo_texture,
+                    logo_x,
+                    logo_y,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(vec2(logo_w, logo_h)),
+                        ..Default::default()
+                    },
+                );
+
+                // 3. Text
+                if (time * 3.0).sin() > 0.0 {
+                    // move the text down a bit below the logo
+                    draw_text_centered("Press [ENTER] to Start", logo_h / 2.0 + 20.0, 30, WHITE);
+                }
+
+                draw_text_centered(
+                    "ARROWS to move | SPACE to shoot",
+                    logo_h / 2.0 + 60.0,
+                    20,
+                    GRAY,
+                );
+
                 if is_key_pressed(KeyCode::Enter) {
+                    // ... инициализация игры ...
                     ship = create_ship();
                     bullets.clear();
                     enemy_bullets.clear();
@@ -76,12 +141,18 @@ async fn main() {
                 if is_key_down(KeyCode::Right) {
                     ship.rotation += ROTATION_SPEED * dt;
                 }
+
                 let rotation_rad = ship.rotation.to_radians();
                 let ship_dir = vec2(rotation_rad.cos(), rotation_rad.sin());
 
-                if is_key_down(KeyCode::Up) {
-                    ship.vel += ship_dir * ACCELERATION * dt;
+                let is_gas_pedal_down = is_key_down(KeyCode::Up);
+                ship.engine.update(dt, is_gas_pedal_down);
+                if ship.engine.current_thrust > 0.0 {
+                    // thrust force depends on the current engine rotation
+                    let thrust_force = ship.engine.current_thrust * ACCELERATION;
+                    ship.vel += ship_dir * thrust_force * dt;
                 }
+
                 ship.pos += ship.vel * dt;
                 wrap_around(&mut ship.pos);
 
@@ -170,8 +241,10 @@ async fn main() {
                             break;
                         }
                     }
+
+                    // bullet hits an enemy
                     enemy_ships.retain(|e| {
-                        if (b.pos - e.pos).length() < 25.0 {
+                        if (b.pos - e.pos).length() < 30.0 {
                             score += 500;
                             hit = true;
                             false
@@ -183,9 +256,9 @@ async fn main() {
                 });
                 asteroids.extend(new_asteroids);
 
-                // Check Ship damage
+                // enemy bullet hits the player
                 enemy_bullets.retain(|eb| {
-                    if (eb.pos - ship.pos).length() < 15.0 {
+                    if (eb.pos - ship.pos).length() < 20.0 {
                         if ship.take_damage(score) {
                             state = GameState::GameOver(score);
                         }
@@ -215,10 +288,10 @@ async fn main() {
                     draw_circle_lines(p.pos.x, p.pos.y, p.radius, 2.0, color);
                 }
                 for b in &bullets {
-                    draw_circle(b.pos.x, b.pos.y, 2.0, RED);
+                    draw_circle(b.pos.x, b.pos.y, 6.0, RED);
                 }
                 for b in &enemy_bullets {
-                    draw_circle(b.pos.x, b.pos.y, 3.0, YELLOW);
+                    draw_circle(b.pos.x, b.pos.y, 9.0, YELLOW);
                 }
                 for a in &asteroids {
                     draw_poly_lines(a.pos.x, a.pos.y, a.sides, a.radius, 0.0, 2.0, GRAY);
@@ -227,7 +300,7 @@ async fn main() {
                     draw_enemy(e, &enemy_texture);
                 }
 
-                draw_ship(&ship, &ship_texture);
+                draw_ship(&ship, &ship_body_tex, &ship_flame_tex);
 
                 draw_text(
                     &format!("SCORE: {score}  LIVES: {}", ship.lives),
@@ -258,8 +331,9 @@ fn create_ship() -> Ship {
         pos: vec2(screen_width() / 2.0, screen_height() / 2.0),
         vel: vec2(0.0, 0.0),
         rotation: 0.0,
-        lives: 3,
+        lives: 10,
         shoot_timer: 0.0,
         rapid_fire_timer: 0.0,
+        engine: Engine::basic(),
     }
 }

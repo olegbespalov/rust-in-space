@@ -1,5 +1,11 @@
 # Rust in Space
 
+<div align="center">
+  <img src="assets/logo.png" alt="Logo" width="200">
+  
+  ![CI](https://github.com/olegbespalov/rust-in-space/workflows/CI/badge.svg)
+</div>
+
 A classic space shooter game built with Rust and Macroquad. Navigate through space, destroy asteroids and enemy ships, collect powerups, and try to achieve the highest score!
 
 ## Features

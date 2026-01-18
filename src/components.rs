@@ -51,6 +51,14 @@ pub struct Ship {
     pub lives: i32,
     pub shoot_timer: f32,
     pub rapid_fire_timer: f32,
+    pub engine: Engine,
+}
+
+pub struct Engine {
+    pub current_thrust: f32, // Current thrust (0.0 - 1.0)
+    pub ramp_up: f32,        // Speed of thrust increase
+    pub decay: f32,          // Speed of decay
+    pub offset: f32,         // Offset of the nozzles relative to the center of the ship
 }
 
 impl Asteroid {
@@ -108,6 +116,26 @@ impl Ship {
             self.pos = vec2(screen_width() / 2.0, screen_height() / 2.0);
             self.vel = vec2(0.0, 0.0);
             false // Still alive
+        }
+    }
+}
+
+impl Engine {
+    pub fn basic() -> Self {
+        Self {
+            current_thrust: 0.0,
+            ramp_up: 5.0,
+            decay: 3.0,
+            offset: 42.0,
+        }
+    }
+
+    // All the logic of changing the thrust is now encapsulated here
+    pub fn update(&mut self, dt: f32, is_active: bool) {
+        if is_active {
+            self.current_thrust = (self.current_thrust + self.ramp_up * dt).min(1.0);
+        } else {
+            self.current_thrust = (self.current_thrust - self.decay * dt).max(0.0);
         }
     }
 }
