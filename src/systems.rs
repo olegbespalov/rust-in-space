@@ -1,3 +1,4 @@
+use crate::components::Mission;
 use crate::components::SaveData;
 use macroquad::prelude::*;
 use std::fs;
@@ -35,4 +36,46 @@ pub fn load_score() -> SaveData {
         }
     }
     SaveData::new()
+}
+
+pub fn get_mission(level: u32) -> Mission {
+    match level {
+        1 => Mission {
+            level_id: 1,
+            title: "Operation: Dust".to_string(),
+            description: "Destroy 3 scouts and collect 1 scrap.".to_string(),
+            target_kills: 3,
+            target_scrap: 1,
+            enemy_spawn_interval: 10.0, // enemies spawn rarely
+            asteroid_count: 5,
+        },
+        2 => Mission {
+            level_id: 2,
+            title: "Into the Void".to_string(),
+            description: "Enemy activity rising. Kill 10 enemies.".to_string(),
+            target_kills: 10,
+            target_scrap: 0, // scrap is not important
+            enemy_spawn_interval: 2.0,
+            asteroid_count: 8,
+        },
+        3 => Mission {
+            level_id: 3,
+            title: "Scrap Yard".to_string(),
+            description: "Collect 20 scrap for upgrades.".to_string(),
+            target_kills: 5,
+            target_scrap: 20,
+            enemy_spawn_interval: 2.5,
+            asteroid_count: 12,
+        },
+        _ => Mission {
+            // generate infinite levels after the 3rd one
+            level_id: level,
+            title: format!("Deep Space sector {level}"),
+            description: "Survive.".to_string(),
+            target_kills: 10 + level,
+            target_scrap: 10,
+            enemy_spawn_interval: (1.5 - (level as f32 * 0.1)).max(0.5),
+            asteroid_count: 10 + level as usize,
+        },
+    }
 }

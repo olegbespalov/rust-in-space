@@ -8,9 +8,26 @@ pub enum PowerupType {
     RapidFire,
 }
 
+#[derive(Clone)]
+pub struct Mission {
+    pub level_id: u32,
+    pub title: String,
+    pub description: String,
+
+    // mission objectives
+    pub target_kills: u32, // how many enemies to destroy
+    pub target_scrap: u32, // how many scrap to collect
+
+    // level difficulty settings
+    pub enemy_spawn_interval: f32,
+    pub asteroid_count: usize,
+}
+
 pub enum GameState {
     Menu,
+    Briefing, // briefing screen before the mission
     Playing,
+    MissionSuccess, // level completed
     GameOver(u32),
 }
 
