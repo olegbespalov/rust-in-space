@@ -88,7 +88,7 @@ impl Game {
         self.ship.vel = vec2(0.0, 0.0);
         self.ship.rotation = 0.0;
         self.ship.engine.current_thrust = 0.0;
-        // Restore health to 100%
+        // Restore health to 100% (150 HP)
         self.ship.health = self.ship.max_health;
         // Note: scrap, rare_metal, shield state, and boost timers are preserved between missions
     }
@@ -118,8 +118,8 @@ pub fn create_ship() -> Ship {
         pos: vec2(screen_width() / 2.0, screen_height() / 2.0),
         vel: vec2(0.0, 0.0),
         rotation: 0.0,
-        health: 100.0,
-        max_health: 100.0,
+        health: 150.0,
+        max_health: 150.0,
         shoot_timer: 0.0,
         rapid_fire_timer: 0.0,
         engine: Engine::basic(),

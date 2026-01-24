@@ -13,28 +13,33 @@
 ## Features
 
 - **Mission-Based Gameplay**: Complete objectives across multiple levels with increasing difficulty
+- **Difficulty System**: Choose from three difficulty levels (Nebula/Easy, Supernova/Normal, BlackHole/Hard)
+  - Difficulty affects enemy spawn rates, damage taken, and loot drop chances
 - **Classic Space Shooter Controls**: Rotate and thrust your ship with smooth engine mechanics
 - **Asteroid Destruction**: Break large asteroids into smaller fragments, with rare asteroids dropping valuable loot
 - **Enemy Ships**: Battle enemy ships that track and shoot at you
+- **Bullet-to-Bullet Collisions**: Your bullets can intercept and destroy enemy bullets, creating defensive gameplay
+- **Pause System**: Pause the game at any time with ESC key
 - **Loot System**: Collect scrap, rare metals, health packs, weapon boosts, and shields
   - **Magnet Effect**: Loot items are automatically attracted to your ship when nearby
   - **Animated Loot**: Items rotate and drift realistically in space
 - **Shield System**: Activate shields that absorb damage before it reaches your health
 - **Weapon Boosts**: Rapid fire mode and big bullet mode for enhanced firepower
 - **Resource Management**: Track rust piles (scrap) and gold (rare metals) separately
-- **Health Point System**: Start with 100 HP - bigger asteroids deal more damage!
-- **Shield System**: Collect shield items to activate temporary shields that absorb damage
+- **Health Point System**: Start with 150 HP - bigger asteroids deal more damage!
+- **Health Restoration**: Health is fully restored to 150 HP at the start of each mission
 - **Variable Damage**: Damage scales with asteroid size and bullet type
-- **Enemy Health System**: Enemies have 30 HP and take multiple hits to destroy
+- **Enemy Health System**: Enemies have 24 HP and take multiple hits to destroy
 - **High Score System**: Your high score is automatically saved and persists between sessions
 
 ## Controls
 
-- **Left Arrow**: Rotate ship counter-clockwise
-- **Right Arrow**: Rotate ship clockwise
+- **Left Arrow**: Rotate ship counter-clockwise / Select difficulty (in menu)
+- **Right Arrow**: Rotate ship clockwise / Select difficulty (in menu)
 - **Up Arrow**: Thrust forward (with smooth engine ramp-up)
 - **Space**: Shoot bullets / Launch mission (from briefing screen)
 - **Enter**: Start game (from menu) / Next mission (from success screen) / Return to menu (from game over screen)
+- **ESC**: Pause/Resume game (during gameplay)
 
 ## Installation
 
@@ -86,6 +91,10 @@ The pre-commit hook automatically runs the same checks as CI before each commit.
 ### Mission System
 
 The game features a mission-based progression system:
+- **Difficulty Selection**: Choose your difficulty level before starting (Nebula/Easy, Supernova/Normal, BlackHole/Hard)
+  - **Nebula (Easy)**: 0.8x damage taken, slower enemy spawns, +10% loot luck
+  - **Supernova (Normal)**: 1.0x damage taken, normal spawns, standard loot
+  - **BlackHole (Hard)**: 1.5x damage taken, faster enemy spawns, -15% loot luck
 - **Briefing Screen**: View mission objectives before launching
 - **Mission Objectives**: Each mission requires completing specific goals:
   - Destroy a certain number of enemies
@@ -93,10 +102,12 @@ The game features a mission-based progression system:
   - Collect a certain amount of gold (rare metals)
 - **Mission Success**: Complete all objectives to progress to the next level
 - **Progressive Difficulty**: Missions become increasingly challenging with more enemies and asteroids
+- **Health Restoration**: Your health is fully restored to 150 HP at the start of each new mission
+- **State Persistence**: Resources (scrap, gold), active shields, and weapon boosts persist between missions
 
 ### Scoring
 - **Asteroids**: 100 points each
-- **Enemy Ships**: 300 points each (10 points per HP, enemies have 30 HP)
+- **Enemy Ships**: 240 points each (10 points per HP, enemies have 24 HP)
 
 ### Loot System
 
@@ -135,31 +146,42 @@ Loot items drop from destroyed asteroids and enemies:
 
 ### Gameplay
 
-- **Health System**: Start with 100 HP (displayed as HP: current/max)
+- **Health System**: Start with 150 HP (displayed as HP: current/max)
+- **Health Restoration**: Health is fully restored to 150 HP at the start of each new mission
 - **Shield System**: 
   - Shields absorb damage before it reaches your health
   - Shield HP is displayed when active: "SHIELD: current/max"
   - Shields have a duration (30 seconds) and deactivate when HP reaches 0 or timer expires
   - Damage is first applied to shield, then to health if shield is depleted
+  - Active shields persist between missions
 - **Damage System**:
   - **Asteroid Collisions**: Damage scales with asteroid size (bigger asteroids = more damage)
     - Base damage: 5 HP per 10 units of radius
     - Large asteroids (radius 40): ~20 HP damage
     - Medium fragments (radius 20): ~10 HP damage
     - Small fragments (radius 10): ~5 HP damage
-  - **Enemy Bullets**: Deal 15 HP damage
+    - Damage is multiplied by difficulty level (Easy: 0.8x, Normal: 1.0x, Hard: 1.5x)
+  - **Enemy Bullets**: Deal 15 HP damage (multiplied by difficulty)
   - **Player Bullets**: Deal 15 HP damage to enemies (30 HP with big bullet boost)
-  - **Enemy Health**: Enemies have 30 HP and take multiple hits to destroy
+  - **Enemy Health**: Enemies have 24 HP and take multiple hits to destroy
+- **Bullet-to-Bullet Collisions**: Your bullets can intercept and destroy enemy bullets
+  - When player and enemy bullets collide, both are destroyed
+  - Creates an explosion effect at the collision point
+  - Provides defensive gameplay - shoot enemy bullets to protect yourself
+- **Pause System**: Press ESC to pause the game at any time
+  - Game state is frozen while paused
+  - Press ESC again to resume
 - Complete mission objectives to progress (kills, rust piles, and gold)
 - Destroy asteroids to break them into smaller pieces
 - Rare asteroids (10% spawn chance) have distinct appearance and always drop loot
-- Enemy ships spawn based on mission configuration and track your position
-- Enemies have 30 HP and shoot at you - destroy them to complete kill objectives
+- Enemy ships spawn based on mission configuration and difficulty level
+- Enemies track your position and shoot at you - destroy them to complete kill objectives
 - Collect rust piles and gold separately - missions require specific amounts of each
-- Health packs restore 25 HP (capped at maximum of 100 HP)
+- Health packs restore 25 HP (capped at maximum of 150 HP)
 - **Rapid Fire Boost**: Reduces shooting cooldown by 3x for 10 seconds
-- **Big Bullet Boost**: Shoots larger, more powerful bullets (20 damage) for 15 seconds
+- **Big Bullet Boost**: Shoots larger, more powerful bullets (30 damage vs 15) for 15 seconds
 - **Shield**: Activates a temporary shield that absorbs damage before it reaches your health
+- **State Persistence**: Resources (scrap, gold), active shields, and weapon boost timers persist between missions
 - When HP reaches 0, your score is saved if it's a new high score
 
 ## Project Structure
