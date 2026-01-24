@@ -1,6 +1,6 @@
 use crate::components::Mission;
 use crate::components::SaveData;
-use crate::components::{LootItem, LootType};
+use crate::components::{Difficulty, LootItem, LootType};
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use std::fs;
@@ -94,22 +94,23 @@ pub fn get_mission(level: u32) -> Mission {
     }
 }
 
-pub fn generate_loot(pos: Vec2, source: LootSource) -> Option<LootItem> {
-    let roll = gen_range(0, 100);
+pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> Option<LootItem> {
+    // Base roll (0-100) + Difficulty modifier
+    // On easy (Nebula) roll will be 10-110 (more chances on rare)
+    // On hard (Black Hole) roll will be -15-85 (less chances)
+    let roll = gen_range(0, 100) + difficulty.loot_luck_modifier();
 
     let (item_type, radius) = match source {
         LootSource::Asteroid => {
-            if roll < 55 {
+            if roll < 40 {
                 (LootType::Scrap(gen_range(1, 4)), 10.0)
             }
-            // 55% chance of scrap (increased from 40%)
-            else if roll < 65 {
+            // If roll became less due to difficulty, RareMetal will drop less
+            else if roll < 45 {
                 (LootType::RareMetal(1), 12.0)
-            }
-            // 10% chance of rare metal (increased from 5%)
-            else {
+            } else {
                 return None;
-            } // 35% chance of nothing (decreased from 55%)
+            }
         }
         LootSource::RareAsteroid => {
             // Rare asteroids always drop loot (100% chance)

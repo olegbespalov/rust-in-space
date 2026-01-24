@@ -33,7 +33,12 @@ async fn main() {
 
         match state {
             GameState::Menu => {
-                render_menu(&resources);
+                render_menu(&game, &resources);
+
+                // LOGIC OF DIFFICULTY SELECTION
+                if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::Right) {
+                    game.cycle_difficulty();
+                }
 
                 if is_key_pressed(KeyCode::Enter) {
                     game.reset();

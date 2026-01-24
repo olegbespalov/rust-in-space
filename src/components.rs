@@ -117,6 +117,13 @@ pub struct SaveData {
     pub high_score: u32,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum Difficulty {
+    Nebula,    // Easy
+    Supernova, // Medium
+    BlackHole, // Hard
+}
+
 impl Asteroid {
     pub fn new_large() -> Self {
         // 10% chance of being rare
@@ -243,7 +250,7 @@ impl Engine {
 pub struct Explosion {
     pub pos: Vec2,
     pub timer: f32,        // Timer for frame change
-    pub frame: usize,      // Текущий кадр (0, 1, 2...)
+    pub frame: usize,      // Current frame (0, 1, 2...)
     pub max_frames: usize, // How many frames in the texture (e.g. 8)
     pub frame_time: f32,   // Animation speed (e.g. 0.1 sec per frame)
     pub scale: f32,        // Explosion size (for boss large, for enemy small)
@@ -264,6 +271,45 @@ impl Explosion {
             max_frames: 8,    // Depends on sprite!
             frame_time: 0.05, // Fast explosion
             scale,
+        }
+    }
+}
+
+impl Difficulty {
+    pub fn name(&self) -> &str {
+        match self {
+            Difficulty::Nebula => "NEBULA (Easy)",
+            Difficulty::Supernova => "SUPERNOVA (Normal)",
+            Difficulty::BlackHole => "BLACK HOLE (Hard)",
+        }
+    }
+
+    // Damage multiplier (Easy: x0.8, Normal: x1.0, Hard: x1.5)
+    pub fn damage_mult(&self) -> f32 {
+        match self {
+            Difficulty::Nebula => 0.8,
+            Difficulty::Supernova => 1.0,
+            Difficulty::BlackHole => 1.5,
+        }
+    }
+
+    // Spawn rate multiplier (Easy: less frequent, Hard: more frequent)
+    // We will divide the spawn interval by this number.
+    pub fn spawn_rate_mult(&self) -> f32 {
+        match self {
+            Difficulty::Nebula => 0.8,
+            Difficulty::Supernova => 1.0,
+            Difficulty::BlackHole => 1.3,
+        }
+    }
+
+    // Loot chance (Bonus to roll)
+    // Negative means less chances
+    pub fn loot_luck_modifier(&self) -> i32 {
+        match self {
+            Difficulty::Nebula => 10, // +10% к удаче
+            Difficulty::Supernova => 0,
+            Difficulty::BlackHole => -15, // -15% к удаче
         }
     }
 }

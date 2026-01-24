@@ -1,7 +1,7 @@
 use crate::components::*;
 use crate::draw::*;
 use crate::resources::Resources;
-use crate::systems::{generate_loot, get_mission, load_score, wrap_around, LootSource};
+use crate::systems::{generate_loot, get_mission, load_score, wrap_around};
 use macroquad::prelude::*;
 
 // Game constants
@@ -32,6 +32,7 @@ pub struct Game {
     pub mission_scrap_collected: u32,
     pub mission_rare_metal_collected: u32,
     pub enemy_spawn_timer: f32,
+    pub difficulty: Difficulty,
 }
 
 impl Game {
@@ -50,10 +51,12 @@ impl Game {
             mission_scrap_collected: 0,
             mission_rare_metal_collected: 0,
             enemy_spawn_timer: 0.0,
+            difficulty: Difficulty::Supernova,
         }
     }
 
     pub fn reset(&mut self) {
+        let saved_diff = self.difficulty;
         self.bullets.clear();
         self.asteroids = (0..5).map(|_| Asteroid::new_large()).collect();
         self.loot_items.clear();
@@ -62,6 +65,7 @@ impl Game {
         self.current_level_idx = 1;
         self.current_mission = get_mission(self.current_level_idx);
         self.ship = create_ship();
+        self.difficulty = saved_diff;
     }
 
     pub fn start_mission(&mut self) {
@@ -97,6 +101,14 @@ impl Game {
         self.mission_kills >= self.current_mission.target_kills
             && self.mission_scrap_collected >= self.current_mission.target_scrap
             && self.mission_rare_metal_collected >= self.current_mission.target_rare_metal
+    }
+
+    pub fn cycle_difficulty(&mut self) {
+        self.difficulty = match self.difficulty {
+            Difficulty::Nebula => Difficulty::Supernova,
+            Difficulty::Supernova => Difficulty::BlackHole,
+            Difficulty::BlackHole => Difficulty::Nebula,
+        };
     }
 }
 
@@ -199,6 +211,15 @@ pub fn update_ship_shooting(game: &mut Game) {
 }
 
 pub fn update_enemies(game: &mut Game, dt: f32) {
+    game.enemy_spawn_timer -= dt;
+    if game.enemy_spawn_timer <= 0.0 {
+        game.enemy_ships.push(EnemyShip::new());
+
+        // Apply difficulty multiplier to spawn rate
+        let base_interval = game.current_mission.enemy_spawn_interval;
+        game.enemy_spawn_timer = base_interval / game.difficulty.spawn_rate_mult();
+    }
+
     for e in game.enemy_ships.iter_mut() {
         e.pos += e.vel * dt;
         e.shoot_timer -= dt;
@@ -317,10 +338,18 @@ pub fn update_collisions(game: &mut Game) -> bool {
                 let asteroid_pos = game.asteroids[i].pos;
 
                 if is_rare {
-                    if let Some(loot) = generate_loot(asteroid_pos, LootSource::RareAsteroid) {
+                    if let Some(loot) = generate_loot(
+                        asteroid_pos,
+                        crate::systems::LootSource::RareAsteroid,
+                        game.difficulty,
+                    ) {
                         game.loot_items.push(loot);
                     }
-                } else if let Some(loot) = generate_loot(asteroid_pos, LootSource::Asteroid) {
+                } else if let Some(loot) = generate_loot(
+                    asteroid_pos,
+                    crate::systems::LootSource::Asteroid,
+                    game.difficulty,
+                ) {
                     game.loot_items.push(loot);
                 }
 
@@ -341,7 +370,11 @@ pub fn update_collisions(game: &mut Game) -> bool {
                 if e.take_damage(b.damage) {
                     let score_gain = (e.max_health as u32) * SCORE_PER_ENEMY_HP;
                     game.score += score_gain;
-                    if let Some(loot) = generate_loot(e.pos, LootSource::EnemySmall) {
+                    if let Some(loot) = generate_loot(
+                        e.pos,
+                        crate::systems::LootSource::EnemySmall,
+                        game.difficulty,
+                    ) {
                         game.loot_items.push(loot);
                     }
                     game.mission_kills += 1;
@@ -363,7 +396,8 @@ pub fn update_collisions(game: &mut Game) -> bool {
     game.bullets.retain(|b| {
         if b.style == BulletStyle::Enemy && (b.pos - game.ship.pos).length() < 20.0 + b.radius {
             game.explosions.push(Explosion::new(game.ship.pos, 0.5));
-            if game.ship.take_damage(b.damage, game.score) {
+            let damage = b.damage * game.difficulty.damage_mult();
+            if game.ship.take_damage(damage, game.score) {
                 game_over = true;
             }
             false
@@ -375,7 +409,8 @@ pub fn update_collisions(game: &mut Game) -> bool {
     // Ship vs asteroids
     for i in (0..game.asteroids.len()).rev() {
         if (game.ship.pos - game.asteroids[i].pos).length() < game.asteroids[i].radius + 10.0 {
-            let asteroid_damage = (game.asteroids[i].radius / 10.0) * BASE_ASTEROID_DAMAGE;
+            let base_asteroid_damage = (game.asteroids[i].radius / 10.0) * BASE_ASTEROID_DAMAGE;
+            let asteroid_damage = base_asteroid_damage * game.difficulty.damage_mult();
             let asteroid_radius = game.asteroids[i].radius;
             game.asteroids.remove(i);
             let explosion_scale = (asteroid_radius / 40.0).clamp(0.3, 0.8);
@@ -466,14 +501,15 @@ pub fn render_game(game: &Game, resources: &Resources) {
     draw_text(&inventory, 20.0, screen_height() - 60.0, 25.0, GRAY);
 }
 
-pub fn render_menu(resources: &Resources) {
-    draw_background(&resources.background);
+pub fn render_menu(game: &Game, res: &Resources) {
+    draw_background(&res.background);
 
+    // 1. logo rendering
     let time = get_time();
     let pulse = 1.0 + (time * 2.0).sin() as f32 * 0.05;
 
     let target_width = screen_width() * 0.5;
-    let aspect_ratio = resources.logo.height() / resources.logo.width();
+    let aspect_ratio = res.logo.height() / res.logo.width();
     let target_height = target_width * aspect_ratio;
 
     let logo_w = target_width * pulse;
@@ -483,7 +519,7 @@ pub fn render_menu(resources: &Resources) {
     let logo_y = screen_height() / 2.0 - logo_h / 2.0 - 50.0;
 
     draw_texture_ex(
-        &resources.logo,
+        &res.logo,
         logo_x,
         logo_y,
         WHITE,
@@ -493,13 +529,44 @@ pub fn render_menu(resources: &Resources) {
         },
     );
 
+    // 2. Difficulty Selector
+    // Calculate offset from center (logo is centered, so logo_y is relative to center)
+    let difficulty_label_offset = logo_h / 2.0 + 50.0;
+    let difficulty_value_offset = difficulty_label_offset + 35.0;
+
+    draw_text_centered(
+        "DIFFICULTY (Left/Right Arrows):",
+        difficulty_label_offset,
+        20,
+        GRAY,
+    );
+
+    let (diff_text, diff_color) = match game.difficulty {
+        Difficulty::Nebula => (game.difficulty.name(), GREEN),
+        Difficulty::Supernova => (game.difficulty.name(), YELLOW),
+        Difficulty::BlackHole => (game.difficulty.name(), RED),
+    };
+
+    draw_text_centered(
+        &format!("< {diff_text} >"),
+        difficulty_value_offset,
+        40,
+        diff_color,
+    );
+
+    // 3. Start Prompt
     if (time * 3.0).sin() > 0.0 {
-        draw_text_centered("Press [ENTER] to Start", logo_h / 2.0 + 20.0, 30, WHITE);
+        draw_text_centered(
+            "Press [ENTER] to Start",
+            difficulty_value_offset + 60.0,
+            30,
+            WHITE,
+        );
     }
 
     draw_text_centered(
         "ARROWS to move | SPACE to shoot",
-        logo_h / 2.0 + 60.0,
+        difficulty_value_offset + 100.0,
         20,
         GRAY,
     );
