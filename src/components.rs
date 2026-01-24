@@ -22,6 +22,7 @@ pub enum GameState {
     Menu,
     Briefing, // briefing screen before the mission
     Playing,
+    Paused,         // game is paused
     MissionSuccess, // level completed
     GameOver(u32),
 }

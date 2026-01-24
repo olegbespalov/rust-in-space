@@ -56,24 +56,40 @@ async fn main() {
             }
 
             GameState::Playing => {
-                let dt = get_frame_time();
+                // Check for pause
+                if is_key_pressed(KeyCode::Escape) {
+                    state = GameState::Paused;
+                } else {
+                    let dt = get_frame_time();
 
-                if game.is_mission_complete() {
-                    state = GameState::MissionSuccess;
+                    if game.is_mission_complete() {
+                        state = GameState::MissionSuccess;
+                    }
+
+                    update_timers(&mut game, dt);
+                    update_ship_movement(&mut game, dt);
+                    update_ship_shooting(&mut game);
+                    update_enemies(&mut game, dt);
+                    update_loot(&mut game, dt);
+                    update_physics(&mut game, dt);
+
+                    if update_collisions(&mut game) {
+                        state = GameState::GameOver(game.score);
+                    }
+
+                    render_game(&game, &resources);
                 }
+            }
 
-                update_timers(&mut game, dt);
-                update_ship_movement(&mut game, dt);
-                update_ship_shooting(&mut game);
-                update_enemies(&mut game, dt);
-                update_loot(&mut game, dt);
-                update_physics(&mut game, dt);
-
-                if update_collisions(&mut game) {
-                    state = GameState::GameOver(game.score);
-                }
-
+            GameState::Paused => {
+                // Render the game in paused state (frozen frame)
                 render_game(&game, &resources);
+                render_pause();
+
+                // Check for unpause
+                if is_key_pressed(KeyCode::Escape) {
+                    state = GameState::Playing;
+                }
             }
 
             GameState::MissionSuccess => {

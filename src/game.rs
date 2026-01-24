@@ -609,3 +609,18 @@ pub fn render_game_over(score: u32) {
     draw_text_centered(&format!("Final Score: {score}"), 10.0, 40, WHITE);
     draw_text_centered(&format!("HIGH SCORE: {high_score}"), 60.0, 30, YELLOW);
 }
+
+pub fn render_pause() {
+    // Draw semi-transparent overlay
+    draw_rectangle(
+        0.0,
+        0.0,
+        screen_width(),
+        screen_height(),
+        Color::new(0.0, 0.0, 0.0, 0.7),
+    );
+
+    // Draw pause text
+    draw_text_centered("PAUSED", -20.0, 60, YELLOW);
+    draw_text_centered("Press [ESC] to Resume", 30.0, 30, WHITE);
+}
