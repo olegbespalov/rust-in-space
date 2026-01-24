@@ -3,6 +3,7 @@ use crate::draw::*;
 use crate::resources::Resources;
 use crate::systems::{generate_loot, get_mission, load_score, wrap_around};
 use macroquad::prelude::*;
+use std::collections::HashSet;
 
 // Game constants
 pub const ROTATION_SPEED: f32 = 200.0;
@@ -321,6 +322,43 @@ pub fn update_physics(game: &mut Game, dt: f32) {
 pub fn update_collisions(game: &mut Game) -> bool {
     let mut new_asteroids = Vec::new();
     let mut game_over = false;
+
+    // Player bullets vs Enemy bullets (bullets explode each other)
+    // Check this FIRST before other collisions
+    let mut bullets_to_remove = HashSet::new();
+    for (i, player_bullet) in game.bullets.iter().enumerate() {
+        if player_bullet.style != BulletStyle::Player {
+            continue;
+        }
+        if bullets_to_remove.contains(&i) {
+            continue; // Already marked for removal
+        }
+        for (j, enemy_bullet) in game.bullets.iter().enumerate().skip(i + 1) {
+            if enemy_bullet.style != BulletStyle::Enemy {
+                continue;
+            }
+            if bullets_to_remove.contains(&j) {
+                continue; // Already marked for removal
+            }
+            let distance = (player_bullet.pos - enemy_bullet.pos).length();
+            if distance < player_bullet.radius + enemy_bullet.radius {
+                // Bullets collide - create explosion at midpoint
+                let collision_pos = (player_bullet.pos + enemy_bullet.pos) * 0.5;
+                game.explosions.push(Explosion::new(collision_pos, 0.5));
+                bullets_to_remove.insert(i);
+                bullets_to_remove.insert(j);
+                break; // This player bullet is destroyed, move to next
+            }
+        }
+    }
+    // Remove collided bullets (sort in reverse to maintain indices)
+    let mut sorted_indices: Vec<usize> = bullets_to_remove.into_iter().collect();
+    sorted_indices.sort_unstable_by(|a, b| b.cmp(a));
+    for &idx in &sorted_indices {
+        if idx < game.bullets.len() {
+            game.bullets.remove(idx);
+        }
+    }
 
     // Player bullets vs asteroids and enemies
     game.bullets.retain(|b| {
