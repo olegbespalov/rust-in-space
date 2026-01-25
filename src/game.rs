@@ -17,6 +17,7 @@ pub const BIG_BULLET_DAMAGE: f32 = 30.0;
 pub const BIG_BULLET_RADIUS: f32 = 12.0;
 pub const ENEMY_BULLET_DAMAGE: f32 = 15.0;
 pub const BASE_ASTEROID_DAMAGE: f32 = 5.0;
+pub const BASE_KAMIKAZE_DAMAGE: f32 = 30.0; // Base explosion damage for kamikaze
 pub const SCORE_PER_ENEMY_HP: u32 = 10;
 
 pub struct Game {
@@ -222,24 +223,36 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
     }
 
     for e in game.enemy_ships.iter_mut() {
-        e.pos += e.vel * dt;
-        e.shoot_timer -= dt;
-
         let diff = game.ship.pos - e.pos;
         e.rotation = diff.y.atan2(diff.x);
 
-        if e.shoot_timer <= 0.0 {
-            let bullet_vel = vec2(e.rotation.cos(), e.rotation.sin()) * 250.0;
+        match e.enemy_type {
+            EnemyType::Regular => {
+                // Regular enemy: move horizontally and shoot
+                e.pos += e.vel * dt;
+                e.shoot_timer -= dt;
 
-            game.bullets.push(Bullet {
-                pos: e.pos,
-                vel: bullet_vel,
-                life_time: 4.0,
-                style: BulletStyle::Enemy,
-                damage: ENEMY_BULLET_DAMAGE,
-                radius: 9.0,
-            });
-            e.shoot_timer = 2.0;
+                if e.shoot_timer <= 0.0 {
+                    let bullet_vel = vec2(e.rotation.cos(), e.rotation.sin()) * 250.0;
+
+                    game.bullets.push(Bullet {
+                        pos: e.pos,
+                        vel: bullet_vel,
+                        life_time: 4.0,
+                        style: BulletStyle::Enemy,
+                        damage: ENEMY_BULLET_DAMAGE,
+                        radius: 9.0,
+                    });
+                    e.shoot_timer = 2.0;
+                }
+            }
+            EnemyType::Kamikaze => {
+                // Kamikaze enemy: fly directly toward player
+                let dir = diff.normalize();
+                let kamikaze_speed = 180.0; // Speed toward player
+                e.vel = dir * kamikaze_speed;
+                e.pos += e.vel * dt;
+            }
         }
     }
     game.enemy_ships
@@ -459,6 +472,36 @@ pub fn update_collisions(game: &mut Game) -> bool {
             }
         }
     }
+
+    // Ship vs kamikaze enemies (explode on contact)
+    game.enemy_ships.retain_mut(|e| {
+        if e.enemy_type == EnemyType::Kamikaze {
+            let distance = (game.ship.pos - e.pos).length();
+            let enemy_radius = 22.5; // Smaller radius for kamikaze (45.0 size / 2)
+            let ship_radius = 10.0; // Ship radius approximation
+            if distance < enemy_radius + ship_radius {
+                // Kamikaze explodes on contact
+                let kamikaze_damage = BASE_KAMIKAZE_DAMAGE * game.difficulty.damage_mult();
+                game.explosions.push(Explosion::new(e.pos, 0.6));
+                if game.ship.take_damage(kamikaze_damage, game.score) {
+                    game_over = true;
+                }
+                // Award score for destroying kamikaze
+                let score_gain = (e.max_health as u32) * SCORE_PER_ENEMY_HP;
+                game.score += score_gain;
+                if let Some(loot) = generate_loot(
+                    e.pos,
+                    crate::systems::LootSource::EnemySmall,
+                    game.difficulty,
+                ) {
+                    game.loot_items.push(loot);
+                }
+                game.mission_kills += 1;
+                return false; // Remove the kamikaze enemy
+            }
+        }
+        true // Keep the enemy
+    });
 
     game_over
 }

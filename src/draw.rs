@@ -124,9 +124,16 @@ pub fn draw_engine(engine: &Engine, ship_pos: Vec2, ship_rotation_rad: f32, text
 }
 
 pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
-    let size = vec2(60.0, 60.0);
+    let size = match enemy.enemy_type {
+        crate::components::EnemyType::Regular => vec2(60.0, 60.0),
+        crate::components::EnemyType::Kamikaze => vec2(45.0, 45.0), // Smaller kamikaze
+    };
+    let texture = match enemy.enemy_type {
+        crate::components::EnemyType::Regular => &res.enemy_small,
+        crate::components::EnemyType::Kamikaze => &res.enemy_kamikaze,
+    };
     draw_texture_ex(
-        &res.enemy_small, // TODO: different enemy textures
+        texture,
         enemy.pos.x - size.x / 2.0,
         enemy.pos.y - size.y / 2.0,
         WHITE,

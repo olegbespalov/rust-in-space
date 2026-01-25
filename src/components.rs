@@ -33,6 +33,12 @@ pub enum BulletStyle {
     Enemy,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum EnemyType {
+    Regular,  // Can shoot
+    Kamikaze, // Flies to player and explodes
+}
+
 pub struct Bullet {
     pub pos: Vec2,
     pub vel: Vec2,
@@ -54,8 +60,9 @@ pub struct EnemyShip {
     pub vel: Vec2,
     pub shoot_timer: f32,
     pub rotation: f32,
-    pub health: f32,     // Current health points
-    pub max_health: f32, // Maximum health points
+    pub health: f32,           // Current health points
+    pub max_health: f32,       // Maximum health points
+    pub enemy_type: EnemyType, // Type of enemy (Regular or Kamikaze)
 }
 
 pub struct Ship {
@@ -160,8 +167,20 @@ impl EnemyShip {
             screen_width() + 30.0
         };
         let y = gen_range(50.0, screen_height() - 50.0);
-        let speed_x = if side == 0 { 120.0 } else { -120.0 }; // Use constant or number
-        let max_health = 24.0;
+
+        // Randomly choose enemy type (70% regular, 30% kamikaze)
+        let enemy_type = if gen_range(0, 100) < 30 {
+            EnemyType::Kamikaze
+        } else {
+            EnemyType::Regular
+        };
+
+        let speed_x = if side == 0 { 120.0 } else { -120.0 };
+        let max_health = match enemy_type {
+            EnemyType::Regular => 24.0,
+            EnemyType::Kamikaze => 18.0, // Slightly less health for kamikaze
+        };
+
         Self {
             pos: vec2(x, y),
             vel: vec2(speed_x, gen_range(-20.0, 20.0)),
@@ -169,6 +188,7 @@ impl EnemyShip {
             rotation: 0.0,
             health: max_health,
             max_health,
+            enemy_type,
         }
     }
 

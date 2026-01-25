@@ -7,6 +7,7 @@ pub struct Resources {
     pub ship_body: Texture2D,
     pub ship_flame: Texture2D,
     pub enemy_small: Texture2D,
+    pub enemy_kamikaze: Texture2D,
     pub bullet: Texture2D,
     pub enemy_bullet: Texture2D,
     pub loot_scrap: Texture2D,
@@ -45,6 +46,9 @@ impl Resources {
         let enemy_small = load_texture("assets/enemy.png").await.unwrap();
         enemy_small.set_filter(FilterMode::Nearest);
 
+        let enemy_kamikaze = load_texture("assets/enemy_kamikaze.png").await.unwrap();
+        enemy_kamikaze.set_filter(FilterMode::Nearest);
+
         let loot_scrap = load_texture("assets/loot/resources/rust_pile.png")
             .await
             .unwrap();
@@ -73,6 +77,7 @@ impl Resources {
             ship_body,
             ship_flame,
             enemy_small,
+            enemy_kamikaze,
             bullet,
             enemy_bullet,
             loot_scrap,
