@@ -1,8 +1,11 @@
+use crate::localization::Localization;
 use macroquad::prelude::*;
 
 pub struct Resources {
     pub logo: Texture2D,
     pub background: Texture2D,
+    pub font: Option<Font>,
+    pub lang: Localization,
 
     pub ship_body: Texture2D,
     pub ship_flame: Texture2D,
@@ -27,6 +30,11 @@ impl Resources {
     pub async fn new() -> Self {
         let logo = load_texture("assets/logo.png").await.unwrap();
         logo.set_filter(FilterMode::Nearest);
+
+        // Try to load font, use None if it fails (will fall back to default font in draw_text_ex)
+        let font = load_ttf_font("assets/Press_Start_2P/PressStart2P-Regular.ttf")
+            .await
+            .ok();
 
         let background = load_texture("assets/space_bg.png").await.unwrap();
         background.set_filter(FilterMode::Nearest);
@@ -74,6 +82,8 @@ impl Resources {
         Self {
             logo,
             background,
+            font,
+            lang: Localization::new(),
             ship_body,
             ship_flame,
             enemy_small,

@@ -1,12 +1,13 @@
 mod components;
 mod draw;
 mod game;
+mod localization;
 mod resources;
 mod systems;
 
 use macroquad::prelude::*;
 
-use components::GameState;
+use components::{GameState, MenuItem};
 use draw::draw_background;
 use game::*;
 use resources::Resources;
@@ -24,7 +25,7 @@ fn window_conf() -> Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut state = GameState::Menu;
-    let resources = Resources::new().await;
+    let mut resources = Resources::new().await;
     let mut game = Game::new();
 
     loop {
@@ -35,19 +36,37 @@ async fn main() {
             GameState::Menu => {
                 render_menu(&game, &resources);
 
-                // LOGIC OF DIFFICULTY SELECTION
-                if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::Right) {
-                    game.cycle_difficulty();
+                // Menu navigation
+                if is_key_pressed(KeyCode::Up) {
+                    game.menu_selection = game.menu_selection.prev();
+                }
+                if is_key_pressed(KeyCode::Down) {
+                    game.menu_selection = game.menu_selection.next();
                 }
 
-                if is_key_pressed(KeyCode::Enter) {
-                    game.reset();
-                    state = GameState::Briefing;
+                // Handle actions based on selected menu item
+                match game.menu_selection {
+                    MenuItem::Start => {
+                        if is_key_pressed(KeyCode::Enter) {
+                            game.reset();
+                            state = GameState::Briefing;
+                        }
+                    }
+                    MenuItem::Difficulty => {
+                        if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::Right) {
+                            game.cycle_difficulty();
+                        }
+                    }
+                    MenuItem::Language => {
+                        if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::Right) {
+                            resources.lang.cycle_lang();
+                        }
+                    }
                 }
             }
 
             GameState::Briefing => {
-                render_briefing(&game.current_mission);
+                render_briefing(&game.current_mission, &resources);
 
                 if is_key_pressed(KeyCode::Space) {
                     game.start_mission();
@@ -84,7 +103,7 @@ async fn main() {
             GameState::Paused => {
                 // Render the game in paused state (frozen frame)
                 render_game(&game, &resources);
-                render_pause();
+                render_pause(&resources);
 
                 // Check for unpause
                 if is_key_pressed(KeyCode::Escape) {
@@ -93,7 +112,7 @@ async fn main() {
             }
 
             GameState::MissionSuccess => {
-                render_mission_success(&game.current_mission);
+                render_mission_success(&game.current_mission, &resources);
 
                 if is_key_pressed(KeyCode::Enter) {
                     game.next_mission();
@@ -102,7 +121,7 @@ async fn main() {
             }
 
             GameState::GameOver(score) => {
-                render_game_over(score);
+                render_game_over(score, &resources);
 
                 if is_key_pressed(KeyCode::Enter) {
                     state = GameState::Menu;

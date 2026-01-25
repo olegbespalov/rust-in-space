@@ -28,6 +28,31 @@ pub enum GameState {
 }
 
 #[derive(Clone, Copy, PartialEq)]
+pub enum MenuItem {
+    Start,
+    Difficulty,
+    Language,
+}
+
+impl MenuItem {
+    pub fn next(self) -> Self {
+        match self {
+            MenuItem::Start => MenuItem::Difficulty,
+            MenuItem::Difficulty => MenuItem::Language,
+            MenuItem::Language => MenuItem::Start,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            MenuItem::Start => MenuItem::Language,
+            MenuItem::Difficulty => MenuItem::Start,
+            MenuItem::Language => MenuItem::Difficulty,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
 pub enum BulletStyle {
     Player,
     Enemy,
@@ -297,14 +322,6 @@ impl Explosion {
 }
 
 impl Difficulty {
-    pub fn name(&self) -> &str {
-        match self {
-            Difficulty::Nebula => "NEBULA (Easy)",
-            Difficulty::Supernova => "SUPERNOVA (Normal)",
-            Difficulty::BlackHole => "BLACK HOLE (Hard)",
-        }
-    }
-
     // Damage multiplier (Easy: x0.8, Normal: x1.0, Hard: x1.5)
     pub fn damage_mult(&self) -> f32 {
         match self {

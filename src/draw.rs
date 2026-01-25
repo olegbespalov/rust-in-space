@@ -3,14 +3,21 @@ use crate::resources::Resources;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 
-pub fn draw_text_centered(text: &str, y_offset: f32, size: u16, color: Color) {
-    let dims = measure_text(text, None, size, 1.0);
-    draw_text(
+pub fn draw_text_centered(text: &str, y_offset: f32, size: u16, color: Color, res: &Resources) {
+    let font = res.font.as_ref();
+    let params = TextParams {
+        font,
+        font_size: size,
+        color,
+        ..Default::default()
+    };
+
+    let dims = measure_text(text, res.font.as_ref(), size, 1.0);
+    draw_text_ex(
         text,
         screen_width() / 2.0 - dims.width / 2.0,
         screen_height() / 2.0 - dims.height / 2.0 + y_offset,
-        size as f32,
-        color,
+        params,
     );
 }
 

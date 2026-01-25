@@ -215,6 +215,13 @@ space_game/
 - **serde** (1.0): Serialization framework
 - **serde_json** (1.0): JSON support for serde
 
-## License
+## Credits & Licenses
 
-MIT
+### Code
+Project is licensed under MIT License.
+
+### Assets
+* **Font:** "Press Start 2P" by CodeMan38.
+    * License: SIL Open Font License (OFL).
+    * [Link to original](https://fonts.google.com/specimen/Press+Start+2P)
+* **Graphics:** Created by AI / Self-made.

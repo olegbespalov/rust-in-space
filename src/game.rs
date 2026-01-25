@@ -35,6 +35,7 @@ pub struct Game {
     pub mission_rare_metal_collected: u32,
     pub enemy_spawn_timer: f32,
     pub difficulty: Difficulty,
+    pub menu_selection: MenuItem,
 }
 
 impl Game {
@@ -54,6 +55,7 @@ impl Game {
             mission_rare_metal_collected: 0,
             enemy_spawn_timer: 0.0,
             difficulty: Difficulty::Supernova,
+            menu_selection: MenuItem::Start,
         }
     }
 
@@ -553,31 +555,44 @@ pub fn render_game(game: &Game, resources: &Resources) {
     );
 
     let mut status_text = format!(
-        "SCORE: {}  HP: {:.0}/{:.0}",
-        game.score, game.ship.health, game.ship.max_health
+        "{} {}  {} {:.0}/{:.0}",
+        resources.lang.t("score"),
+        game.score,
+        resources.lang.t("hp"),
+        game.ship.health,
+        game.ship.max_health
     );
     if game.ship.has_shield() {
         status_text.push_str(&format!(
-            "  SHIELD: {:.0}/{:.0}",
-            game.ship.shield_hp, game.ship.shield_max_hp
+            "  {} {:.0}/{:.0}",
+            resources.lang.t("shield"),
+            game.ship.shield_hp,
+            game.ship.shield_max_hp
         ));
     }
     draw_text(&status_text, 20.0, 30.0, 30.0, WHITE);
 
     let status = format!(
-        "Kills: {}/{}  Rust: {}/{}  Gold: {}/{}",
+        "{} {}/{}  {} {}/{}  {} {}/{}",
+        resources.lang.t("kills"),
         game.mission_kills,
         game.current_mission.target_kills,
+        resources.lang.t("rust"),
         game.mission_scrap_collected,
         game.current_mission.target_scrap,
+        resources.lang.t("gold"),
         game.mission_rare_metal_collected,
         game.current_mission.target_rare_metal
     );
     draw_text(&status, 20.0, screen_height() - 30.0, 30.0, WHITE);
 
     let inventory = format!(
-        "Resources: Rust {} | Gold {}",
-        game.ship.scrap, game.ship.rare_metal
+        "{} {} {} | {} {}",
+        resources.lang.t("resources"),
+        resources.lang.t("rust"),
+        game.ship.scrap,
+        resources.lang.t("gold"),
+        game.ship.rare_metal
     );
     draw_text(&inventory, 20.0, screen_height() - 60.0, 25.0, GRAY);
 }
@@ -585,11 +600,11 @@ pub fn render_game(game: &Game, resources: &Resources) {
 pub fn render_menu(game: &Game, res: &Resources) {
     draw_background(&res.background);
 
-    // 1. logo rendering
+    // 1. Logo rendering - smaller and at top
     let time = get_time();
     let pulse = 1.0 + (time * 2.0).sin() as f32 * 0.05;
 
-    let target_width = screen_width() * 0.5;
+    let target_width = screen_width() * 0.3;
     let aspect_ratio = res.logo.height() / res.logo.width();
     let target_height = target_width * aspect_ratio;
 
@@ -597,7 +612,7 @@ pub fn render_menu(game: &Game, res: &Resources) {
     let logo_h = target_height * pulse;
 
     let logo_x = screen_width() / 2.0 - logo_w / 2.0;
-    let logo_y = screen_height() / 2.0 - logo_h / 2.0 - 50.0;
+    let logo_y = screen_height() / 2.0 - logo_h / 2.0 - 200.0;
 
     draw_texture_ex(
         &res.logo,
@@ -610,88 +625,184 @@ pub fn render_menu(game: &Game, res: &Resources) {
         },
     );
 
-    // 2. Difficulty Selector
-    // Calculate offset from center (logo is centered, so logo_y is relative to center)
-    let difficulty_label_offset = logo_h / 2.0 + 50.0;
-    let difficulty_value_offset = difficulty_label_offset + 35.0;
+    // 2. Menu items - centered, with selection highlighting
+    let base_y = logo_h / 2.0 - 50.0;
+    let item_spacing = 60.0;
 
+    // Font sizes: Start is bigger, others smaller
+    let start_font_size = 40;
+    let start_selected_font_size = 44;
+    let other_font_size = 20;
+    let other_selected_font_size = 24;
+
+    // Start menu item - biggest font
+    let start_y = base_y + 40.0;
+    let is_selected = game.menu_selection == MenuItem::Start;
+    let start_color = if is_selected { YELLOW } else { WHITE };
+    let start_size = if is_selected {
+        start_selected_font_size
+    } else {
+        start_font_size
+    };
+    let start_prefix = if is_selected { "> " } else { "  " };
     draw_text_centered(
-        "DIFFICULTY (Left/Right Arrows):",
-        difficulty_label_offset,
-        20,
-        GRAY,
+        &format!("{}{}", start_prefix, res.lang.t("menu_start")),
+        start_y,
+        start_size,
+        start_color,
+        res,
     );
 
-    let (diff_text, diff_color) = match game.difficulty {
-        Difficulty::Nebula => (game.difficulty.name(), GREEN),
-        Difficulty::Supernova => (game.difficulty.name(), YELLOW),
-        Difficulty::BlackHole => (game.difficulty.name(), RED),
+    // Difficulty menu item - smaller font, no label
+    let diff_y = start_y + item_spacing;
+    let is_selected = game.menu_selection == MenuItem::Difficulty;
+    let diff_color = if is_selected { YELLOW } else { WHITE };
+    let diff_size = if is_selected {
+        other_selected_font_size
+    } else {
+        other_font_size
+    };
+    let diff_prefix = if is_selected { "> " } else { "  " };
+
+    let diff_key = match game.difficulty {
+        Difficulty::Nebula => "diff_nebula",
+        Difficulty::Supernova => "diff_supernova",
+        Difficulty::BlackHole => "diff_blackhole",
+    };
+    let diff_text = res.lang.t(diff_key);
+
+    // Use difficulty color when selected, otherwise white
+    let final_diff_color = if is_selected {
+        match game.difficulty {
+            Difficulty::Nebula => GREEN,
+            Difficulty::Supernova => YELLOW,
+            Difficulty::BlackHole => RED,
+        }
+    } else {
+        diff_color
     };
 
     draw_text_centered(
-        &format!("< {diff_text} >"),
-        difficulty_value_offset,
-        40,
-        diff_color,
+        &format!("{diff_prefix}< {diff_text} >"),
+        diff_y,
+        diff_size,
+        final_diff_color,
+        res,
     );
 
-    // 3. Start Prompt
-    if (time * 3.0).sin() > 0.0 {
-        draw_text_centered(
-            "Press [ENTER] to Start",
-            difficulty_value_offset + 60.0,
-            30,
-            WHITE,
-        );
-    }
+    // Language menu item - smaller font, no label
+    let lang_y = diff_y + item_spacing;
+    let is_selected = game.menu_selection == MenuItem::Language;
+    let lang_color = if is_selected { YELLOW } else { WHITE };
+    let lang_size = if is_selected {
+        other_selected_font_size
+    } else {
+        other_font_size
+    };
+    let lang_prefix = if is_selected { "> " } else { "  " };
+
+    let lang_text = match res.lang.current_lang {
+        crate::localization::Language::English => res.lang.t("lang_english"),
+        crate::localization::Language::Russian => res.lang.t("lang_russian"),
+        crate::localization::Language::German => res.lang.t("lang_german"),
+    };
 
     draw_text_centered(
-        "ARROWS to move | SPACE to shoot",
-        difficulty_value_offset + 100.0,
-        20,
+        &format!("{lang_prefix}< {lang_text} >"),
+        lang_y,
+        lang_size,
+        lang_color,
+        res,
+    );
+
+    // Instructions at bottom
+    draw_text_centered(
+        res.lang.t("menu_instructions"),
+        base_y + 250.0,
+        18,
         GRAY,
+        res,
     );
 }
 
-pub fn render_briefing(mission: &Mission) {
-    draw_text_centered(&format!("MISSION {}", mission.level_id), -100.0, 40, ORANGE);
-    draw_text_centered(&mission.title, -50.0, 60, WHITE);
-    draw_text_centered(&mission.description, 0.0, 25, GRAY);
+pub fn render_briefing(mission: &Mission, res: &Resources) {
+    draw_text_centered(
+        &format!("{} {}", res.lang.t("mission"), mission.level_id),
+        -100.0,
+        40,
+        ORANGE,
+        res,
+    );
+    draw_text_centered(&mission.title, -50.0, 60, WHITE, res);
+    draw_text_centered(&mission.description, 0.0, 25, GRAY, res);
 
-    draw_text_centered("OBJECTIVES:", 20.0, 30, GRAY);
+    draw_text_centered(res.lang.t("objectives"), 20.0, 30, GRAY, res);
 
-    let mut objectives = vec![format!("- Destroy {} Enemies", mission.target_kills)];
+    let mut objectives = vec![format!(
+        "{} {} {}",
+        res.lang.t("obj_destroy_prefix"),
+        mission.target_kills,
+        res.lang.t("obj_enemies")
+    )];
     if mission.target_scrap > 0 {
-        objectives.push(format!("- Collect {} Rust Piles", mission.target_scrap));
+        objectives.push(format!(
+            "{} {} {}",
+            res.lang.t("obj_scrap_prefix"),
+            mission.target_scrap,
+            res.lang.t("obj_rust_piles")
+        ));
     }
     if mission.target_rare_metal > 0 {
-        objectives.push(format!("- Collect {} Gold", mission.target_rare_metal));
+        objectives.push(format!(
+            "{} {} {}",
+            res.lang.t("obj_gold_prefix"),
+            mission.target_rare_metal,
+            res.lang.t("obj_gold")
+        ));
     }
     let obj_text = objectives.join("\n");
-    draw_text_centered(&obj_text, 70.0, 30, WHITE);
+    draw_text_centered(&obj_text, 70.0, 30, WHITE, res);
 
-    draw_text_centered("Press [SPACE] to Launch", 200.0, 30, GREEN);
+    draw_text_centered(res.lang.t("press_space"), 200.0, 30, GREEN, res);
 }
 
-pub fn render_mission_success(mission: &Mission) {
-    draw_text_centered("MISSION COMPLETE!", -50.0, 50, GREEN);
+pub fn render_mission_success(mission: &Mission, res: &Resources) {
+    draw_text_centered(res.lang.t("mission_complete"), -50.0, 50, GREEN, res);
     draw_text_centered(
-        &format!("Level {} Cleared", mission.level_id),
+        &format!(
+            "{} {} {}",
+            res.lang.t("level_cleared_prefix"),
+            mission.level_id,
+            res.lang.t("level_cleared_suffix")
+        ),
         10.0,
         30,
         WHITE,
+        res,
     );
-    draw_text_centered("Press [ENTER] for Next Mission", 100.0, 30, YELLOW);
+    draw_text_centered(res.lang.t("next_mission"), 100.0, 30, YELLOW, res);
 }
 
-pub fn render_game_over(score: u32) {
+pub fn render_game_over(score: u32, res: &Resources) {
     let high_score = load_score().high_score;
-    draw_text_centered("GAME OVER", -40.0, 60, RED);
-    draw_text_centered(&format!("Final Score: {score}"), 10.0, 40, WHITE);
-    draw_text_centered(&format!("HIGH SCORE: {high_score}"), 60.0, 30, YELLOW);
+    draw_text_centered(res.lang.t("game_over"), -40.0, 60, RED, res);
+    draw_text_centered(
+        &format!("{} {}", res.lang.t("final_score_prefix"), score),
+        10.0,
+        40,
+        WHITE,
+        res,
+    );
+    draw_text_centered(
+        &format!("{} {}", res.lang.t("high_score"), high_score),
+        60.0,
+        30,
+        YELLOW,
+        res,
+    );
 }
 
-pub fn render_pause() {
+pub fn render_pause(res: &Resources) {
     // Draw semi-transparent overlay
     draw_rectangle(
         0.0,
@@ -702,6 +813,6 @@ pub fn render_pause() {
     );
 
     // Draw pause text
-    draw_text_centered("PAUSED", -20.0, 60, YELLOW);
-    draw_text_centered("Press [ESC] to Resume", 30.0, 30, WHITE);
+    draw_text_centered(res.lang.t("paused"), -20.0, 60, YELLOW, res);
+    draw_text_centered(res.lang.t("press_esc"), 30.0, 30, WHITE, res);
 }
