@@ -108,8 +108,8 @@ impl Localization {
         en.insert("shield", "SHIELD:");
         ru.insert("shield", "ЩИТ:");
 
-        en.insert("kills", "Kills:");
-        ru.insert("kills", "Убийств:");
+        en.insert("defeated", "Defeated:");
+        ru.insert("defeated", "Побеждено:");
 
         en.insert("rust", "Rust:");
         ru.insert("rust", "Лом:");
@@ -178,7 +178,7 @@ impl Localization {
         de.insert("score", "PUNKTE:");
         de.insert("hp", "LP:");
         de.insert("shield", "SCHILD:");
-        de.insert("kills", "Kills:");
+        de.insert("defeated", "Besiegt:");
         de.insert("rust", "Rost:");
         de.insert("gold", "Gold:");
         de.insert("resources", "Ressourcen:");

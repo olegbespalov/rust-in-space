@@ -570,11 +570,11 @@ pub fn render_game(game: &Game, resources: &Resources) {
             game.ship.shield_max_hp
         ));
     }
-    draw_text(&status_text, 20.0, 30.0, 30.0, WHITE);
+    crate::draw::draw_text_with_font(&status_text, 20.0, 30.0, 24.0, WHITE, resources);
 
     let status = format!(
         "{} {}/{}  {} {}/{}  {} {}/{}",
-        resources.lang.t("kills"),
+        resources.lang.t("defeated"),
         game.mission_kills,
         game.current_mission.target_kills,
         resources.lang.t("rust"),
@@ -584,7 +584,14 @@ pub fn render_game(game: &Game, resources: &Resources) {
         game.mission_rare_metal_collected,
         game.current_mission.target_rare_metal
     );
-    draw_text(&status, 20.0, screen_height() - 30.0, 30.0, WHITE);
+    crate::draw::draw_text_with_font(
+        &status,
+        20.0,
+        screen_height() - 30.0,
+        24.0,
+        WHITE,
+        resources,
+    );
 
     let inventory = format!(
         "{} {} {} | {} {}",
@@ -594,7 +601,14 @@ pub fn render_game(game: &Game, resources: &Resources) {
         resources.lang.t("gold"),
         game.ship.rare_metal
     );
-    draw_text(&inventory, 20.0, screen_height() - 60.0, 25.0, GRAY);
+    crate::draw::draw_text_with_font(
+        &inventory,
+        20.0,
+        screen_height() - 60.0,
+        20.0,
+        GRAY,
+        resources,
+    );
 }
 
 pub fn render_menu(game: &Game, res: &Resources) {
@@ -630,10 +644,10 @@ pub fn render_menu(game: &Game, res: &Resources) {
     let item_spacing = 60.0;
 
     // Font sizes: Start is bigger, others smaller
-    let start_font_size = 40;
-    let start_selected_font_size = 44;
-    let other_font_size = 20;
-    let other_selected_font_size = 24;
+    let start_font_size = 32;
+    let start_selected_font_size = 36;
+    let other_font_size = 16;
+    let other_selected_font_size = 18;
 
     // Start menu item - biggest font
     let start_y = base_y + 40.0;
@@ -719,7 +733,7 @@ pub fn render_menu(game: &Game, res: &Resources) {
     draw_text_centered(
         res.lang.t("menu_instructions"),
         base_y + 250.0,
-        18,
+        14,
         GRAY,
         res,
     );
@@ -729,14 +743,14 @@ pub fn render_briefing(mission: &Mission, res: &Resources) {
     draw_text_centered(
         &format!("{} {}", res.lang.t("mission"), mission.level_id),
         -100.0,
-        40,
+        32,
         ORANGE,
         res,
     );
-    draw_text_centered(&mission.title, -50.0, 60, WHITE, res);
-    draw_text_centered(&mission.description, 0.0, 25, GRAY, res);
+    draw_text_centered(&mission.title, -50.0, 48, WHITE, res);
+    draw_text_centered(&mission.description, 0.0, 20, GRAY, res);
 
-    draw_text_centered(res.lang.t("objectives"), 20.0, 30, GRAY, res);
+    draw_text_centered(res.lang.t("objectives"), 20.0, 24, GRAY, res);
 
     let mut objectives = vec![format!(
         "{} {} {}",
@@ -761,13 +775,13 @@ pub fn render_briefing(mission: &Mission, res: &Resources) {
         ));
     }
     let obj_text = objectives.join("\n");
-    draw_text_centered(&obj_text, 70.0, 30, WHITE, res);
+    draw_text_centered(&obj_text, 70.0, 24, WHITE, res);
 
-    draw_text_centered(res.lang.t("press_space"), 200.0, 30, GREEN, res);
+    draw_text_centered(res.lang.t("press_space"), 200.0, 24, GREEN, res);
 }
 
 pub fn render_mission_success(mission: &Mission, res: &Resources) {
-    draw_text_centered(res.lang.t("mission_complete"), -50.0, 50, GREEN, res);
+    draw_text_centered(res.lang.t("mission_complete"), -50.0, 40, GREEN, res);
     draw_text_centered(
         &format!(
             "{} {} {}",
@@ -776,27 +790,27 @@ pub fn render_mission_success(mission: &Mission, res: &Resources) {
             res.lang.t("level_cleared_suffix")
         ),
         10.0,
-        30,
+        24,
         WHITE,
         res,
     );
-    draw_text_centered(res.lang.t("next_mission"), 100.0, 30, YELLOW, res);
+    draw_text_centered(res.lang.t("next_mission"), 100.0, 24, YELLOW, res);
 }
 
 pub fn render_game_over(score: u32, res: &Resources) {
     let high_score = load_score().high_score;
-    draw_text_centered(res.lang.t("game_over"), -40.0, 60, RED, res);
+    draw_text_centered(res.lang.t("game_over"), -40.0, 48, RED, res);
     draw_text_centered(
         &format!("{} {}", res.lang.t("final_score_prefix"), score),
         10.0,
-        40,
+        32,
         WHITE,
         res,
     );
     draw_text_centered(
         &format!("{} {}", res.lang.t("high_score"), high_score),
         60.0,
-        30,
+        24,
         YELLOW,
         res,
     );
@@ -813,6 +827,6 @@ pub fn render_pause(res: &Resources) {
     );
 
     // Draw pause text
-    draw_text_centered(res.lang.t("paused"), -20.0, 60, YELLOW, res);
-    draw_text_centered(res.lang.t("press_esc"), 30.0, 30, WHITE, res);
+    draw_text_centered(res.lang.t("paused"), -20.0, 48, YELLOW, res);
+    draw_text_centered(res.lang.t("press_esc"), 30.0, 24, WHITE, res);
 }

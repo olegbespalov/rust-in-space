@@ -21,6 +21,32 @@ pub fn draw_text_centered(text: &str, y_offset: f32, size: u16, color: Color, re
     );
 }
 
+pub fn draw_text_with_font(text: &str, x: f32, y: f32, size: f32, color: Color, res: &Resources) {
+    let font = res.font.as_ref();
+    // Normalize font size - when font doesn't support Cyrillic, fallback fonts
+    // may render larger. We use font_scale to normalize the rendering.
+    let font_size = size as u16;
+
+    // Check if text contains Cyrillic characters and adjust scale if needed
+    let has_cyrillic = text.chars().any(|c| matches!(c, '\u{0400}'..='\u{04FF}'));
+    let font_scale = if has_cyrillic {
+        // Fallback font for Cyrillic renders larger, scale down to match other languages
+        // Adjust this value if still not matching (lower = smaller)
+        0.72
+    } else {
+        1.0
+    };
+
+    let params = TextParams {
+        font,
+        font_size,
+        color,
+        font_scale,
+        ..Default::default()
+    };
+    draw_text_ex(text, x, y, params);
+}
+
 pub fn draw_background(texture: &Texture2D) {
     let screen_w = screen_width();
     let screen_h = screen_height();
