@@ -1,7 +1,7 @@
 use crate::components::*;
 use crate::draw::*;
 use crate::resources::Resources;
-use crate::systems::{generate_loot, get_mission, load_score, wrap_around};
+use crate::systems::{generate_loot, get_mission, load_score, wrap_around, LootSource};
 use macroquad::prelude::*;
 use std::collections::HashSet;
 
@@ -42,6 +42,7 @@ pub struct Game {
     /// On Easy: hint shows first, then ship spawns after ENEMY_HINT_DELAY.
     /// (from_left, spawn_y, hint_shown_at_time) — ship spawns at that position when delay has passed.
     pub pending_enemy_hint: Option<(bool, f32, f64)>,
+    pub boss: Option<Boss>,
 }
 
 impl Game {
@@ -63,6 +64,7 @@ impl Game {
             difficulty: Difficulty::Supernova,
             menu_selection: MenuItem::Start,
             pending_enemy_hint: None,
+            boss: None,
         }
     }
 
@@ -72,6 +74,7 @@ impl Game {
         self.asteroids = (0..5).map(|_| Asteroid::new_large()).collect();
         self.loot_items.clear();
         self.enemy_ships.clear();
+        self.boss = None;
         self.score = 0;
         self.current_level_idx = 1;
         self.current_mission = get_mission(self.current_level_idx);
@@ -84,10 +87,16 @@ impl Game {
         self.bullets.clear();
         self.enemy_ships.clear();
         self.loot_items.clear();
+        self.boss = None;
 
-        self.asteroids = (0..self.current_mission.asteroid_count)
-            .map(|_| Asteroid::new_large())
-            .collect();
+        if self.current_mission.is_boss_level {
+            self.asteroids = Vec::new();
+            self.boss = Some(Boss::new());
+        } else {
+            self.asteroids = (0..self.current_mission.asteroid_count)
+                .map(|_| Asteroid::new_large())
+                .collect();
+        }
 
         self.mission_kills = 0;
         self.mission_scrap_collected = 0;
@@ -111,9 +120,13 @@ impl Game {
     }
 
     pub fn is_mission_complete(&self) -> bool {
-        self.mission_kills >= self.current_mission.target_kills
-            && self.mission_scrap_collected >= self.current_mission.target_scrap
-            && self.mission_rare_metal_collected >= self.current_mission.target_rare_metal
+        if self.current_mission.is_boss_level {
+            self.boss.is_none()
+        } else {
+            self.mission_kills >= self.current_mission.target_kills
+                && self.mission_scrap_collected >= self.current_mission.target_scrap
+                && self.mission_rare_metal_collected >= self.current_mission.target_rare_metal
+        }
     }
 
     pub fn cycle_difficulty(&mut self) {
@@ -245,6 +258,10 @@ fn keep_enemy_in_bounds(e: &mut EnemyShip) {
 pub fn update_enemies(game: &mut Game, dt: f32) {
     use macroquad::rand::gen_range;
 
+    if game.current_mission.is_boss_level {
+        return;
+    }
+
     // On Easy: show hint first, then spawn ship after ENEMY_HINT_DELAY
     if let Some((from_left, spawn_y, hint_at)) = game.pending_enemy_hint {
         if get_time() - hint_at >= ENEMY_HINT_DELAY {
@@ -307,6 +324,78 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
     }
     game.enemy_ships
         .retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
+}
+
+const BOSS_SHOOT_INTERVAL: f32 = 3.0;
+const BOSS_BURST_SIZE: u32 = 3;
+const BOSS_BURST_DELAY: f32 = 0.12;
+const BOSS_BULLET_SPEED: f32 = 250.0;
+const BOSS_BORDER_MARGIN: f32 = 70.0;
+const BOSS_ROTATION_SPEED: f32 = 35.0;
+
+fn keep_boss_in_bounds(boss: &mut Boss) {
+    let margin = BOSS_BORDER_MARGIN;
+    let w = screen_width();
+    let h = screen_height();
+    if boss.pos.x < margin {
+        boss.vel.x = boss.vel.x.abs();
+        boss.pos.x = margin;
+    }
+    if boss.pos.x > w - margin {
+        boss.vel.x = -boss.vel.x.abs();
+        boss.pos.x = w - margin;
+    }
+    if boss.pos.y < margin {
+        boss.vel.y = boss.vel.y.abs();
+        boss.pos.y = margin;
+    }
+    if boss.pos.y > h - margin {
+        boss.vel.y = -boss.vel.y.abs();
+        boss.pos.y = h - margin;
+    }
+}
+
+const BOSS_VOLLEY_DIRS: [(f32, f32); 4] = [
+    (0.0, -1.0), // up
+    (0.0, 1.0),  // down
+    (-1.0, 0.0), // left
+    (1.0, 0.0),  // right
+];
+
+pub fn update_boss(game: &mut Game, dt: f32) {
+    let mut spawn_volley = false;
+    let mut volley_pos = vec2(0.0, 0.0);
+    if let Some(ref mut boss) = game.boss {
+        boss.pos += boss.vel * dt;
+        boss.rotation += BOSS_ROTATION_SPEED * dt * std::f32::consts::PI / 180.0;
+        keep_boss_in_bounds(boss);
+        boss.shoot_timer -= dt;
+        if boss.shoot_timer <= 0.0 {
+            if boss.burst_shots_left == 0 {
+                boss.burst_shots_left = BOSS_BURST_SIZE;
+            }
+            spawn_volley = true;
+            volley_pos = boss.pos;
+            boss.burst_shots_left -= 1;
+            boss.shoot_timer = if boss.burst_shots_left > 0 {
+                BOSS_BURST_DELAY
+            } else {
+                BOSS_SHOOT_INTERVAL
+            };
+        }
+    }
+    if spawn_volley {
+        for (dx, dy) in BOSS_VOLLEY_DIRS {
+            game.bullets.push(Bullet {
+                pos: volley_pos,
+                vel: vec2(dx * BOSS_BULLET_SPEED, dy * BOSS_BULLET_SPEED),
+                life_time: 4.0,
+                style: BulletStyle::Enemy,
+                damage: ENEMY_BULLET_DAMAGE,
+                radius: 9.0,
+            });
+        }
+    }
 }
 
 pub fn update_loot(game: &mut Game, dt: f32) {
@@ -382,9 +471,12 @@ pub fn update_physics(game: &mut Game, dt: f32) {
     }
 }
 
+const BOSS_HITBOX_RADIUS: f32 = 55.0;
+
 pub fn update_collisions(game: &mut Game) -> bool {
     let mut new_asteroids = Vec::new();
     let mut game_over = false;
+    let mut boss_died_at: Option<(Vec2, f32)> = None;
 
     // Player bullets vs Enemy bullets (bullets explode each other)
     // Check this FIRST before other collisions
@@ -489,8 +581,28 @@ pub fn update_collisions(game: &mut Game) -> bool {
             }
         });
 
+        // Check boss collision
+        if let Some(ref mut boss) = game.boss {
+            if (b.pos - boss.pos).length() < BOSS_HITBOX_RADIUS + b.radius {
+                hit = true;
+                let pos = boss.pos;
+                let max_health = boss.max_health;
+                if boss.take_damage(b.damage) {
+                    boss_died_at = Some((pos, max_health));
+                }
+            }
+        }
+
         !hit
     });
+    if let Some((pos, max_health)) = boss_died_at {
+        game.boss = None;
+        game.score += (max_health as u32) * SCORE_PER_ENEMY_HP;
+        game.explosions.push(Explosion::new(pos, 0.8));
+        if let Some(loot) = generate_loot(pos, LootSource::EnemyBoss, game.difficulty) {
+            game.loot_items.push(loot);
+        }
+    }
     game.asteroids.extend(new_asteroids);
 
     // Enemy bullets vs player
@@ -591,6 +703,10 @@ pub fn render_game(game: &Game, resources: &Resources) {
         draw_enemy(e, resources);
     }
 
+    if let Some(ref boss) = game.boss {
+        draw_boss(boss, resources);
+    }
+
     for ex in &game.explosions {
         draw_explosion(ex, resources);
     }
@@ -620,18 +736,30 @@ pub fn render_game(game: &Game, resources: &Resources) {
     }
     crate::draw::draw_text_with_font(&status_text, 20.0, 30.0, 24.0, WHITE, resources);
 
-    let status = format!(
-        "{} {}/{}  {} {}/{}  {} {}/{}",
-        resources.lang.t("defeated"),
-        game.mission_kills,
-        game.current_mission.target_kills,
-        resources.lang.t("rust"),
-        game.mission_scrap_collected,
-        game.current_mission.target_scrap,
-        resources.lang.t("gold"),
-        game.mission_rare_metal_collected,
-        game.current_mission.target_rare_metal
-    );
+    let status = if game.current_mission.is_boss_level {
+        match &game.boss {
+            Some(boss) => format!(
+                "{} {:.0}/{:.0}",
+                resources.lang.t("boss_hp"),
+                boss.health,
+                boss.max_health
+            ),
+            None => resources.lang.t("boss_defeated").to_string(),
+        }
+    } else {
+        format!(
+            "{} {}/{}  {} {}/{}  {} {}/{}",
+            resources.lang.t("defeated"),
+            game.mission_kills,
+            game.current_mission.target_kills,
+            resources.lang.t("rust"),
+            game.mission_scrap_collected,
+            game.current_mission.target_scrap,
+            resources.lang.t("gold"),
+            game.mission_rare_metal_collected,
+            game.current_mission.target_rare_metal
+        )
+    };
     crate::draw::draw_text_with_font(
         &status,
         20.0,
@@ -807,29 +935,33 @@ pub fn render_briefing(mission: &Mission, res: &Resources) {
 
     draw_text_centered(res.lang.t("objectives"), 20.0, 24, GRAY, res);
 
-    let mut objectives = vec![format!(
-        "{} {} {}",
-        res.lang.t("obj_destroy_prefix"),
-        mission.target_kills,
-        res.lang.t("obj_enemies")
-    )];
-    if mission.target_scrap > 0 {
-        objectives.push(format!(
+    let obj_text = if mission.is_boss_level {
+        res.lang.t("obj_destroy_boss").to_string()
+    } else {
+        let mut objectives = vec![format!(
             "{} {} {}",
-            res.lang.t("obj_scrap_prefix"),
-            mission.target_scrap,
-            res.lang.t("obj_rust_piles")
-        ));
-    }
-    if mission.target_rare_metal > 0 {
-        objectives.push(format!(
-            "{} {} {}",
-            res.lang.t("obj_gold_prefix"),
-            mission.target_rare_metal,
-            res.lang.t("obj_gold")
-        ));
-    }
-    let obj_text = objectives.join("\n");
+            res.lang.t("obj_destroy_prefix"),
+            mission.target_kills,
+            res.lang.t("obj_enemies")
+        )];
+        if mission.target_scrap > 0 {
+            objectives.push(format!(
+                "{} {} {}",
+                res.lang.t("obj_scrap_prefix"),
+                mission.target_scrap,
+                res.lang.t("obj_rust_piles")
+            ));
+        }
+        if mission.target_rare_metal > 0 {
+            objectives.push(format!(
+                "{} {} {}",
+                res.lang.t("obj_gold_prefix"),
+                mission.target_rare_metal,
+                res.lang.t("obj_gold")
+            ));
+        }
+        objectives.join("\n")
+    };
     draw_text_centered(&obj_text, 70.0, 24, WHITE, res);
 
     draw_text_centered(res.lang.t("press_space"), 200.0, 24, GREEN, res);

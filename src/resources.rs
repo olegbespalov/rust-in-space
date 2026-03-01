@@ -23,6 +23,7 @@ pub struct Resources {
     pub asteroid: Texture2D,
     pub rare_asteroid: Texture2D,
     pub explosion: Texture2D,
+    pub boss_1: Texture2D,
 }
 
 impl Resources {
@@ -79,6 +80,9 @@ impl Resources {
         let explosion = load_texture("assets/explosion.png").await.unwrap();
         explosion.set_filter(FilterMode::Nearest);
 
+        let boss_1 = load_texture("assets/boss_1.png").await.unwrap();
+        boss_1.set_filter(FilterMode::Nearest);
+
         Self {
             logo,
             background,
@@ -100,6 +104,7 @@ impl Resources {
             asteroid,
             rare_asteroid,
             explosion,
+            boss_1,
         }
     }
 }

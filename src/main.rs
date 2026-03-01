@@ -89,6 +89,7 @@ async fn main() {
                     update_ship_movement(&mut game, dt);
                     update_ship_shooting(&mut game);
                     update_enemies(&mut game, dt);
+                    update_boss(&mut game, dt);
                     update_loot(&mut game, dt);
                     update_physics(&mut game, dt);
 

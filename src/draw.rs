@@ -1,4 +1,4 @@
-use crate::components::{Asteroid, EnemyShip, Engine, Explosion, LootItem, LootType, Ship};
+use crate::components::{Asteroid, Boss, EnemyShip, Engine, Explosion, LootItem, LootType, Ship};
 use crate::resources::Resources;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
@@ -201,6 +201,46 @@ pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
         DrawTextureParams {
             dest_size: Some(size),
             rotation: enemy.rotation + std::f32::consts::FRAC_PI_2,
+            ..Default::default()
+        },
+    );
+}
+
+const BOSS_SIZE: f32 = 120.0;
+const BOSS_HP_BAR_HEIGHT: f32 = 8.0;
+const BOSS_HP_BAR_GAP: f32 = 8.0;
+
+pub fn draw_boss(boss: &Boss, res: &Resources) {
+    let size = vec2(BOSS_SIZE, BOSS_SIZE);
+    let texture = &res.boss_1;
+
+    let bar_width = size.x * 1.2;
+    let bar_left = boss.pos.x - bar_width / 2.0;
+    let bar_top = boss.pos.y - size.y / 2.0 - BOSS_HP_BAR_GAP - BOSS_HP_BAR_HEIGHT;
+
+    draw_rectangle(
+        bar_left,
+        bar_top,
+        bar_width,
+        BOSS_HP_BAR_HEIGHT,
+        ENEMY_HP_BAR_BG_COLOR,
+    );
+
+    let ratio = (boss.health / boss.max_health).clamp(0.0, 1.0);
+    let fill_width = bar_width * ratio;
+    if fill_width > 0.0 {
+        let hp_color = Color::new(1.0 - ratio, ratio, 0.0, 1.0);
+        draw_rectangle(bar_left, bar_top, fill_width, BOSS_HP_BAR_HEIGHT, hp_color);
+    }
+
+    draw_texture_ex(
+        texture,
+        boss.pos.x - size.x / 2.0,
+        boss.pos.y - size.y / 2.0,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(size),
+            rotation: boss.rotation,
             ..Default::default()
         },
     );

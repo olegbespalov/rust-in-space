@@ -16,6 +16,9 @@ pub struct Mission {
     // level difficulty settings
     pub enemy_spawn_interval: f32,
     pub asteroid_count: usize,
+
+    /// If true, this level has a single boss; no asteroids, no other enemies.
+    pub is_boss_level: bool,
 }
 
 pub enum GameState {
@@ -88,6 +91,17 @@ pub struct EnemyShip {
     pub health: f32,           // Current health points
     pub max_health: f32,       // Maximum health points
     pub enemy_type: EnemyType, // Type of enemy (Regular or Kamikaze)
+}
+
+pub struct Boss {
+    pub pos: Vec2,
+    pub vel: Vec2,
+    pub rotation: f32,
+    pub health: f32,
+    pub max_health: f32,
+    pub shoot_timer: f32,
+    /// How many shots left in current burst (0 = waiting for next burst).
+    pub burst_shots_left: u32,
 }
 
 pub struct Ship {
@@ -246,6 +260,26 @@ impl EnemyShip {
     }
 
     // Returns true if the enemy is destroyed
+    pub fn take_damage(&mut self, damage: f32) -> bool {
+        self.health -= damage;
+        self.health <= 0.0
+    }
+}
+
+impl Boss {
+    pub fn new() -> Self {
+        let max_health = 300.0;
+        Self {
+            pos: vec2(screen_width() / 2.0, 80.0),
+            vel: vec2(45.0, 25.0),
+            rotation: 0.0,
+            health: max_health,
+            max_health,
+            shoot_timer: 0.0,
+            burst_shots_left: 0,
+        }
+    }
+
     pub fn take_damage(&mut self, damage: f32) -> bool {
         self.health -= damage;
         self.health <= 0.0

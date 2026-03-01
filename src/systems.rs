@@ -10,7 +10,7 @@ pub enum LootSource {
     Asteroid,
     RareAsteroid,
     EnemySmall,
-    // EnemyBoss, // For future
+    EnemyBoss,
 }
 
 pub fn wrap_around(pos: &mut Vec2) {
@@ -59,6 +59,7 @@ pub fn get_mission(level: u32) -> Mission {
             target_rare_metal: 0,
             enemy_spawn_interval: 10.0, // enemies spawn rarely
             asteroid_count: 5,
+            is_boss_level: false,
         },
         2 => Mission {
             level_id: 2,
@@ -69,9 +70,21 @@ pub fn get_mission(level: u32) -> Mission {
             target_rare_metal: 0,
             enemy_spawn_interval: 2.0,
             asteroid_count: 8,
+            is_boss_level: false,
         },
         3 => Mission {
             level_id: 3,
+            title: "Boss: Guardian".to_string(),
+            description: "Destroy the boss.".to_string(),
+            target_kills: 0,
+            target_scrap: 0,
+            target_rare_metal: 0,
+            enemy_spawn_interval: 0.0,
+            asteroid_count: 0,
+            is_boss_level: true,
+        },
+        4 => Mission {
+            level_id: 4,
             title: "Scrap Yard".to_string(),
             description: "Collect 20 rust piles and 3 gold for upgrades.".to_string(),
             target_kills: 5,
@@ -79,17 +92,19 @@ pub fn get_mission(level: u32) -> Mission {
             target_rare_metal: 3,
             enemy_spawn_interval: 2.5,
             asteroid_count: 12,
+            is_boss_level: false,
         },
         _ => Mission {
-            // generate infinite levels after the 3rd one
+            // generate infinite levels after the 4th one
             level_id: level,
             title: format!("Deep Space sector {level}"),
             description: "Survive.".to_string(),
-            target_kills: 10 + level,
-            target_scrap: 10 + (level / 2),
-            target_rare_metal: 2 + (level / 3),
-            enemy_spawn_interval: (1.5 - (level as f32 * 0.1)).max(0.5),
-            asteroid_count: 10 + level as usize,
+            target_kills: 10 + (level - 1),
+            target_scrap: 10 + ((level - 1) / 2),
+            target_rare_metal: 2 + ((level - 1) / 3),
+            enemy_spawn_interval: (1.5 - ((level - 1) as f32 * 0.1)).max(0.5),
+            asteroid_count: 10 + (level - 1) as usize,
+            is_boss_level: false,
         },
     }
 }
@@ -159,10 +174,11 @@ pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> O
                 return None;
             }
             // 7% chance of nothing
-        } // LootSource::EnemyBoss => {
-          //     // Something always drops from the boss
-          //     (LootType::RareMetal(gen_range(10, 50)), 20.0)
-          // }
+        }
+        LootSource::EnemyBoss => {
+            // Something always drops from the boss
+            (LootType::RareMetal(gen_range(10, 50)), 20.0)
+        }
     };
 
     // Random slow drift velocity (super slow, like floating in space)

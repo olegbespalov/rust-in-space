@@ -64,6 +64,9 @@ impl Localization {
         en.insert("obj_gold", "Gold");
         ru.insert("obj_gold", "Золота");
 
+        en.insert("obj_destroy_boss", "- Destroy the Boss");
+        ru.insert("obj_destroy_boss", "- Уничтожить босса");
+
         en.insert("press_space", "Press [SPACE] to Launch");
         ru.insert("press_space", "Нажми [ПРОБЕЛ] для запуска");
 
@@ -117,6 +120,12 @@ impl Localization {
         en.insert("gold", "Gold:");
         ru.insert("gold", "Золото:");
 
+        en.insert("boss_hp", "Boss HP:");
+        ru.insert("boss_hp", "Босс ЗД:");
+
+        en.insert("boss_defeated", "Boss Defeated!");
+        ru.insert("boss_defeated", "Босс повержен!");
+
         en.insert("resources", "Resources:");
         ru.insert("resources", "Ресурсы:");
 
@@ -164,6 +173,7 @@ impl Localization {
         de.insert("obj_enemies", "Feinde");
         de.insert("obj_rust_piles", "Rosthaufen");
         de.insert("obj_gold", "Gold");
+        de.insert("obj_destroy_boss", "- Zerstöre den Boss");
         de.insert("press_space", "Drücke [LEERTASTE] zum Starten");
         de.insert("mission_complete", "MISSION ERFOLGREICH!");
         de.insert("level_cleared_prefix", "Level");
@@ -181,6 +191,8 @@ impl Localization {
         de.insert("defeated", "Besiegt:");
         de.insert("rust", "Rost:");
         de.insert("gold", "Gold:");
+        de.insert("boss_hp", "Boss LP:");
+        de.insert("boss_defeated", "Boss besiegt!");
         de.insert("resources", "Ressourcen:");
         de.insert("menu_start", "STARTEN");
         de.insert("menu_difficulty", "Schwierigkeit");
