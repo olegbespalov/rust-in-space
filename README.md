@@ -18,6 +18,9 @@
 - **Classic Space Shooter Controls**: Rotate and thrust your ship with smooth engine mechanics
 - **Asteroid Destruction**: Break large asteroids into smaller fragments, with rare asteroids dropping valuable loot
 - **Enemy Ships**: Battle enemy ships that track and shoot at you
+- **Enemy Health Bars**: Enemy HP is shown with an on-screen health bar
+- **Enemy Detector (Nebula)**: On Nebula (easy) level, the game shows where enemies spawn from; enemies do not disappear at the screen border
+- **Boss Level**: Special boss level for extra challenge
 - **Bullet-to-Bullet Collisions**: Your bullets can intercept and destroy enemy bullets, creating defensive gameplay
 - **Pause System**: Pause the game at any time with ESC key
 - **Loot System**: Collect scrap, rare metals, health packs, weapon boosts, and shields
@@ -92,7 +95,7 @@ The pre-commit hook automatically runs the same checks as CI before each commit.
 
 The game features a mission-based progression system:
 - **Difficulty Selection**: Choose your difficulty level before starting (Nebula/Easy, Supernova/Normal, BlackHole/Hard)
-  - **Nebula (Easy)**: 0.8x damage taken, slower enemy spawns, +10% loot luck
+  - **Nebula (Easy)**: 0.8x damage taken, slower enemy spawns, +10% loot luck; enemy detector shows spawn direction and enemies stay on screen (no despawn at border)
   - **Supernova (Normal)**: 1.0x damage taken, normal spawns, standard loot
   - **BlackHole (Hard)**: 1.5x damage taken, faster enemy spawns, -15% loot luck
 - **Briefing Screen**: View mission objectives before launching
@@ -101,6 +104,7 @@ The game features a mission-based progression system:
   - Collect a certain amount of rust piles (scrap)
   - Collect a certain amount of gold (rare metals)
 - **Mission Success**: Complete all objectives to progress to the next level
+- **Boss Level**: A dedicated boss level provides an extra challenge
 - **Progressive Difficulty**: Missions become increasingly challenging with more enemies and asteroids
 - **Health Restoration**: Your health is fully restored to 150 HP at the start of each new mission
 - **State Persistence**: Resources (scrap, gold), active shields, and weapon boosts persist between missions
@@ -163,7 +167,7 @@ Loot items drop from destroyed asteroids and enemies:
     - Damage is multiplied by difficulty level (Easy: 0.8x, Normal: 1.0x, Hard: 1.5x)
   - **Enemy Bullets**: Deal 15 HP damage (multiplied by difficulty)
   - **Player Bullets**: Deal 15 HP damage to enemies (30 HP with big bullet boost)
-  - **Enemy Health**: Enemies have 24 HP and take multiple hits to destroy
+  - **Enemy Health**: Enemies have 24 HP and take multiple hits to destroy; each enemy displays a health bar
 - **Bullet-to-Bullet Collisions**: Your bullets can intercept and destroy enemy bullets
   - When player and enemy bullets collide, both are destroyed
   - Creates an explosion effect at the collision point
@@ -175,7 +179,10 @@ Loot items drop from destroyed asteroids and enemies:
 - Destroy asteroids to break them into smaller pieces
 - Rare asteroids (10% spawn chance) have distinct appearance and always drop loot
 - Enemy ships spawn based on mission configuration and difficulty level
+- Enemy health bars show remaining HP above each enemy
+- On Nebula difficulty, an enemy detector shows where enemies come from; enemies do not despawn at the screen edge
 - Enemies track your position and shoot at you - destroy them to complete kill objectives
+- A boss level offers a special high-stakes encounter
 - Collect rust piles and gold separately - missions require specific amounts of each
 - Health packs restore 25 HP (capped at maximum of 150 HP)
 - **Rapid Fire Boost**: Reduces shooting cooldown by 3x for 10 seconds
