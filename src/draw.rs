@@ -156,6 +156,11 @@ pub fn draw_engine(engine: &Engine, ship_pos: Vec2, ship_rotation_rad: f32, text
     );
 }
 
+// HP bar layout above enemy ships
+const ENEMY_HP_BAR_HEIGHT: f32 = 5.0;
+const ENEMY_HP_BAR_GAP: f32 = 5.0;
+const ENEMY_HP_BAR_BG_COLOR: Color = Color::new(0.25, 0.0, 0.0, 0.9);
+
 pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
     let size = match enemy.enemy_type {
         crate::components::EnemyType::Regular => vec2(60.0, 60.0),
@@ -165,6 +170,29 @@ pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
         crate::components::EnemyType::Regular => &res.enemy_small,
         crate::components::EnemyType::Kamikaze => &res.enemy_kamikaze,
     };
+
+    // Draw HP bar above the ship (always visible)
+    let bar_width = size.x;
+    let bar_left = enemy.pos.x - bar_width / 2.0;
+    let bar_top = enemy.pos.y - size.y / 2.0 - ENEMY_HP_BAR_GAP - ENEMY_HP_BAR_HEIGHT;
+
+    // Background: missing HP
+    draw_rectangle(
+        bar_left,
+        bar_top,
+        bar_width,
+        ENEMY_HP_BAR_HEIGHT,
+        ENEMY_HP_BAR_BG_COLOR,
+    );
+
+    // Foreground: current HP (green at full, red at empty)
+    let ratio = (enemy.health / enemy.max_health).clamp(0.0, 1.0);
+    let fill_width = bar_width * ratio;
+    if fill_width > 0.0 {
+        let hp_color = Color::new(1.0 - ratio, ratio, 0.0, 1.0);
+        draw_rectangle(bar_left, bar_top, fill_width, ENEMY_HP_BAR_HEIGHT, hp_color);
+    }
+
     draw_texture_ex(
         texture,
         enemy.pos.x - size.x / 2.0,
