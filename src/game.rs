@@ -19,6 +19,9 @@ pub const ENEMY_BULLET_DAMAGE: f32 = 15.0;
 pub const BASE_ASTEROID_DAMAGE: f32 = 5.0;
 pub const BASE_KAMIKAZE_DAMAGE: f32 = 30.0; // Base explosion damage for kamikaze
 pub const SCORE_PER_ENEMY_HP: u32 = 10;
+pub const ENEMY_BORDER_MARGIN: f32 = 40.0;
+/// Delay in seconds after an enemy spawns before the direction hint is shown (Easy only).
+pub const ENEMY_HINT_DELAY: f64 = 2.5;
 
 pub struct Game {
     pub ship: Ship,
@@ -36,6 +39,9 @@ pub struct Game {
     pub enemy_spawn_timer: f32,
     pub difficulty: Difficulty,
     pub menu_selection: MenuItem,
+    /// On Easy: hint shows first, then ship spawns after ENEMY_HINT_DELAY.
+    /// (from_left, spawn_y, hint_shown_at_time) — ship spawns at that position when delay has passed.
+    pub pending_enemy_hint: Option<(bool, f32, f64)>,
 }
 
 impl Game {
@@ -56,6 +62,7 @@ impl Game {
             enemy_spawn_timer: 0.0,
             difficulty: Difficulty::Supernova,
             menu_selection: MenuItem::Start,
+            pending_enemy_hint: None,
         }
     }
 
@@ -70,6 +77,7 @@ impl Game {
         self.current_mission = get_mission(self.current_level_idx);
         self.ship = create_ship();
         self.difficulty = saved_diff;
+        self.pending_enemy_hint = None;
     }
 
     pub fn start_mission(&mut self) {
@@ -85,6 +93,7 @@ impl Game {
         self.mission_scrap_collected = 0;
         self.mission_rare_metal_collected = 0;
         self.enemy_spawn_timer = self.current_mission.enemy_spawn_interval;
+        self.pending_enemy_hint = None;
 
         // Reset ship position and movement, restore health to full
         self.ship.pos = vec2(screen_width() / 2.0, screen_height() / 2.0);
@@ -147,11 +156,7 @@ pub fn update_timers(game: &mut Game, dt: f32) {
         }
     }
 
-    game.enemy_spawn_timer -= dt;
-    if game.enemy_spawn_timer <= 0.0 {
-        game.enemy_ships.push(EnemyShip::new());
-        game.enemy_spawn_timer = game.current_mission.enemy_spawn_interval;
-    }
+    // Enemy spawning is handled in update_enemies (so last_enemy_spawn_* is set for the Easy hint).
 
     game.explosions.retain_mut(|e| {
         e.timer += dt;
@@ -214,14 +219,55 @@ pub fn update_ship_shooting(game: &mut Game) {
     }
 }
 
-pub fn update_enemies(game: &mut Game, dt: f32) {
-    game.enemy_spawn_timer -= dt;
-    if game.enemy_spawn_timer <= 0.0 {
-        game.enemy_ships.push(EnemyShip::new());
+fn keep_enemy_in_bounds(e: &mut EnemyShip) {
+    let margin = ENEMY_BORDER_MARGIN;
+    let w = screen_width();
+    let h = screen_height();
 
-        // Apply difficulty multiplier to spawn rate
-        let base_interval = game.current_mission.enemy_spawn_interval;
-        game.enemy_spawn_timer = base_interval / game.difficulty.spawn_rate_mult();
+    if e.pos.x < margin {
+        e.vel.x = e.vel.x.max(60.0);
+        e.pos.x = e.pos.x.max(margin);
+    }
+    if e.pos.x > w - margin {
+        e.vel.x = e.vel.x.min(-60.0);
+        e.pos.x = e.pos.x.min(w - margin);
+    }
+    if e.pos.y < margin {
+        e.vel.y = e.vel.y.max(40.0);
+        e.pos.y = e.pos.y.max(margin);
+    }
+    if e.pos.y > h - margin {
+        e.vel.y = e.vel.y.min(-40.0);
+        e.pos.y = e.pos.y.min(h - margin);
+    }
+}
+
+pub fn update_enemies(game: &mut Game, dt: f32) {
+    use macroquad::rand::gen_range;
+
+    // On Easy: show hint first, then spawn ship after ENEMY_HINT_DELAY
+    if let Some((from_left, spawn_y, hint_at)) = game.pending_enemy_hint {
+        if get_time() - hint_at >= ENEMY_HINT_DELAY {
+            game.enemy_ships
+                .push(EnemyShip::new_at_side(from_left, spawn_y));
+            game.pending_enemy_hint = None;
+            let base_interval = game.current_mission.enemy_spawn_interval;
+            game.enemy_spawn_timer = base_interval / game.difficulty.spawn_rate_mult();
+        }
+        // While pending, don't decrement timer or start a new spawn
+    } else {
+        game.enemy_spawn_timer -= dt;
+        if game.enemy_spawn_timer <= 0.0 {
+            if game.difficulty == Difficulty::Nebula {
+                let from_left = gen_range(0, 2) == 0;
+                let y = gen_range(50.0, screen_height() - 50.0);
+                game.pending_enemy_hint = Some((from_left, y, get_time()));
+            } else {
+                game.enemy_ships.push(EnemyShip::new());
+                let base_interval = game.current_mission.enemy_spawn_interval;
+                game.enemy_spawn_timer = base_interval / game.difficulty.spawn_rate_mult();
+            }
+        }
     }
 
     for e in game.enemy_ships.iter_mut() {
@@ -256,6 +302,8 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
                 e.pos += e.vel * dt;
             }
         }
+
+        keep_enemy_in_bounds(e);
     }
     game.enemy_ships
         .retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
@@ -609,6 +657,13 @@ pub fn render_game(game: &Game, resources: &Resources) {
         GRAY,
         resources,
     );
+
+    // Easy difficulty: signal shows first, then ship spawns after ENEMY_HINT_DELAY
+    if game.difficulty == Difficulty::Nebula {
+        if let Some((from_left, spawn_y, _)) = game.pending_enemy_hint {
+            crate::draw::draw_enemy_direction_hint(from_left, spawn_y);
+        }
+    }
 }
 
 pub fn render_menu(game: &Game, res: &Resources) {

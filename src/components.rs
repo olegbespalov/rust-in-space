@@ -217,6 +217,34 @@ impl EnemyShip {
         }
     }
 
+    /// Create an enemy at a specific side and Y (for delayed spawn after hint).
+    pub fn new_at_side(from_left: bool, y: f32) -> Self {
+        let x = if from_left {
+            -30.0
+        } else {
+            screen_width() + 30.0
+        };
+        let enemy_type = if gen_range(0, 100) < 30 {
+            EnemyType::Kamikaze
+        } else {
+            EnemyType::Regular
+        };
+        let speed_x = if from_left { 120.0 } else { -120.0 };
+        let max_health = match enemy_type {
+            EnemyType::Regular => 24.0,
+            EnemyType::Kamikaze => 18.0,
+        };
+        Self {
+            pos: vec2(x, y),
+            vel: vec2(speed_x, gen_range(-20.0, 20.0)),
+            shoot_timer: 1.5,
+            rotation: 0.0,
+            health: max_health,
+            max_health,
+            enemy_type,
+        }
+    }
+
     // Returns true if the enemy is destroyed
     pub fn take_damage(&mut self, damage: f32) -> bool {
         self.health -= damage;

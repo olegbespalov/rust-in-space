@@ -282,3 +282,63 @@ pub fn draw_explosion(expl: &Explosion, res: &Resources) {
         },
     );
 }
+
+/// Easy difficulty: draw blinking arrows and wi-fi style arcs at the side/height where the last enemy came from.
+/// `spawn_y` is the vertical position where the enemy appeared (hint is drawn near there, smaller and closer to the edge).
+pub fn draw_enemy_direction_hint(from_left: bool, spawn_y: f32) {
+    let t = get_time() as f32;
+    let blink = 0.4 + 0.6 * (t * 2.5).sin().mul_add(0.5, 0.5);
+    let color = Color::new(0.2, 1.0, 0.4, blink); // Lime with blink
+
+    let w = screen_width();
+    let h = screen_height();
+    let margin = 50.0; // keep hint fully on screen
+    let cy = spawn_y.clamp(margin, h - margin);
+    // Closer to where ships appear (x = -30 or screen_width()+30)
+    let edge_x = if from_left { 28.0 } else { w - 28.0 };
+    let dir: f32 = if from_left { 1.0 } else { -1.0 };
+
+    // Wi-fi style: smaller concentric arcs
+    let arc_radii = [10.0, 18.0, 26.0, 34.0];
+    let (angle_min, angle_max) = if from_left {
+        (-std::f32::consts::FRAC_PI_2, std::f32::consts::FRAC_PI_2) // right half
+    } else {
+        (std::f32::consts::FRAC_PI_2, std::f32::consts::PI * 1.5) // left half
+    };
+    for &r in &arc_radii {
+        let n = (r * 0.8) as usize + 4;
+        let mut prev: Option<Vec2> = None;
+        for i in 0..=n {
+            let angle = angle_min + (angle_max - angle_min) * (i as f32 / n as f32);
+            let px = edge_x + r * angle.cos();
+            let py = cy + r * angle.sin();
+            let pt = Vec2::new(px, py);
+            if let Some(p) = prev {
+                draw_line(p.x, p.y, pt.x, pt.y, 2.0, color);
+            }
+            prev = Some(pt);
+        }
+    }
+
+    // Blinking arrow (smaller triangle pointing toward center)
+    let arrow_w = 10.0;
+    let arrow_h = 14.0;
+    let tip_x = edge_x + dir * (arrow_w + 8.0);
+    let base_x = edge_x + dir * 8.0;
+    let left_y = cy - arrow_h / 2.0;
+    let right_y = cy + arrow_h / 2.0;
+    let (tip, base_left, base_right) = if from_left {
+        (
+            Vec2::new(tip_x, cy),
+            Vec2::new(base_x, left_y),
+            Vec2::new(base_x, right_y),
+        )
+    } else {
+        (
+            Vec2::new(tip_x, cy),
+            Vec2::new(base_x, right_y),
+            Vec2::new(base_x, left_y),
+        )
+    };
+    draw_triangle(tip, base_left, base_right, color);
+}
