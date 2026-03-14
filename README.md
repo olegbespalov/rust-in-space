@@ -15,14 +15,17 @@
 - **Mission-Based Gameplay**: Complete objectives across multiple levels with increasing difficulty
 - **Difficulty System**: Choose from three difficulty levels (Nebula/Easy, Supernova/Normal, BlackHole/Hard)
   - Difficulty affects enemy spawn rates, damage taken, and loot drop chances
+- **Upgrade Bay Between Missions**: Spend scrap and gold on permanent ship upgrades before continuing
+  - Reinforced Hull, Weapon Tuning, Engine Overdrive, Magnet Array, Shield Capacitor
+- **Language Support**: Full UI localization for English, Russian, and German
 - **Classic Space Shooter Controls**: Rotate and thrust your ship with smooth engine mechanics
 - **Asteroid Destruction**: Break large asteroids into smaller fragments, with rare asteroids dropping valuable loot
-- **Enemy Ships**: Battle enemy ships that track and shoot at you
+- **Enemy Types**: Battle regular shooters and kamikaze ships that rush the player
 - **Enemy Health Bars**: Enemy HP is shown with an on-screen health bar
 - **Enemy Detector (Nebula)**: On Nebula (easy) level, the game shows where enemies spawn from; enemies do not disappear at the screen border
 - **Boss Level**: Special boss level for extra challenge
 - **Bullet-to-Bullet Collisions**: Your bullets can intercept and destroy enemy bullets, creating defensive gameplay
-- **Pause System**: Pause the game at any time with ESC key
+- **Pause System**: ESC pauses, ENTER resumes, ESC from pause returns to menu
 - **Loot System**: Collect scrap, rare metals, health packs, weapon boosts, and shields
   - **Magnet Effect**: Loot items are automatically attracted to your ship when nearby
   - **Animated Loot**: Items rotate and drift realistically in space
@@ -37,12 +40,13 @@
 
 ## Controls
 
-- **Left Arrow**: Rotate ship counter-clockwise / Select difficulty (in menu)
-- **Right Arrow**: Rotate ship clockwise / Select difficulty (in menu)
-- **Up Arrow**: Thrust forward (with smooth engine ramp-up)
-- **Space**: Shoot bullets / Launch mission (from briefing screen)
-- **Enter**: Start game (from menu) / Next mission (from success screen) / Return to menu (from game over screen)
-- **ESC**: Pause/Resume game (during gameplay)
+- **Menu**: Up/Down select item, Left/Right change value (difficulty/language), Enter confirm/start
+- **Playing**: Left/Right rotate, Up thrust, Space shoot, ESC pause
+- **Briefing**: Space launches mission
+- **Mission Success**: Enter opens Upgrade Bay
+- **Upgrade Bay**: Up/Down select, Enter buy or continue
+- **Paused**: Enter resumes, ESC returns to main menu
+- **Game Over**: Enter returns to menu
 
 ## Installation
 
@@ -104,23 +108,27 @@ The game features a mission-based progression system:
   - Collect a certain amount of rust piles (scrap)
   - Collect a certain amount of gold (rare metals)
 - **Mission Success**: Complete all objectives to progress to the next level
+- **Upgrade Intermission**: After mission success, enter the Upgrade Bay to buy permanent upgrades before the next briefing
 - **Boss Level**: A dedicated boss level provides an extra challenge
-- **Progressive Difficulty**: Missions become increasingly challenging with more enemies and asteroids
+- **Progressive Difficulty**: Missions become increasingly challenging, then continue with infinitely scaling deep-space sectors
 - **Health Restoration**: Your health is fully restored to 150 HP at the start of each new mission
 - **State Persistence**: Resources (scrap, gold), active shields, and weapon boosts persist between missions
 
 ### Scoring
 - **Asteroids**: 100 points each
-- **Enemy Ships**: 240 points each (10 points per HP, enemies have 24 HP)
+- **Enemies/Boss**: 10 points per HP
+  - Regular enemy (24 HP): 240 points
+  - Kamikaze enemy (18 HP): 180 points
+  - Boss (300 HP): 3000 points
 
 ### Loot System
 
 Loot items drop from destroyed asteroids and enemies:
 
 **From Regular Asteroids:**
-- **Rust Piles (Scrap)** (55% chance): 1-3 pieces
-- **Gold (Rare Metal)** (10% chance): 1 piece
-- **Nothing** (35% chance)
+- **Rust Piles (Scrap)** (40% chance): 1-3 pieces
+- **Gold (Rare Metal)** (5% chance): 1 piece
+- **Nothing** (55% chance)
 
 **From Rare Asteroids** (10% chance to spawn, always drop loot):
 - **Gold (Rare Metal)** (30% chance): 2-5 pieces
@@ -174,14 +182,14 @@ Loot items drop from destroyed asteroids and enemies:
   - Provides defensive gameplay - shoot enemy bullets to protect yourself
 - **Pause System**: Press ESC to pause the game at any time
   - Game state is frozen while paused
-  - Press ESC again to resume
+  - Press ENTER to resume, or ESC to return to main menu
 - Complete mission objectives to progress (kills, rust piles, and gold)
 - Destroy asteroids to break them into smaller pieces
 - Rare asteroids (10% spawn chance) have distinct appearance and always drop loot
 - Enemy ships spawn based on mission configuration and difficulty level
 - Enemy health bars show remaining HP above each enemy
 - On Nebula difficulty, an enemy detector shows where enemies come from; enemies do not despawn at the screen edge
-- Enemies track your position and shoot at you - destroy them to complete kill objectives
+- Regular enemies track your position and shoot; kamikaze enemies rush and explode on contact
 - A boss level offers a special high-stakes encounter
 - Collect rust piles and gold separately - missions require specific amounts of each
 - Health packs restore 25 HP (capped at maximum of 150 HP)
@@ -196,12 +204,18 @@ Loot items drop from destroyed asteroids and enemies:
 ```
 space_game/
 ├── src/
-│   ├── main.rs      # Main game loop and state management
-│   ├── game.rs      # Game logic, updates, and rendering
-│   ├── components.rs # Game entities and data structures (Ship, Asteroid, Loot, Mission, etc.)
-│   ├── systems.rs   # Game systems (wrapping, save/load, mission generation, loot generation)
-│   ├── draw.rs      # Rendering functions
-│   └── resources.rs # Resource management (texture loading)
+│   ├── main.rs          # Main loop and game state transitions
+│   ├── components.rs    # Game entities and data structures
+│   ├── draw.rs          # Rendering and UI functions
+│   ├── systems.rs       # Wrapping, save/load, mission/loot generation
+│   ├── resources.rs     # Texture/font loading
+│   ├── localization.rs  # Language dictionaries and translation lookup
+│   └── game/
+│       ├── mod.rs       # Game struct, progression, upgrades
+│       ├── constants.rs # Gameplay constants
+│       ├── player.rs    # Player movement and shooting
+│       ├── npc.rs       # Enemy and boss behavior
+│       └── physics.rs   # Timers, loot, collisions, physics updates
 ├── assets/          # Game assets (sprites, textures)
 │   ├── loot/        # Loot item textures
 │   │   ├── resources/ # Resource textures (scrap, gold)
