@@ -8,7 +8,7 @@ mod systems;
 use macroquad::prelude::*;
 
 use components::{GameState, MenuItem};
-use draw::draw_background;
+use draw::*;
 use game::*;
 use resources::Resources;
 

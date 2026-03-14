@@ -33,19 +33,32 @@ pub fn save_score(score: u32) {
     let current_data = load_score();
     if score > current_data.high_score {
         let new_data = SaveData { high_score: score };
-        if let Ok(json) = serde_json::to_string(&new_data) {
-            let _ = fs::write(SAVE_FILE, json);
+        match serde_json::to_string(&new_data) {
+            Ok(json) => {
+                if let Err(e) = fs::write(SAVE_FILE, json) {
+                    eprintln!("Failed to write highscore to {}: {}", SAVE_FILE, e);
+                }
+            }
+            Err(e) => eprintln!("Failed to serialize highscore: {}", e),
         }
     }
 }
 
 pub fn load_score() -> SaveData {
-    if let Ok(content) = fs::read_to_string(SAVE_FILE) {
-        if let Ok(data) = serde_json::from_str::<SaveData>(&content) {
-            return data;
+    match fs::read_to_string(SAVE_FILE) {
+        Ok(content) => match serde_json::from_str::<SaveData>(&content) {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("Failed to parse highscore file: {}", e);
+                SaveData::new()
+            }
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => SaveData::new(),
+        Err(e) => {
+            eprintln!("Failed to read highscore file: {}", e);
+            SaveData::new()
         }
     }
-    SaveData::new()
 }
 
 pub fn get_mission(level: u32) -> Mission {
