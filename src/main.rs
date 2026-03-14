@@ -106,9 +106,11 @@ async fn main() {
                 render_game(&game, &resources);
                 render_pause(&resources);
 
-                // Check for unpause
-                if is_key_pressed(KeyCode::Escape) {
+                // ENTER resumes the mission, ESC exits to main menu
+                if is_key_pressed(KeyCode::Enter) {
                     state = GameState::Playing;
+                } else if is_key_pressed(KeyCode::Escape) {
+                    state = GameState::Menu;
                 }
             }
 

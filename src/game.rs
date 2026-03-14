@@ -1285,5 +1285,6 @@ pub fn render_pause(res: &Resources) {
 
     // Draw pause text
     draw_text_centered(res.lang.t("paused"), -20.0, 48, YELLOW, res);
-    draw_text_centered(res.lang.t("press_esc"), 30.0, 24, WHITE, res);
+    draw_text_centered(res.lang.t("press_enter_resume"), 20.0, 24, WHITE, res);
+    draw_text_centered(res.lang.t("press_esc"), 55.0, 24, WHITE, res);
 }

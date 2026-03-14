@@ -92,8 +92,11 @@ impl Localization {
         en.insert("high_score", "HIGH SCORE:");
         ru.insert("high_score", "РЕКОРД:");
 
-        en.insert("press_esc", "Press [ESC] to Resume");
-        ru.insert("press_esc", "Нажми [ESC] для продолжения");
+        en.insert("press_enter_resume", "Press [ENTER] to Resume");
+        ru.insert("press_enter_resume", "Нажми [ENTER] для продолжения");
+
+        en.insert("press_esc", "Press [ESC] for Main Menu");
+        ru.insert("press_esc", "Нажми [ESC] для выхода в меню");
 
         en.insert("controls", "ARROWS to move | SPACE to shoot");
         ru.insert("controls", "СТРЕЛКИ для движения | ПРОБЕЛ для стрельбы");
@@ -234,7 +237,8 @@ impl Localization {
         de.insert("game_over", "SPIEL VORBEI");
         de.insert("final_score_prefix", "Endpunktzahl:");
         de.insert("high_score", "REKORD:");
-        de.insert("press_esc", "Drücke [ESC] zum Fortsetzen");
+        de.insert("press_enter_resume", "Drücke [ENTER] zum Fortsetzen");
+        de.insert("press_esc", "Drücke [ESC] für Hauptmenü");
         de.insert("controls", "PFEILE zum Bewegen | LEERTASTE zum Schießen");
         de.insert("paused", "PAUSIERT");
         de.insert("score", "PUNKTE:");
