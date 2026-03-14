@@ -80,8 +80,8 @@ impl Localization {
         en.insert("level_cleared_suffix", "Cleared");
         ru.insert("level_cleared_suffix", "Пройден");
 
-        en.insert("next_mission", "Press [ENTER] for Next Mission");
-        ru.insert("next_mission", "Нажми [ENTER] для след. миссии");
+        en.insert("next_mission", "Press [ENTER] for Upgrades");
+        ru.insert("next_mission", "Нажми [ENTER] для улучшений");
 
         en.insert("game_over", "GAME OVER");
         ru.insert("game_over", "ИГРА ОКОНЧЕНА");
@@ -128,6 +128,58 @@ impl Localization {
 
         en.insert("resources", "Resources:");
         ru.insert("resources", "Ресурсы:");
+
+        // --- UPGRADES ---
+        en.insert("upgrade_bay_title", "UPGRADE BAY");
+        ru.insert("upgrade_bay_title", "ОТСЕК УЛУЧШЕНИЙ");
+        en.insert(
+            "upgrade_bay_subtitle",
+            "Spend resources before the next mission",
+        );
+        ru.insert(
+            "upgrade_bay_subtitle",
+            "Потрать ресурсы перед следующей миссией",
+        );
+        en.insert("upgrade_level", "Lvl");
+        ru.insert("upgrade_level", "Ур");
+        en.insert("upgrade_cost", "Cost");
+        ru.insert("upgrade_cost", "Цена");
+        en.insert("upgrade_status_maxed", "MAXED");
+        ru.insert("upgrade_status_maxed", "МАКС");
+        en.insert("upgrade_status_buy", "Ready");
+        ru.insert("upgrade_status_buy", "Можно купить");
+        en.insert("upgrade_status_lack", "Not enough");
+        ru.insert("upgrade_status_lack", "Не хватает");
+        en.insert("upgrade_continue", "Continue to Briefing");
+        ru.insert("upgrade_continue", "Продолжить к брифингу");
+        en.insert(
+            "upgrade_controls",
+            "UP/DOWN: Select  ENTER: Buy or Continue",
+        );
+        ru.insert(
+            "upgrade_controls",
+            "ВВЕРХ/ВНИЗ: Выбор  ENTER: Купить или продолжить",
+        );
+        en.insert("upgrade_hull_name", "Reinforced Hull");
+        ru.insert("upgrade_hull_name", "Укрепленный корпус");
+        en.insert("upgrade_hull_desc", "+20 max HP per level");
+        ru.insert("upgrade_hull_desc", "+20 к макс. здоровью за уровень");
+        en.insert("upgrade_weapon_name", "Weapon Tuning");
+        ru.insert("upgrade_weapon_name", "Настройка оружия");
+        en.insert("upgrade_weapon_desc", "+10% base bullet damage per level");
+        ru.insert("upgrade_weapon_desc", "+10% к базовому урону за уровень");
+        en.insert("upgrade_engine_name", "Engine Overdrive");
+        ru.insert("upgrade_engine_name", "Форсаж двигателя");
+        en.insert("upgrade_engine_desc", "+8% acceleration per level");
+        ru.insert("upgrade_engine_desc", "+8% к ускорению за уровень");
+        en.insert("upgrade_magnet_name", "Magnet Array");
+        ru.insert("upgrade_magnet_name", "Магнитный массив");
+        en.insert("upgrade_magnet_desc", "+25 loot magnet radius per level");
+        ru.insert("upgrade_magnet_desc", "+25 к радиусу притяжения за уровень");
+        en.insert("upgrade_shield_name", "Shield Capacitor");
+        ru.insert("upgrade_shield_name", "Конденсатор щита");
+        en.insert("upgrade_shield_desc", "Start mission with a small shield");
+        ru.insert("upgrade_shield_desc", "Старт миссии с небольшим щитом");
 
         // --- MENU ITEMS ---
         en.insert("menu_start", "START");
@@ -178,7 +230,7 @@ impl Localization {
         de.insert("mission_complete", "MISSION ERFOLGREICH!");
         de.insert("level_cleared_prefix", "Level");
         de.insert("level_cleared_suffix", "Geschafft");
-        de.insert("next_mission", "Drücke [ENTER] für nächste Mission");
+        de.insert("next_mission", "Drücke [ENTER] für Verbesserungen");
         de.insert("game_over", "SPIEL VORBEI");
         de.insert("final_score_prefix", "Endpunktzahl:");
         de.insert("high_score", "REKORD:");
@@ -194,6 +246,31 @@ impl Localization {
         de.insert("boss_hp", "Boss LP:");
         de.insert("boss_defeated", "Boss besiegt!");
         de.insert("resources", "Ressourcen:");
+        de.insert("upgrade_bay_title", "UPGRADE-BAU");
+        de.insert(
+            "upgrade_bay_subtitle",
+            "Gib Ressourcen vor der nächsten Mission aus",
+        );
+        de.insert("upgrade_level", "Stufe");
+        de.insert("upgrade_cost", "Kosten");
+        de.insert("upgrade_status_maxed", "MAX");
+        de.insert("upgrade_status_buy", "Kaufbar");
+        de.insert("upgrade_status_lack", "Nicht genug");
+        de.insert("upgrade_continue", "Zum Briefing weiter");
+        de.insert(
+            "upgrade_controls",
+            "OBEN/UNTEN: Auswahl  ENTER: Kaufen oder weiter",
+        );
+        de.insert("upgrade_hull_name", "Verstärkte Hülle");
+        de.insert("upgrade_hull_desc", "+20 max. LP pro Stufe");
+        de.insert("upgrade_weapon_name", "Waffen-Tuning");
+        de.insert("upgrade_weapon_desc", "+10% Grundschaden pro Stufe");
+        de.insert("upgrade_engine_name", "Motor-Overdrive");
+        de.insert("upgrade_engine_desc", "+8% Beschleunigung pro Stufe");
+        de.insert("upgrade_magnet_name", "Magnet-Array");
+        de.insert("upgrade_magnet_desc", "+25 Magnetradius pro Stufe");
+        de.insert("upgrade_shield_name", "Schildkondensator");
+        de.insert("upgrade_shield_desc", "Mission beginnt mit kleinem Schild");
         de.insert("menu_start", "STARTEN");
         de.insert("menu_difficulty", "Schwierigkeit");
         de.insert("menu_language", "Sprache");

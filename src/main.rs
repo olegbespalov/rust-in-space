@@ -116,8 +116,28 @@ async fn main() {
                 render_mission_success(&game.current_mission, &resources);
 
                 if is_key_pressed(KeyCode::Enter) {
-                    game.next_mission();
-                    state = GameState::Briefing;
+                    game.upgrade_selection = 0;
+                    state = GameState::UpgradeBay;
+                }
+            }
+
+            GameState::UpgradeBay => {
+                render_upgrade_bay(&game, &resources);
+
+                if is_key_pressed(KeyCode::Up) {
+                    game.prev_upgrade_selection();
+                }
+                if is_key_pressed(KeyCode::Down) {
+                    game.next_upgrade_selection();
+                }
+
+                if is_key_pressed(KeyCode::Enter) {
+                    if game.is_continue_selected() {
+                        game.next_mission();
+                        state = GameState::Briefing;
+                    } else if let Some(id) = game.selected_upgrade() {
+                        let _ = game.buy_upgrade(id);
+                    }
                 }
             }
 

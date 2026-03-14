@@ -27,6 +27,7 @@ pub enum GameState {
     Playing,
     Paused,         // game is paused
     MissionSuccess, // level completed
+    UpgradeBay,     // intermission upgrades screen
     GameOver(u32),
 }
 
@@ -131,6 +132,30 @@ pub struct Engine {
     pub ramp_up: f32,        // Speed of thrust increase
     pub decay: f32,          // Speed of decay
     pub offset: f32,         // Offset of the nozzles relative to the center of the ship
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum UpgradeId {
+    ReinforcedHull,
+    WeaponTuning,
+    EngineOverdrive,
+    MagnetArray,
+    ShieldCapacitor,
+}
+
+#[derive(Clone, Copy)]
+pub struct UpgradeCost {
+    pub scrap: u32,
+    pub rare_metal: u32,
+}
+
+#[derive(Clone, Default)]
+pub struct UpgradeLevels {
+    pub reinforced_hull: u8,
+    pub weapon_tuning: u8,
+    pub engine_overdrive: u8,
+    pub magnet_array: u8,
+    pub shield_capacitor: u8,
 }
 
 // 1. Types of loot
@@ -351,6 +376,28 @@ impl Engine {
             self.current_thrust = (self.current_thrust + self.ramp_up * dt).min(1.0);
         } else {
             self.current_thrust = (self.current_thrust - self.decay * dt).max(0.0);
+        }
+    }
+}
+
+impl UpgradeLevels {
+    pub fn get(&self, id: UpgradeId) -> u8 {
+        match id {
+            UpgradeId::ReinforcedHull => self.reinforced_hull,
+            UpgradeId::WeaponTuning => self.weapon_tuning,
+            UpgradeId::EngineOverdrive => self.engine_overdrive,
+            UpgradeId::MagnetArray => self.magnet_array,
+            UpgradeId::ShieldCapacitor => self.shield_capacitor,
+        }
+    }
+
+    pub fn set(&mut self, id: UpgradeId, value: u8) {
+        match id {
+            UpgradeId::ReinforcedHull => self.reinforced_hull = value,
+            UpgradeId::WeaponTuning => self.weapon_tuning = value,
+            UpgradeId::EngineOverdrive => self.engine_overdrive = value,
+            UpgradeId::MagnetArray => self.magnet_array = value,
+            UpgradeId::ShieldCapacitor => self.shield_capacitor = value,
         }
     }
 }

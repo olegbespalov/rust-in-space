@@ -22,6 +22,89 @@ pub const SCORE_PER_ENEMY_HP: u32 = 10;
 pub const ENEMY_BORDER_MARGIN: f32 = 40.0;
 /// Delay in seconds after an enemy spawns before the direction hint is shown (Easy only).
 pub const ENEMY_HINT_DELAY: f64 = 2.5;
+pub const BASE_SHIP_HP: f32 = 150.0;
+pub const BASE_LOOT_MAGNET_RADIUS: f32 = 150.0;
+pub const HULL_HP_PER_LEVEL: f32 = 20.0;
+pub const WEAPON_DAMAGE_BONUS_PER_LEVEL: f32 = 0.10;
+pub const ENGINE_ACCEL_BONUS_PER_LEVEL: f32 = 0.08;
+pub const MAGNET_RADIUS_PER_LEVEL: f32 = 25.0;
+pub const SHIELD_CAPACITOR_HP: f32 = 45.0;
+pub const SHIELD_CAPACITOR_DURATION: f32 = 20.0;
+
+pub const UPGRADABLE_IDS: [UpgradeId; 5] = [
+    UpgradeId::ReinforcedHull,
+    UpgradeId::WeaponTuning,
+    UpgradeId::EngineOverdrive,
+    UpgradeId::MagnetArray,
+    UpgradeId::ShieldCapacitor,
+];
+
+pub struct UpgradeDefinition {
+    pub name_key: &'static str,
+    pub desc_key: &'static str,
+    pub max_level: u8,
+}
+
+pub enum BuyUpgradeResult {
+    Bought,
+    Maxed,
+    NotEnoughResources,
+}
+
+pub fn upgrade_definition(id: UpgradeId) -> UpgradeDefinition {
+    match id {
+        UpgradeId::ReinforcedHull => UpgradeDefinition {
+            name_key: "upgrade_hull_name",
+            desc_key: "upgrade_hull_desc",
+            max_level: 3,
+        },
+        UpgradeId::WeaponTuning => UpgradeDefinition {
+            name_key: "upgrade_weapon_name",
+            desc_key: "upgrade_weapon_desc",
+            max_level: 3,
+        },
+        UpgradeId::EngineOverdrive => UpgradeDefinition {
+            name_key: "upgrade_engine_name",
+            desc_key: "upgrade_engine_desc",
+            max_level: 3,
+        },
+        UpgradeId::MagnetArray => UpgradeDefinition {
+            name_key: "upgrade_magnet_name",
+            desc_key: "upgrade_magnet_desc",
+            max_level: 2,
+        },
+        UpgradeId::ShieldCapacitor => UpgradeDefinition {
+            name_key: "upgrade_shield_name",
+            desc_key: "upgrade_shield_desc",
+            max_level: 1,
+        },
+    }
+}
+
+pub fn upgrade_cost(id: UpgradeId, next_level: u8) -> UpgradeCost {
+    match id {
+        UpgradeId::ReinforcedHull => UpgradeCost {
+            scrap: 20 + 25 * (next_level as u32 - 1),
+            rare_metal: 0,
+        },
+        UpgradeId::WeaponTuning => UpgradeCost {
+            scrap: 30 + 25 * (next_level as u32 - 1),
+            rare_metal: if next_level >= 3 { 2 } else { 0 },
+        },
+        UpgradeId::EngineOverdrive => UpgradeCost {
+            scrap: 25 + 20 * (next_level as u32 - 1),
+            rare_metal: 0,
+        },
+        UpgradeId::MagnetArray => UpgradeCost {
+            scrap: 20 + 20 * (next_level as u32 - 1),
+            rare_metal: next_level as u32 - 1,
+        },
+        UpgradeId::ShieldCapacitor => UpgradeCost {
+            scrap: 0,
+            rare_metal: 3,
+        },
+    }
+}
 
 pub struct Game {
     pub ship: Ship,
@@ -43,6 +126,8 @@ pub struct Game {
     /// (from_left, spawn_y, hint_shown_at_time) — ship spawns at that position when delay has passed.
     pub pending_enemy_hint: Option<(bool, f32, f64)>,
     pub boss: Option<Boss>,
+    pub upgrade_levels: UpgradeLevels,
+    pub upgrade_selection: usize,
 }
 
 impl Game {
@@ -65,6 +150,8 @@ impl Game {
             menu_selection: MenuItem::Start,
             pending_enemy_hint: None,
             boss: None,
+            upgrade_levels: UpgradeLevels::default(),
+            upgrade_selection: 0,
         }
     }
 
@@ -81,6 +168,9 @@ impl Game {
         self.ship = create_ship();
         self.difficulty = saved_diff;
         self.pending_enemy_hint = None;
+        self.upgrade_levels = UpgradeLevels::default();
+        self.upgrade_selection = 0;
+        self.apply_permanent_upgrades();
     }
 
     pub fn start_mission(&mut self) {
@@ -109,9 +199,15 @@ impl Game {
         self.ship.vel = vec2(0.0, 0.0);
         self.ship.rotation = 0.0;
         self.ship.engine.current_thrust = 0.0;
-        // Restore health to 100% (150 HP)
+        self.apply_permanent_upgrades();
+        // Restore health to maximum HP for the mission
         self.ship.health = self.ship.max_health;
-        // Note: scrap, rare_metal, shield state, and boost timers are preserved between missions
+
+        if self.upgrade_levels.get(UpgradeId::ShieldCapacitor) > 0 && !self.ship.has_shield() {
+            self.ship
+                .activate_shield(SHIELD_CAPACITOR_HP, SHIELD_CAPACITOR_DURATION);
+        }
+        // Note: scrap, rare_metal, and temporary boost timers are preserved between missions
     }
 
     pub fn next_mission(&mut self) {
@@ -136,6 +232,86 @@ impl Game {
             Difficulty::BlackHole => Difficulty::Nebula,
         };
     }
+
+    pub fn selected_upgrade(&self) -> Option<UpgradeId> {
+        UPGRADABLE_IDS.get(self.upgrade_selection).copied()
+    }
+
+    pub fn is_continue_selected(&self) -> bool {
+        self.upgrade_selection >= UPGRADABLE_IDS.len()
+    }
+
+    pub fn next_upgrade_selection(&mut self) {
+        let total_items = UPGRADABLE_IDS.len() + 1;
+        self.upgrade_selection = (self.upgrade_selection + 1) % total_items;
+    }
+
+    pub fn prev_upgrade_selection(&mut self) {
+        let total_items = UPGRADABLE_IDS.len() + 1;
+        self.upgrade_selection = if self.upgrade_selection == 0 {
+            total_items - 1
+        } else {
+            self.upgrade_selection - 1
+        };
+    }
+
+    pub fn upgrade_level(&self, id: UpgradeId) -> u8 {
+        self.upgrade_levels.get(id)
+    }
+
+    pub fn can_buy_upgrade(&self, id: UpgradeId) -> bool {
+        let level = self.upgrade_level(id);
+        let def = upgrade_definition(id);
+        if level >= def.max_level {
+            return false;
+        }
+
+        let next_level = level + 1;
+        let cost = upgrade_cost(id, next_level);
+        self.ship.scrap >= cost.scrap && self.ship.rare_metal >= cost.rare_metal
+    }
+
+    pub fn buy_upgrade(&mut self, id: UpgradeId) -> BuyUpgradeResult {
+        let current_level = self.upgrade_level(id);
+        let def = upgrade_definition(id);
+        if current_level >= def.max_level {
+            return BuyUpgradeResult::Maxed;
+        }
+
+        let next_level = current_level + 1;
+        let cost = upgrade_cost(id, next_level);
+        if self.ship.scrap < cost.scrap || self.ship.rare_metal < cost.rare_metal {
+            return BuyUpgradeResult::NotEnoughResources;
+        }
+
+        self.ship.scrap -= cost.scrap;
+        self.ship.rare_metal -= cost.rare_metal;
+        self.upgrade_levels.set(id, next_level);
+        self.apply_permanent_upgrades();
+        BuyUpgradeResult::Bought
+    }
+
+    pub fn apply_permanent_upgrades(&mut self) {
+        let hull_bonus = self.upgrade_level(UpgradeId::ReinforcedHull) as f32 * HULL_HP_PER_LEVEL;
+        self.ship.max_health = BASE_SHIP_HP + hull_bonus;
+        self.ship.health = self.ship.health.min(self.ship.max_health);
+    }
+
+    pub fn player_damage_mult(&self) -> f32 {
+        1.0 + (self.upgrade_level(UpgradeId::WeaponTuning) as f32 * WEAPON_DAMAGE_BONUS_PER_LEVEL)
+    }
+
+    pub fn player_acceleration(&self) -> f32 {
+        let mult = 1.0
+            + (self.upgrade_level(UpgradeId::EngineOverdrive) as f32
+                * ENGINE_ACCEL_BONUS_PER_LEVEL);
+        ACCELERATION * mult
+    }
+
+    pub fn loot_magnet_radius(&self) -> f32 {
+        BASE_LOOT_MAGNET_RADIUS
+            + (self.upgrade_level(UpgradeId::MagnetArray) as f32 * MAGNET_RADIUS_PER_LEVEL)
+    }
 }
 
 pub fn create_ship() -> Ship {
@@ -143,8 +319,8 @@ pub fn create_ship() -> Ship {
         pos: vec2(screen_width() / 2.0, screen_height() / 2.0),
         vel: vec2(0.0, 0.0),
         rotation: 0.0,
-        health: 150.0,
-        max_health: 150.0,
+        health: BASE_SHIP_HP,
+        max_health: BASE_SHIP_HP,
         shoot_timer: 0.0,
         rapid_fire_timer: 0.0,
         engine: Engine::basic(),
@@ -195,7 +371,7 @@ pub fn update_ship_movement(game: &mut Game, dt: f32) {
     let is_gas_pedal_down = is_key_down(KeyCode::Up);
     game.ship.engine.update(dt, is_gas_pedal_down);
     if game.ship.engine.current_thrust > 0.0 {
-        let thrust_force = game.ship.engine.current_thrust * ACCELERATION;
+        let thrust_force = game.ship.engine.current_thrust * game.player_acceleration();
         game.ship.vel += ship_dir * thrust_force * dt;
     }
 
@@ -214,6 +390,7 @@ pub fn update_ship_shooting(game: &mut Game) {
         let rotation_rad = game.ship.rotation.to_radians();
         let ship_dir = vec2(rotation_rad.cos(), rotation_rad.sin());
 
+        let damage_mult = game.player_damage_mult();
         let (damage, radius) = if game.ship.big_bullet_timer > 0.0 {
             (BIG_BULLET_DAMAGE, BIG_BULLET_RADIUS)
         } else {
@@ -225,7 +402,7 @@ pub fn update_ship_shooting(game: &mut Game) {
             vel: ship_dir * BULLET_SPEED + game.ship.vel,
             life_time: BULLET_LIFETIME,
             style: BulletStyle::Player,
-            damage,
+            damage: damage * damage_mult,
             radius,
         });
         game.ship.shoot_timer = current_cooldown;
@@ -400,6 +577,7 @@ pub fn update_boss(game: &mut Game, dt: f32) {
 
 pub fn update_loot(game: &mut Game, dt: f32) {
     let mut items_to_remove = Vec::new();
+    let magnet_radius = game.loot_magnet_radius();
 
     for (i, item) in game.loot_items.iter_mut().enumerate() {
         item.vel *= 0.95;
@@ -416,7 +594,7 @@ pub fn update_loot(game: &mut Game, dt: f32) {
 
         let dist_to_ship = (game.ship.pos - item.pos).length();
 
-        if dist_to_ship < 150.0 {
+        if dist_to_ship < magnet_radius {
             item.magnet_active = true;
         }
 
@@ -982,6 +1160,98 @@ pub fn render_mission_success(mission: &Mission, res: &Resources) {
         res,
     );
     draw_text_centered(res.lang.t("next_mission"), 100.0, 24, YELLOW, res);
+}
+
+pub fn render_upgrade_bay(game: &Game, res: &Resources) {
+    draw_text_centered(res.lang.t("upgrade_bay_title"), -260.0, 40, ORANGE, res);
+    draw_text_centered(res.lang.t("upgrade_bay_subtitle"), -220.0, 18, GRAY, res);
+
+    let resources_text = format!(
+        "{} {} {} | {} {}",
+        res.lang.t("resources"),
+        res.lang.t("rust"),
+        game.ship.scrap,
+        res.lang.t("gold"),
+        game.ship.rare_metal
+    );
+    draw_text_centered(&resources_text, -175.0, 22, YELLOW, res);
+
+    let start_y = screen_height() * 0.5 - 110.0;
+    let line_height = 52.0;
+
+    for (idx, id) in UPGRADABLE_IDS.iter().copied().enumerate() {
+        let def = upgrade_definition(id);
+        let level = game.upgrade_level(id);
+        let max_level = def.max_level;
+        let selected = game.upgrade_selection == idx;
+        let line_color = if selected { YELLOW } else { WHITE };
+        let prefix = if selected { "> " } else { "  " };
+
+        let status_text = if level >= max_level {
+            res.lang.t("upgrade_status_maxed").to_string()
+        } else {
+            let next_level = level + 1;
+            let cost = upgrade_cost(id, next_level);
+            let can_buy = game.can_buy_upgrade(id);
+            let buy_state = if can_buy {
+                res.lang.t("upgrade_status_buy")
+            } else {
+                res.lang.t("upgrade_status_lack")
+            };
+            format!(
+                "{}: {} {} {} {} ({})",
+                res.lang.t("upgrade_cost"),
+                res.lang.t("rust"),
+                cost.scrap,
+                res.lang.t("gold"),
+                cost.rare_metal,
+                buy_state
+            )
+        };
+
+        let row_text = format!(
+            "{prefix}{}  [{} {}/{}]  {}",
+            res.lang.t(def.name_key),
+            res.lang.t("upgrade_level"),
+            level,
+            max_level,
+            status_text
+        );
+
+        draw_text_with_font(
+            &row_text,
+            screen_width() * 0.14,
+            start_y + line_height * idx as f32,
+            20.0,
+            line_color,
+            res,
+        );
+
+        let desc_text = res.lang.t(def.desc_key);
+        draw_text_with_font(
+            desc_text,
+            screen_width() * 0.16,
+            start_y + line_height * idx as f32 + 20.0,
+            14.0,
+            GRAY,
+            res,
+        );
+    }
+
+    let continue_idx = UPGRADABLE_IDS.len();
+    let continue_selected = game.upgrade_selection == continue_idx;
+    let continue_prefix = if continue_selected { "> " } else { "  " };
+    let continue_color = if continue_selected { GREEN } else { WHITE };
+    draw_text_with_font(
+        &format!("{continue_prefix}{}", res.lang.t("upgrade_continue")),
+        screen_width() * 0.14,
+        start_y + line_height * continue_idx as f32 + 12.0,
+        24.0,
+        continue_color,
+        res,
+    );
+
+    draw_text_centered(res.lang.t("upgrade_controls"), 285.0, 16, GRAY, res);
 }
 
 pub fn render_game_over(score: u32, res: &Resources) {
