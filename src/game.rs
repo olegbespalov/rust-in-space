@@ -1,3 +1,4 @@
+use crate::audio::AudioCue;
 use crate::components::*;
 use crate::draw::*;
 use crate::resources::Resources;
@@ -43,6 +44,7 @@ pub struct Game {
     /// (from_left, spawn_y, hint_shown_at_time) — ship spawns at that position when delay has passed.
     pub pending_enemy_hint: Option<(bool, f32, f64)>,
     pub boss: Option<Boss>,
+    pub pending_audio_cues: Vec<AudioCue>,
 }
 
 impl Game {
@@ -65,6 +67,7 @@ impl Game {
             menu_selection: MenuItem::Start,
             pending_enemy_hint: None,
             boss: None,
+            pending_audio_cues: Vec::new(),
         }
     }
 
@@ -81,6 +84,7 @@ impl Game {
         self.ship = create_ship();
         self.difficulty = saved_diff;
         self.pending_enemy_hint = None;
+        self.pending_audio_cues.clear();
     }
 
     pub fn start_mission(&mut self) {
@@ -103,6 +107,7 @@ impl Game {
         self.mission_rare_metal_collected = 0;
         self.enemy_spawn_timer = self.current_mission.enemy_spawn_interval;
         self.pending_enemy_hint = None;
+        self.pending_audio_cues.clear();
 
         // Reset ship position and movement, restore health to full
         self.ship.pos = vec2(screen_width() / 2.0, screen_height() / 2.0);
@@ -135,6 +140,14 @@ impl Game {
             Difficulty::Supernova => Difficulty::BlackHole,
             Difficulty::BlackHole => Difficulty::Nebula,
         };
+    }
+
+    pub fn queue_audio(&mut self, cue: AudioCue) {
+        self.pending_audio_cues.push(cue);
+    }
+
+    pub fn drain_audio_cues(&mut self) -> impl Iterator<Item = AudioCue> + '_ {
+        self.pending_audio_cues.drain(..)
     }
 }
 
@@ -229,6 +242,7 @@ pub fn update_ship_shooting(game: &mut Game) {
             radius,
         });
         game.ship.shoot_timer = current_cooldown;
+        game.queue_audio(AudioCue::PlayerShot);
     }
 }
 
@@ -257,6 +271,7 @@ fn keep_enemy_in_bounds(e: &mut EnemyShip) {
 
 pub fn update_enemies(game: &mut Game, dt: f32) {
     use macroquad::rand::gen_range;
+    let mut audio_cues = Vec::new();
 
     if game.current_mission.is_boss_level {
         return;
@@ -309,6 +324,7 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
                         radius: 9.0,
                     });
                     e.shoot_timer = 2.0;
+                    audio_cues.push(AudioCue::EnemyShot);
                 }
             }
             EnemyType::Kamikaze => {
@@ -324,6 +340,7 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
     }
     game.enemy_ships
         .retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
+    game.pending_audio_cues.extend(audio_cues);
 }
 
 const BOSS_SHOOT_INTERVAL: f32 = 3.0;
@@ -385,6 +402,7 @@ pub fn update_boss(game: &mut Game, dt: f32) {
         }
     }
     if spawn_volley {
+        game.queue_audio(AudioCue::EnemyShot);
         for (dx, dy) in BOSS_VOLLEY_DIRS {
             game.bullets.push(Bullet {
                 pos: volley_pos,
@@ -400,6 +418,7 @@ pub fn update_boss(game: &mut Game, dt: f32) {
 
 pub fn update_loot(game: &mut Game, dt: f32) {
     let mut items_to_remove = Vec::new();
+    let mut audio_cues = Vec::new();
 
     for (i, item) in game.loot_items.iter_mut().enumerate() {
         item.vel *= 0.95;
@@ -431,22 +450,28 @@ pub fn update_loot(game: &mut Game, dt: f32) {
                 LootType::Scrap(amount) => {
                     game.ship.scrap += amount;
                     game.mission_scrap_collected += amount;
+                    audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::RareMetal(amount) => {
                     game.ship.rare_metal += amount;
                     game.mission_rare_metal_collected += amount;
+                    audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::HealthPack(hp) => {
                     game.ship.heal(hp as f32);
+                    audio_cues.push(AudioCue::PickupHealth);
                 }
                 LootType::RapidFireBoost => {
                     game.ship.rapid_fire_timer = 10.0;
+                    audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::BigBulletBoost => {
                     game.ship.big_bullet_timer = 15.0;
+                    audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::Shield(hp) => {
                     game.ship.activate_shield(hp as f32, 30.0);
+                    audio_cues.push(AudioCue::ShieldOn);
                 }
             }
             items_to_remove.push(i);
@@ -456,6 +481,7 @@ pub fn update_loot(game: &mut Game, dt: f32) {
     for &i in items_to_remove.iter().rev() {
         game.loot_items.remove(i);
     }
+    game.pending_audio_cues.extend(audio_cues);
 }
 
 pub fn update_physics(game: &mut Game, dt: f32) {
@@ -477,6 +503,7 @@ pub fn update_collisions(game: &mut Game) -> bool {
     let mut new_asteroids = Vec::new();
     let mut game_over = false;
     let mut boss_died_at: Option<(Vec2, f32)> = None;
+    let mut audio_cues = Vec::new();
 
     // Player bullets vs Enemy bullets (bullets explode each other)
     // Check this FIRST before other collisions
@@ -500,6 +527,7 @@ pub fn update_collisions(game: &mut Game) -> bool {
                 // Bullets collide - create explosion at midpoint
                 let collision_pos = (player_bullet.pos + enemy_bullet.pos) * 0.5;
                 game.explosions.push(Explosion::new(collision_pos, 0.5));
+                audio_cues.push(AudioCue::ExplosionSmall);
                 bullets_to_remove.insert(i);
                 bullets_to_remove.insert(j);
                 break; // This player bullet is destroyed, move to next
@@ -551,6 +579,7 @@ pub fn update_collisions(game: &mut Game) -> bool {
                     new_asteroids.push(Asteroid::new_fragment(old.pos, old.radius));
                     new_asteroids.push(Asteroid::new_fragment(old.pos, old.radius));
                 }
+                audio_cues.push(AudioCue::ExplosionSmall);
                 hit = true;
                 break;
             }
@@ -572,6 +601,7 @@ pub fn update_collisions(game: &mut Game) -> bool {
                     }
                     game.mission_kills += 1;
                     game.explosions.push(Explosion::new(e.pos, 0.4));
+                    audio_cues.push(AudioCue::ExplosionSmall);
                     false
                 } else {
                     true
@@ -599,6 +629,7 @@ pub fn update_collisions(game: &mut Game) -> bool {
         game.boss = None;
         game.score += (max_health as u32) * SCORE_PER_ENEMY_HP;
         game.explosions.push(Explosion::new(pos, 0.8));
+        audio_cues.push(AudioCue::ExplosionBig);
         if let Some(loot) = generate_loot(pos, LootSource::EnemyBoss, game.difficulty) {
             game.loot_items.push(loot);
         }
@@ -609,10 +640,16 @@ pub fn update_collisions(game: &mut Game) -> bool {
     game.bullets.retain(|b| {
         if b.style == BulletStyle::Enemy && (b.pos - game.ship.pos).length() < 20.0 + b.radius {
             game.explosions.push(Explosion::new(game.ship.pos, 0.5));
+            if game.ship.has_shield() {
+                audio_cues.push(AudioCue::ShieldHit);
+            } else {
+                audio_cues.push(AudioCue::ShipHit);
+            }
             let damage = b.damage * game.difficulty.damage_mult();
             if game.ship.take_damage(damage, game.score) {
                 game_over = true;
             }
+            audio_cues.push(AudioCue::ExplosionSmall);
             false
         } else {
             true
@@ -629,6 +666,16 @@ pub fn update_collisions(game: &mut Game) -> bool {
             let explosion_scale = (asteroid_radius / 40.0).clamp(0.3, 0.8);
             game.explosions
                 .push(Explosion::new(game.ship.pos, explosion_scale));
+            audio_cues.push(if explosion_scale >= 0.6 {
+                AudioCue::ExplosionBig
+            } else {
+                AudioCue::ExplosionSmall
+            });
+            if game.ship.has_shield() {
+                audio_cues.push(AudioCue::ShieldHit);
+            } else {
+                audio_cues.push(AudioCue::ShipHit);
+            }
             if game.ship.take_damage(asteroid_damage, game.score) {
                 game_over = true;
             }
@@ -645,6 +692,12 @@ pub fn update_collisions(game: &mut Game) -> bool {
                 // Kamikaze explodes on contact
                 let kamikaze_damage = BASE_KAMIKAZE_DAMAGE * game.difficulty.damage_mult();
                 game.explosions.push(Explosion::new(e.pos, 0.6));
+                audio_cues.push(AudioCue::ExplosionBig);
+                if game.ship.has_shield() {
+                    audio_cues.push(AudioCue::ShieldHit);
+                } else {
+                    audio_cues.push(AudioCue::ShipHit);
+                }
                 if game.ship.take_damage(kamikaze_damage, game.score) {
                     game_over = true;
                 }
@@ -665,6 +718,7 @@ pub fn update_collisions(game: &mut Game) -> bool {
         true // Keep the enemy
     });
 
+    game.pending_audio_cues.extend(audio_cues);
     game_over
 }
 
@@ -794,7 +848,7 @@ pub fn render_game(game: &Game, resources: &Resources) {
     }
 }
 
-pub fn render_menu(game: &Game, res: &Resources) {
+pub fn render_menu(game: &Game, res: &Resources, audio_settings: &AudioSettings) {
     draw_background(&res.background);
 
     // 1. Logo rendering - smaller and at top
@@ -824,7 +878,7 @@ pub fn render_menu(game: &Game, res: &Resources) {
 
     // 2. Menu items - centered, with selection highlighting
     let base_y = logo_h / 2.0 - 50.0;
-    let item_spacing = 60.0;
+    let item_spacing = 48.0;
 
     // Font sizes: Start is bigger, others smaller
     let start_font_size = 32;
@@ -912,10 +966,73 @@ pub fn render_menu(game: &Game, res: &Resources) {
         res,
     );
 
+    let volume_rows = [
+        ("menu_master_volume", "master_volume"),
+        ("menu_music_volume", "music_volume"),
+        ("menu_sfx_volume", "sfx_volume"),
+    ];
+
+    for (index, (label_key, _)) in volume_rows.iter().enumerate() {
+        let row_y = lang_y + item_spacing * (index as f32 + 1.0);
+        let menu_item = match index {
+            0 => MenuItem::MasterVolume,
+            1 => MenuItem::MusicVolume,
+            _ => MenuItem::SfxVolume,
+        };
+        let is_selected = game.menu_selection == menu_item;
+        let color = if is_selected { YELLOW } else { WHITE };
+        let size = if is_selected {
+            other_selected_font_size
+        } else {
+            other_font_size
+        };
+        let prefix = if is_selected { "> " } else { "  " };
+        let value = match index {
+            0 => audio_settings.master_volume,
+            1 => audio_settings.music_volume,
+            _ => audio_settings.sfx_volume,
+        };
+        let percent = (value * 100.0).round() as i32;
+        draw_text_centered(
+            &format!("{prefix}{} < {percent}% >", res.lang.t(label_key)),
+            row_y,
+            size,
+            color,
+            res,
+        );
+    }
+
+    let mute_y = lang_y + item_spacing * 4.0;
+    let is_selected = game.menu_selection == MenuItem::AudioMute;
+    let mute_color = if is_selected { YELLOW } else { WHITE };
+    let mute_size = if is_selected {
+        other_selected_font_size
+    } else {
+        other_font_size
+    };
+    let mute_prefix = if is_selected { "> " } else { "  " };
+    let audio_enabled = !audio_settings.audio_muted;
+    let mute_state = if audio_enabled {
+        res.lang.t("audio_on")
+    } else {
+        res.lang.t("audio_off")
+    };
+
+    draw_text_centered(
+        &format!(
+            "{mute_prefix}{} < {mute_state} >",
+            res.lang.t("menu_audio_mute")
+        ),
+        mute_y,
+        mute_size,
+        mute_color,
+        res,
+    );
+
     // Instructions at bottom
     draw_text_centered(
         res.lang.t("menu_instructions"),
-        base_y + 250.0,
+        base_y + 320.0,
         14,
         GRAY,
         res,

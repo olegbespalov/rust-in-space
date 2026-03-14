@@ -2,6 +2,18 @@ use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use serde::{Deserialize, Serialize};
 
+fn default_master_volume() -> f32 {
+    1.0
+}
+
+fn default_music_volume() -> f32 {
+    0.7
+}
+
+fn default_sfx_volume() -> f32 {
+    0.85
+}
+
 #[derive(Clone)]
 pub struct Mission {
     pub level_id: u32,
@@ -35,6 +47,10 @@ pub enum MenuItem {
     Start,
     Difficulty,
     Language,
+    MasterVolume,
+    MusicVolume,
+    SfxVolume,
+    AudioMute,
 }
 
 impl MenuItem {
@@ -42,15 +58,23 @@ impl MenuItem {
         match self {
             MenuItem::Start => MenuItem::Difficulty,
             MenuItem::Difficulty => MenuItem::Language,
-            MenuItem::Language => MenuItem::Start,
+            MenuItem::Language => MenuItem::MasterVolume,
+            MenuItem::MasterVolume => MenuItem::MusicVolume,
+            MenuItem::MusicVolume => MenuItem::SfxVolume,
+            MenuItem::SfxVolume => MenuItem::AudioMute,
+            MenuItem::AudioMute => MenuItem::Start,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            MenuItem::Start => MenuItem::Language,
+            MenuItem::Start => MenuItem::AudioMute,
             MenuItem::Difficulty => MenuItem::Start,
             MenuItem::Language => MenuItem::Difficulty,
+            MenuItem::MasterVolume => MenuItem::Language,
+            MenuItem::MusicVolume => MenuItem::MasterVolume,
+            MenuItem::SfxVolume => MenuItem::MusicVolume,
+            MenuItem::AudioMute => MenuItem::SfxVolume,
         }
     }
 }
@@ -159,9 +183,23 @@ pub struct LootItem {
     pub rotation_speed: f32, // Rotation speed in radians per second (can be negative)
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct AudioSettings {
+    #[serde(default = "default_master_volume")]
+    pub master_volume: f32,
+    #[serde(default = "default_music_volume")]
+    pub music_volume: f32,
+    #[serde(default = "default_sfx_volume")]
+    pub sfx_volume: f32,
+    #[serde(default)]
+    pub audio_muted: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SaveData {
     pub high_score: u32,
+    #[serde(default)]
+    pub audio: AudioSettings,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -366,7 +404,21 @@ pub struct Explosion {
 
 impl SaveData {
     pub fn new() -> Self {
-        Self { high_score: 0 }
+        Self {
+            high_score: 0,
+            audio: AudioSettings::default(),
+        }
+    }
+}
+
+impl Default for AudioSettings {
+    fn default() -> Self {
+        Self {
+            master_volume: default_master_volume(),
+            music_volume: default_music_volume(),
+            sfx_volume: default_sfx_volume(),
+            audio_muted: false,
+        }
     }
 }
 

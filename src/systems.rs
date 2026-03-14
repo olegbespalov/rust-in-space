@@ -29,14 +29,27 @@ pub fn wrap_around(pos: &mut Vec2) {
 
 const SAVE_FILE: &str = "highscore.json";
 
+pub fn save_data(data: &SaveData) {
+    if let Ok(json) = serde_json::to_string(data) {
+        let _ = fs::write(SAVE_FILE, json);
+    }
+}
+
 pub fn save_score(score: u32) {
     let current_data = load_score();
     if score > current_data.high_score {
-        let new_data = SaveData { high_score: score };
-        if let Ok(json) = serde_json::to_string(&new_data) {
-            let _ = fs::write(SAVE_FILE, json);
-        }
+        let new_data = SaveData {
+            high_score: score,
+            audio: current_data.audio,
+        };
+        save_data(&new_data);
     }
+}
+
+pub fn save_audio_settings(audio: crate::components::AudioSettings) {
+    let mut current_data = load_score();
+    current_data.audio = audio;
+    save_data(&current_data);
 }
 
 pub fn load_score() -> SaveData {

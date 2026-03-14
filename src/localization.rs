@@ -138,6 +138,18 @@ impl Localization {
 
         en.insert("menu_language", "Language");
         ru.insert("menu_language", "Язык");
+        en.insert("menu_master_volume", "Master Volume");
+        ru.insert("menu_master_volume", "Общая громкость");
+        en.insert("menu_music_volume", "Music Volume");
+        ru.insert("menu_music_volume", "Громкость музыки");
+        en.insert("menu_sfx_volume", "SFX Volume");
+        ru.insert("menu_sfx_volume", "Громкость эффектов");
+        en.insert("menu_audio_mute", "Audio");
+        ru.insert("menu_audio_mute", "Звук");
+        en.insert("audio_on", "ON");
+        ru.insert("audio_on", "ВКЛ");
+        en.insert("audio_off", "OFF");
+        ru.insert("audio_off", "ВЫКЛ");
 
         en.insert("lang_english", "English");
         ru.insert("lang_english", "Английский");
@@ -197,6 +209,12 @@ impl Localization {
         de.insert("menu_start", "STARTEN");
         de.insert("menu_difficulty", "Schwierigkeit");
         de.insert("menu_language", "Sprache");
+        de.insert("menu_master_volume", "Gesamtlautstärke");
+        de.insert("menu_music_volume", "Musiklautstärke");
+        de.insert("menu_sfx_volume", "Effektlautstärke");
+        de.insert("menu_audio_mute", "Audio");
+        de.insert("audio_on", "AN");
+        de.insert("audio_off", "AUS");
         de.insert("lang_english", "Englisch");
         de.insert("lang_russian", "Russisch");
         de.insert("lang_german", "Deutsch");
