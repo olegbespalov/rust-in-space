@@ -1,0 +1,4 @@
+*.wav
+!sfx/.gitkeep
+!music/.gitkeep
+!source/.gitkeep

@@ -3,6 +3,7 @@ pub mod npc;
 pub mod physics;
 pub mod player;
 
+use crate::audio::AudioCue;
 use crate::components::*;
 use crate::systems::get_mission;
 use constants::*;
@@ -108,6 +109,7 @@ pub struct Game {
     pub boss: Option<Boss>,
     pub upgrade_levels: UpgradeLevels,
     pub upgrade_selection: usize,
+    pub audio_cues: Vec<AudioCue>,
 }
 
 impl Game {
@@ -132,7 +134,12 @@ impl Game {
             boss: None,
             upgrade_levels: UpgradeLevels::default(),
             upgrade_selection: 0,
+            audio_cues: Vec::new(),
         }
+    }
+
+    pub fn drain_audio_cues(&mut self) -> Vec<AudioCue> {
+        std::mem::take(&mut self.audio_cues)
     }
 
     pub fn reset(&mut self) {
@@ -150,6 +157,7 @@ impl Game {
         self.pending_enemy_hint = None;
         self.upgrade_levels = UpgradeLevels::default();
         self.upgrade_selection = 0;
+        self.audio_cues.clear();
         self.apply_permanent_upgrades();
     }
 
