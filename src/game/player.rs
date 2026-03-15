@@ -72,5 +72,6 @@ pub fn update_ship_shooting(game: &mut Game) {
             radius,
         });
         game.ship.shoot_timer = current_cooldown;
+        game.audio_cues.push(crate::audio::AudioCue::PlayerShot);
     }
 }

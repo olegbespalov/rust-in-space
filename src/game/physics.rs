@@ -73,22 +73,28 @@ pub fn update_loot(game: &mut Game, dt: f32) {
                 LootType::Scrap(amount) => {
                     game.ship.scrap += amount;
                     game.mission_scrap_collected += amount;
+                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
                 }
                 LootType::RareMetal(amount) => {
                     game.ship.rare_metal += amount;
                     game.mission_rare_metal_collected += amount;
+                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
                 }
                 LootType::HealthPack(hp) => {
                     game.ship.heal(hp as f32);
+                    game.audio_cues.push(crate::audio::AudioCue::PickupHealth);
                 }
                 LootType::RapidFireBoost => {
                     game.ship.rapid_fire_timer = RAPID_FIRE_DURATION;
+                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
                 }
                 LootType::BigBulletBoost => {
                     game.ship.big_bullet_timer = BIG_BULLET_DURATION;
+                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
                 }
                 LootType::Shield(hp) => {
                     game.ship.activate_shield(hp as f32, SHIELD_DURATION);
+                    game.audio_cues.push(crate::audio::AudioCue::ShieldOn);
                 }
             }
             items_to_remove.push(i);
@@ -130,6 +136,7 @@ fn handle_bullet_bullet_collisions(game: &mut Game) {
             if (b1.pos - b2.pos).length() < b1.radius + b2.radius {
                 let collision_pos = (b1.pos + b2.pos) * 0.5;
                 game.explosions.push(Explosion::new(collision_pos, 0.5));
+                game.audio_cues.push(crate::audio::AudioCue::ExplosionSmall);
                 bullets_to_remove.insert(i);
                 bullets_to_remove.insert(j);
                 break;
@@ -161,6 +168,7 @@ fn handle_player_bullet_collisions(game: &mut Game) {
             if (b.pos - game.asteroids[i].pos).length() < game.asteroids[i].radius + b.radius {
                 game.score += 100;
                 let asteroid = game.asteroids.remove(i);
+                game.audio_cues.push(crate::audio::AudioCue::ExplosionSmall);
 
                 let source = if asteroid.is_rare {
                     LootSource::RareAsteroid
@@ -194,6 +202,7 @@ fn handle_player_bullet_collisions(game: &mut Game) {
                         }
                         game.mission_kills += 1;
                         game.explosions.push(Explosion::new(e.pos, 0.4));
+                        game.audio_cues.push(crate::audio::AudioCue::ExplosionBig);
                         false
                     } else {
                         true
@@ -225,6 +234,7 @@ fn handle_player_bullet_collisions(game: &mut Game) {
         game.boss = None;
         game.score += (max_health as u32) * SCORE_PER_ENEMY_HP;
         game.explosions.push(Explosion::new(pos, 0.8));
+        game.audio_cues.push(crate::audio::AudioCue::ExplosionBig);
         if let Some(loot) = generate_loot(pos, LootSource::EnemyBoss, game.difficulty) {
             game.loot_items.push(loot);
         }
@@ -239,6 +249,11 @@ fn handle_enemy_bullet_collisions(game: &mut Game) -> bool {
             && (b.pos - game.ship.pos).length() < SHIP_RADIUS + b.radius
         {
             game.explosions.push(Explosion::new(game.ship.pos, 0.5));
+            if game.ship.has_shield() {
+                game.audio_cues.push(crate::audio::AudioCue::ShieldHit);
+            } else {
+                game.audio_cues.push(crate::audio::AudioCue::ShipHit);
+            }
             let damage = b.damage * game.difficulty.damage_mult();
             if game.ship.take_damage(damage, game.score) {
                 game_over = true;
@@ -266,6 +281,11 @@ fn handle_ship_entity_collisions(game: &mut Game) -> bool {
                 game.ship.pos,
                 (asteroid_radius / LARGE_ASTEROID_RADIUS).clamp(0.3, 0.8),
             ));
+            if game.ship.has_shield() {
+                game.audio_cues.push(crate::audio::AudioCue::ShieldHit);
+            } else {
+                game.audio_cues.push(crate::audio::AudioCue::ShipHit);
+            }
             if game.ship.take_damage(asteroid_damage, game.score) {
                 game_over = true;
             }
@@ -279,6 +299,11 @@ fn handle_ship_entity_collisions(game: &mut Game) -> bool {
         {
             let damage = BASE_KAMIKAZE_DAMAGE * game.difficulty.damage_mult();
             game.explosions.push(Explosion::new(e.pos, 0.6));
+            if game.ship.has_shield() {
+                game.audio_cues.push(crate::audio::AudioCue::ShieldHit);
+            } else {
+                game.audio_cues.push(crate::audio::AudioCue::ShipHit);
+            }
             if game.ship.take_damage(damage, game.score) {
                 game_over = true;
             }

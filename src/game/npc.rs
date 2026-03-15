@@ -57,6 +57,7 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
                         radius: 9.0,
                     });
                     e.shoot_timer = 2.0;
+                    game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
                 }
             }
             EnemyType::Kamikaze => {
@@ -120,6 +121,7 @@ pub fn update_boss(game: &mut Game, dt: f32) {
         }
     }
     if spawn_volley {
+        game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
         for (dx, dy) in BOSS_VOLLEY_DIRS {
             game.bullets.push(Bullet {
                 pos: volley_pos,

@@ -201,6 +201,7 @@ async fn main() {
                     audio.set_paused(&resources.audio, false);
                     state = GameState::Playing;
                 } else if is_key_pressed(KeyCode::Escape) {
+                    audio.set_paused(&resources.audio, false);
                     state = GameState::Menu;
                 }
             }
