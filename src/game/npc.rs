@@ -35,7 +35,14 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
         }
     }
 
+    let player_visible = !game.ship.is_invisible();
     for e in game.enemy_ships.iter_mut() {
+        if !player_visible {
+            e.pos += e.vel * dt;
+            keep_enemy_in_bounds(e);
+            continue;
+        }
+
         let diff = game.ship.pos - e.pos;
         e.rotation = diff.y.atan2(diff.x);
 

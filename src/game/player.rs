@@ -19,6 +19,7 @@ pub fn create_ship() -> Ship {
         shield_hp: 0.0,
         shield_max_hp: 0.0,
         shield_timer: 0.0,
+        invisibility_timer: 0.0,
         big_bullet_timer: 0.0,
         magnetic_ammo_timer: 0.0,
     }

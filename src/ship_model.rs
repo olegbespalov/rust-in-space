@@ -33,7 +33,7 @@ impl ShipModel {
         })
     }
 
-    pub fn draw(&self, position: Vec2, size: f32, rotation: f32, thrust: f32) {
+    pub fn draw(&self, position: Vec2, size: f32, rotation: f32, thrust: f32, tint: Color) {
         push_camera_state();
         set_camera(&Camera3D {
             position: vec3(0.0, -0.27 - 0.36 * thrust, 1.5),
@@ -51,7 +51,7 @@ impl ShipModel {
             &self.target.texture,
             position.x - size / 2.0,
             position.y - size / 2.0,
-            WHITE,
+            tint,
             DrawTextureParams {
                 dest_size: Some(Vec2::splat(size)),
                 rotation,

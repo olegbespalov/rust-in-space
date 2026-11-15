@@ -1,5 +1,5 @@
-use crate::asteroid_model::AsteroidModel;
 use crate::localization::Localization;
+use crate::model_sprite::ModelSprite;
 use crate::ship_model::ShipModel;
 use macroquad::audio::{load_sound, Sound};
 use macroquad::prelude::*;
@@ -25,11 +25,13 @@ pub struct Resources {
     pub loot_big_bullet: Texture2D,
     pub loot_magnetic_ammo: Texture2D,
     pub loot_shield: Texture2D,
+    pub loot_invisibility: Texture2D,
+    pub loot_invisibility_model: Option<ModelSprite>,
     pub shield_active: Texture2D,
     pub asteroid: Texture2D,
     pub rare_asteroid: Texture2D,
-    pub asteroid_model: Option<AsteroidModel>,
-    pub rare_asteroid_model: Option<AsteroidModel>,
+    pub asteroid_model: Option<ModelSprite>,
+    pub rare_asteroid_model: Option<ModelSprite>,
     pub explosion: Texture2D,
     pub boss_1: Texture2D,
 }
@@ -98,6 +100,10 @@ impl Resources {
         let loot_big_bullet = load_texture("assets/loot/bigger-ammo.png").await.unwrap();
         let loot_magnetic_ammo = load_texture("assets/loot/magnetic-ammo.png").await.unwrap();
         let loot_shield = load_texture("assets/loot/shield.png").await.unwrap();
+        let loot_invisibility = load_texture("assets/loot/mystery.png").await.unwrap();
+        // Match the source sprite’s view of the front, left side, and top.
+        let loot_invisibility_model =
+            ModelSprite::load("assets/models/invisibility.glb", vec3(-0.68, 0.55, 2.0)).await;
         let shield_active = load_texture("assets/shield.png").await.unwrap();
         shield_active.set_filter(FilterMode::Nearest);
 
@@ -106,8 +112,10 @@ impl Resources {
 
         let rare_asteroid = load_texture("assets/rare_asteroid.png").await.unwrap();
         rare_asteroid.set_filter(FilterMode::Nearest);
-        let asteroid_model = AsteroidModel::load("assets/models/asteroid.glb").await;
-        let rare_asteroid_model = AsteroidModel::load("assets/models/rare_asteroid.glb").await;
+        let asteroid_view = vec3(0.0, 0.0, 2.0);
+        let asteroid_model = ModelSprite::load("assets/models/asteroid.glb", asteroid_view).await;
+        let rare_asteroid_model =
+            ModelSprite::load("assets/models/rare_asteroid.glb", asteroid_view).await;
 
         let explosion = load_texture("assets/explosion.png").await.unwrap();
         explosion.set_filter(FilterMode::Nearest);
@@ -178,6 +186,8 @@ impl Resources {
             loot_big_bullet,
             loot_magnetic_ammo,
             loot_shield,
+            loot_invisibility,
+            loot_invisibility_model,
             shield_active,
             asteroid,
             rare_asteroid,

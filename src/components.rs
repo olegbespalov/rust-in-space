@@ -148,6 +148,8 @@ pub struct Ship {
     pub shield_max_hp: f32, // Maximum shield HP capacity
     pub shield_timer: f32,  // Time remaining for shield (0 if inactive)
 
+    pub invisibility_timer: f32,
+
     // Weapon boost timers
     pub magnetic_ammo_timer: f32,
     pub big_bullet_timer: f32, // Time remaining for big bullet boost (0 if inactive)
@@ -196,7 +198,8 @@ pub enum LootType {
     RapidFireBoost,  // Fast ammo boost (reduced cooldown)
     MagneticAmmo,    // Player shots steer toward enemies
     BigBulletBoost,  // Bigger bullets with more damage
-    Shield(u32),     // Shield with HP capacity
+    Invisibility,
+    Shield(u32), // Shield with HP capacity
 }
 
 // 2. The entity of the dropped item
@@ -353,6 +356,10 @@ impl Boss {
 }
 
 impl Ship {
+    pub fn is_invisible(&self) -> bool {
+        self.invisibility_timer > 0.0
+    }
+
     // Returns true if the game is over
     // Damage is first applied to shield if active, then to ship health
     pub fn take_damage(&mut self, damage: f32, score: u32) -> bool {

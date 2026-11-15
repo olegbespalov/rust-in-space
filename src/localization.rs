@@ -113,6 +113,8 @@ impl Localization {
 
         en.insert("shield", "SHIELD:");
         ru.insert("shield", "ЩИТ:");
+        en.insert("invisibility", "CLOAK:");
+        ru.insert("invisibility", "МАСКИРОВКА:");
 
         en.insert("defeated", "Defeated:");
         ru.insert("defeated", "Побеждено:");
@@ -256,6 +258,7 @@ impl Localization {
         de.insert("score", "PUNKTE:");
         de.insert("hp", "LP:");
         de.insert("shield", "SCHILD:");
+        de.insert("invisibility", "TARNUNG:");
         de.insert("defeated", "Besiegt:");
         de.insert("rust", "Rost:");
         de.insert("gold", "Gold:");

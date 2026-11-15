@@ -3,7 +3,7 @@ use macroquad::prelude::*;
 
 const RENDER_SIZE: u32 = 192;
 
-pub struct AsteroidModel {
+pub struct ModelSprite {
     target: RenderTarget,
 }
 
@@ -14,10 +14,11 @@ mod tests {
     use macroquad::texture::Image;
 
     #[test]
-    fn asteroid_assets_match_the_mesh_loader() {
+    fn model_sprite_assets_match_the_mesh_loader() {
         for bytes in [
             include_bytes!("../assets/models/asteroid.glb").as_slice(),
             include_bytes!("../assets/models/rare_asteroid.glb").as_slice(),
+            include_bytes!("../assets/models/invisibility.glb").as_slice(),
         ] {
             let glb = Gltf::from_slice(bytes).unwrap();
             let blob = glb.blob.as_deref().unwrap();
@@ -52,14 +53,14 @@ mod tests {
     }
 }
 
-impl AsteroidModel {
-    pub async fn load(path: &str) -> Option<Self> {
+impl ModelSprite {
+    pub async fn load(path: &str, view_position: Vec3) -> Option<Self> {
         let mesh = match load_file(path).await {
             Ok(bytes) => load_mesh(&bytes),
             Err(_) => None,
         };
         let Some(mesh) = mesh else {
-            eprintln!("Could not load {path}. Using the asteroid sprite.");
+            eprintln!("Could not load {path}. Using the fallback sprite.");
             return None;
         };
 
@@ -73,7 +74,7 @@ impl AsteroidModel {
         );
         push_camera_state();
         set_camera(&Camera3D {
-            position: vec3(0.0, 0.0, 2.0),
+            position: view_position,
             up: Vec3::Y,
             projection: Projection::Orthographics,
             fovy: 1.1,
@@ -87,7 +88,7 @@ impl AsteroidModel {
         Some(Self { target })
     }
 
-    pub fn draw(&self, position: Vec2, size: f32) {
+    pub fn draw(&self, position: Vec2, size: f32, rotation: f32) {
         draw_texture_ex(
             &self.target.texture,
             position.x - size / 2.0,
@@ -95,6 +96,7 @@ impl AsteroidModel {
             WHITE,
             DrawTextureParams {
                 dest_size: Some(Vec2::splat(size)),
+                rotation,
                 flip_y: true,
                 ..Default::default()
             },

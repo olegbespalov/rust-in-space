@@ -11,6 +11,7 @@ pub fn update_timers(game: &mut Game, dt: f32) {
     game.ship.rapid_fire_timer -= dt;
     game.ship.big_bullet_timer -= dt;
     game.ship.magnetic_ammo_timer -= dt;
+    game.ship.invisibility_timer = (game.ship.invisibility_timer - dt).max(0.0);
 
     if game.ship.shield_timer > 0.0 {
         game.ship.shield_timer -= dt;
@@ -126,6 +127,10 @@ pub fn update_loot(game: &mut Game, dt: f32) {
                     game.ship.magnetic_ammo_timer = MAGNETIC_AMMO_DURATION;
                     game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
                 }
+                LootType::Invisibility => {
+                    game.ship.invisibility_timer = INVISIBILITY_DURATION;
+                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
+                }
                 LootType::Shield(hp) => {
                     game.ship.activate_shield(hp as f32, SHIELD_DURATION);
                     game.audio_cues.push(crate::audio::AudioCue::ShieldOn);
@@ -191,6 +196,9 @@ fn drop_small_enemy_loot(items: &mut Vec<LootItem>, pos: Vec2, difficulty: Diffi
     items.extend(generate_loot(pos, LootSource::EnemySmall, difficulty));
     if gen_range(0, 100) < MAGNETIC_AMMO_DROP_PERCENT {
         items.push(spawn_loot(pos, LootType::MagneticAmmo, 15.0));
+    }
+    if gen_range(0, 100) < INVISIBILITY_DROP_PERCENT {
+        items.push(spawn_loot(pos, LootType::Invisibility, 15.0));
     }
 }
 

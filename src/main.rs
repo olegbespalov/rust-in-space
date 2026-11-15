@@ -1,9 +1,9 @@
-mod asteroid_model;
 mod audio;
 mod components;
 mod draw;
 mod game;
 mod localization;
+mod model_sprite;
 mod resources;
 mod ship_model;
 mod systems;

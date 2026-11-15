@@ -75,7 +75,12 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
     let r_rad = ship.rotation.to_radians();
     let hull_rotation = r_rad + std::f32::consts::FRAC_PI_2;
 
-    draw_engine(&ship.engine, ship.pos, r_rad, &resources.ship_flame);
+    let tint = if ship.is_invisible() {
+        Color::new(0.65, 0.9, 1.0, 0.3)
+    } else {
+        draw_engine(&ship.engine, ship.pos, r_rad, &resources.ship_flame);
+        WHITE
+    };
 
     let ship_size = 72.0;
     if let Some(model) = &resources.ship_model {
@@ -84,13 +89,14 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
             ship_size,
             hull_rotation,
             ship.engine.current_thrust,
+            tint,
         );
     } else {
         draw_texture_ex(
             &resources.ship_body,
             ship.pos.x - ship_size / 2.0,
             ship.pos.y - ship_size / 2.0,
-            WHITE,
+            tint,
             DrawTextureParams {
                 dest_size: Some(vec2(ship_size, ship_size)),
                 rotation: hull_rotation,
@@ -103,7 +109,7 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
         let shield_size = ship_size * 1.8;
         let hp_ratio = ship.shield_hp / ship.shield_max_hp;
         let alpha = (hp_ratio * 0.7 + 0.3).min(1.0);
-        let shield_color = Color::new(1.0, 1.0, 1.0, alpha);
+        let shield_color = Color::new(tint.r, tint.g, tint.b, alpha * tint.a);
 
         draw_texture_ex(
             &resources.shield_active,
@@ -234,6 +240,14 @@ pub fn draw_boss(boss: &Boss, res: &Resources) {
 }
 
 pub fn draw_loot(item: &LootItem, res: &Resources) {
+    let size = item.radius * 4.5;
+    if matches!(item.item_type, LootType::Invisibility) {
+        if let Some(model) = &res.loot_invisibility_model {
+            model.draw(item.pos, size, item.rotation);
+            return;
+        }
+    }
+
     let texture = match item.item_type {
         LootType::Scrap(_) => &res.loot_scrap,
         LootType::RareMetal(_) => &res.loot_rare,
@@ -242,9 +256,10 @@ pub fn draw_loot(item: &LootItem, res: &Resources) {
         LootType::BigBulletBoost => &res.loot_big_bullet,
         LootType::MagneticAmmo => &res.loot_magnetic_ammo,
         LootType::Shield(_) => &res.loot_shield,
+        LootType::Invisibility => &res.loot_invisibility,
     };
 
-    let size = vec2(item.radius * 4.5, item.radius * 4.5);
+    let size = Vec2::splat(size);
     draw_texture_ex(
         texture,
         item.pos.x - size.x / 2.0,
@@ -267,7 +282,7 @@ pub fn draw_asteroid(asteroid: &Asteroid, res: &Resources) {
         &res.asteroid_model
     };
     if let Some(model) = model {
-        model.draw(asteroid.pos, size);
+        model.draw(asteroid.pos, size, 0.0);
         return;
     }
 
@@ -440,6 +455,14 @@ pub fn render_game(game: &Game, resources: &Resources) {
         ));
     }
     draw_text_with_font(&status_text, 20.0, 30.0, 24.0, WHITE, resources);
+    if game.ship.is_invisible() {
+        let cloak_text = format!(
+            "{} {:.0}",
+            resources.lang.t("invisibility"),
+            game.ship.invisibility_timer.ceil()
+        );
+        draw_text_with_font(&cloak_text, 20.0, 60.0, 24.0, SKYBLUE, resources);
+    }
 
     let status = if game.current_mission.is_boss_level {
         match &game.boss {

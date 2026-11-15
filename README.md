@@ -145,9 +145,10 @@ Loot items drop from destroyed asteroids and enemies:
 - **Big Bullet Boost** (12% chance): Bigger, more powerful bullets for 15 seconds (30 damage vs 15)
 - **Shield** (8% chance): Activates shield with 30-100 HP that lasts 30 seconds
 - **Magnetic Ammo** (separate 8% roll): For 10 seconds, newly fired shots home toward nearby enemy ships and bosses ahead of them.
-- **Nothing** (7% chance)
+- **Invisibility** (separate 8% roll): Cloaks your ship for 10 seconds. Enemy ships stop aiming, firing, and chasing; existing shots, collisions, and the boss’s sweeping volleys still pose a threat.
+- **No standard drop** (7% chance)
 
-**Note**: Health packs, weapon boosts, and shields do NOT count toward resource collection objectives
+**Note**: Health packs and buffs do NOT count toward resource collection objectives
 
 **Loot Mechanics:**
 - Items drift and rotate in space for visual appeal
