@@ -1,4 +1,5 @@
 use crate::localization::Localization;
+use crate::ship_model::ShipModel;
 use macroquad::audio::{load_sound, Sound};
 use macroquad::prelude::*;
 
@@ -10,6 +11,7 @@ pub struct Resources {
     pub audio: AudioAssets,
 
     pub ship_body: Texture2D,
+    pub ship_model: Option<ShipModel>,
     pub ship_flame: Texture2D,
     pub enemy_small: Texture2D,
     pub enemy_kamikaze: Texture2D,
@@ -70,6 +72,7 @@ impl Resources {
 
         let ship_body = load_texture("assets/ship_body.png").await.unwrap();
         ship_body.set_filter(FilterMode::Nearest);
+        let ship_model = ShipModel::load().await;
 
         let ship_flame = load_texture("assets/ship_flame.png").await.unwrap();
         ship_flame.set_filter(FilterMode::Nearest);
@@ -155,6 +158,7 @@ impl Resources {
             lang: Localization::new(),
             audio,
             ship_body,
+            ship_model,
             ship_flame,
             enemy_small,
             enemy_kamikaze,

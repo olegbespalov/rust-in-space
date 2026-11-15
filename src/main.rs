@@ -4,6 +4,7 @@ mod draw;
 mod game;
 mod localization;
 mod resources;
+mod ship_model;
 mod systems;
 
 use macroquad::prelude::*;
@@ -15,14 +16,17 @@ use game::*;
 use resources::Resources;
 use systems::{load_score, save_audio_settings};
 
-fn window_conf() -> Conf {
-    Conf {
+fn window_conf() -> macroquad::conf::Conf {
+    let window = Conf {
         window_title: "Rust in Space".to_owned(),
         window_width: 1280 * 2,
         window_height: 720 * 2,
         high_dpi: true,
         ..Default::default()
-    }
+    };
+    let mut config = macroquad::conf::Conf::from(window);
+    config.draw_call_index_capacity = ship_model::SHIP_MESH_INDEX_CAPACITY;
+    config
 }
 
 #[macroquad::main(window_conf)]

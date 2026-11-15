@@ -71,48 +71,50 @@ pub fn draw_background(texture: &Texture2D) {
     );
 }
 
-pub fn draw_ship(
-    ship: &Ship,
-    body_tex: &Texture2D,
-    flame_tex: &Texture2D,
-    shield_tex: Option<&Texture2D>,
-) {
+pub fn draw_ship(ship: &Ship, resources: &Resources) {
     let r_rad = ship.rotation.to_radians();
+    let hull_rotation = r_rad + std::f32::consts::FRAC_PI_2;
 
-    draw_engine(&ship.engine, ship.pos, r_rad, flame_tex);
+    draw_engine(&ship.engine, ship.pos, r_rad, &resources.ship_flame);
 
     let ship_size = 72.0;
-
-    draw_texture_ex(
-        body_tex,
-        ship.pos.x - ship_size / 2.0,
-        ship.pos.y - ship_size / 2.0,
-        WHITE,
-        DrawTextureParams {
-            dest_size: Some(vec2(ship_size, ship_size)),
-            rotation: r_rad + std::f32::consts::FRAC_PI_2,
-            ..Default::default()
-        },
-    );
+    if let Some(model) = &resources.ship_model {
+        model.draw(
+            ship.pos,
+            ship_size,
+            hull_rotation,
+            ship.engine.current_thrust,
+        );
+    } else {
+        draw_texture_ex(
+            &resources.ship_body,
+            ship.pos.x - ship_size / 2.0,
+            ship.pos.y - ship_size / 2.0,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(ship_size, ship_size)),
+                rotation: hull_rotation,
+                ..Default::default()
+            },
+        );
+    }
 
     if ship.has_shield() {
-        if let Some(shield_texture) = shield_tex {
-            let shield_size = ship_size * 1.8;
-            let hp_ratio = ship.shield_hp / ship.shield_max_hp;
-            let alpha = (hp_ratio * 0.7 + 0.3).min(1.0);
-            let shield_color = Color::new(1.0, 1.0, 1.0, alpha);
+        let shield_size = ship_size * 1.8;
+        let hp_ratio = ship.shield_hp / ship.shield_max_hp;
+        let alpha = (hp_ratio * 0.7 + 0.3).min(1.0);
+        let shield_color = Color::new(1.0, 1.0, 1.0, alpha);
 
-            draw_texture_ex(
-                shield_texture,
-                ship.pos.x - shield_size / 2.0,
-                ship.pos.y - shield_size / 2.0,
-                shield_color,
-                DrawTextureParams {
-                    dest_size: Some(vec2(shield_size, shield_size)),
-                    ..Default::default()
-                },
-            );
-        }
+        draw_texture_ex(
+            &resources.shield_active,
+            ship.pos.x - shield_size / 2.0,
+            ship.pos.y - shield_size / 2.0,
+            shield_color,
+            DrawTextureParams {
+                dest_size: Some(vec2(shield_size, shield_size)),
+                ..Default::default()
+            },
+        );
     }
 }
 
@@ -401,12 +403,7 @@ pub fn render_game(game: &Game, resources: &Resources) {
         draw_explosion(ex, resources);
     }
 
-    draw_ship(
-        &game.ship,
-        &resources.ship_body,
-        &resources.ship_flame,
-        Some(&resources.shield_active),
-    );
+    draw_ship(&game.ship, resources);
 
     let mut status_text = format!(
         "{} {}  {} {:.0}/{:.0}",

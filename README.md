@@ -17,6 +17,7 @@
   - Difficulty affects enemy spawn rates, damage taken, and loot drop chances
 - **Upgrade Bay Between Missions**: Spend scrap and gold on permanent ship upgrades before continuing
   - Reinforced Hull, Weapon Tuning, Engine Overdrive, Magnet Array, Shield Capacitor
+- **3D Player Ship**: A textured player hull rendered into the 2D playfield. See the [ship art guide](SHIP_ART_GUIDE.md) for upgrade parts and enemy variants.
 - **Language Support**: Full UI localization for English, Russian, and German
 - **Classic Space Shooter Controls**: Rotate and thrust your ship with smooth engine mechanics
 - **Asteroid Destruction**: Break large asteroids into smaller fragments, with rare asteroids dropping valuable loot
