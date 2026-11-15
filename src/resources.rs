@@ -1,3 +1,4 @@
+use crate::asteroid_model::AsteroidModel;
 use crate::localization::Localization;
 use crate::ship_model::ShipModel;
 use macroquad::audio::{load_sound, Sound};
@@ -26,6 +27,8 @@ pub struct Resources {
     pub shield_active: Texture2D,
     pub asteroid: Texture2D,
     pub rare_asteroid: Texture2D,
+    pub asteroid_model: Option<AsteroidModel>,
+    pub rare_asteroid_model: Option<AsteroidModel>,
     pub explosion: Texture2D,
     pub boss_1: Texture2D,
 }
@@ -101,6 +104,8 @@ impl Resources {
 
         let rare_asteroid = load_texture("assets/rare_asteroid.png").await.unwrap();
         rare_asteroid.set_filter(FilterMode::Nearest);
+        let asteroid_model = AsteroidModel::load("assets/models/asteroid.glb").await;
+        let rare_asteroid_model = AsteroidModel::load("assets/models/rare_asteroid.glb").await;
 
         let explosion = load_texture("assets/explosion.png").await.unwrap();
         explosion.set_filter(FilterMode::Nearest);
@@ -173,6 +178,8 @@ impl Resources {
             shield_active,
             asteroid,
             rare_asteroid,
+            asteroid_model,
+            rare_asteroid_model,
             explosion,
             boss_1,
         }

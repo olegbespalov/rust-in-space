@@ -1,7 +1,7 @@
 use gltf::{buffer, image, mesh, Gltf};
 use macroquad::prelude::*;
 
-pub const SHIP_MESH_INDEX_CAPACITY: usize = 12_001;
+pub const MODEL_MESH_INDEX_CAPACITY: usize = 12_001;
 const MODEL_PATH: &str = "assets/models/player_ship.glb";
 const RENDER_SIZE: u32 = 192;
 
@@ -64,7 +64,7 @@ impl ShipModel {
 }
 
 // The game ships a single textured, triangulated mesh with its transform baked in.
-fn load_mesh(bytes: &[u8]) -> Option<Mesh> {
+pub(crate) fn load_mesh(bytes: &[u8]) -> Option<Mesh> {
     let glb = Gltf::from_slice(bytes).ok()?;
     let blob = glb.blob.as_deref()?;
     let mut meshes = glb.meshes();
@@ -89,7 +89,7 @@ fn load_mesh(bytes: &[u8]) -> Option<Mesh> {
     if positions.len() >= 10_000
         || normals.len() != positions.len()
         || uv.len() != positions.len()
-        || indices.len() >= SHIP_MESH_INDEX_CAPACITY
+        || indices.len() >= MODEL_MESH_INDEX_CAPACITY
     {
         return None;
     }

@@ -258,13 +258,25 @@ pub fn draw_loot(item: &LootItem, res: &Resources) {
 }
 
 pub fn draw_asteroid(asteroid: &Asteroid, res: &Resources) {
+    const ASTEROID_VISUAL_SCALE: f32 = 1.5;
+    let size = asteroid.radius * 2.0 * ASTEROID_VISUAL_SCALE;
+    let model = if asteroid.is_rare {
+        &res.rare_asteroid_model
+    } else {
+        &res.asteroid_model
+    };
+    if let Some(model) = model {
+        model.draw(asteroid.pos, size);
+        return;
+    }
+
     let texture = if asteroid.is_rare {
         &res.rare_asteroid
     } else {
         &res.asteroid
     };
 
-    let size = vec2(asteroid.radius * 2.0, asteroid.radius * 2.0);
+    let size = Vec2::splat(size);
     draw_texture_ex(
         texture,
         asteroid.pos.x - size.x / 2.0,

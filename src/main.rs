@@ -1,3 +1,4 @@
+mod asteroid_model;
 mod audio;
 mod components;
 mod draw;
@@ -25,7 +26,7 @@ fn window_conf() -> macroquad::conf::Conf {
         ..Default::default()
     };
     let mut config = macroquad::conf::Conf::from(window);
-    config.draw_call_index_capacity = ship_model::SHIP_MESH_INDEX_CAPACITY;
+    config.draw_call_index_capacity = ship_model::MODEL_MESH_INDEX_CAPACITY;
     config
 }
 

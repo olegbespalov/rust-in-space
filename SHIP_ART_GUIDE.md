@@ -33,3 +33,7 @@ Introduce the baseline enemy before its variant. Check each variant's intended t
 5. Record the source artwork, Meshy task ID, and asset license with each accepted export. The first player model is Meshy task `01a1dfac-c700-718d-89a3-36263032c0fc`.
 
 The visual upgrades, enemy variants, and Upgrade Bay model preview are proposed work. The base player hull is the first integration.
+
+## Asteroids
+
+The ordinary and rare asteroids use textured low-poly Meshy models, rendered once to textures at startup. Their original sprites remain fallbacks. The models were generated from text descriptions; the rare model includes mineral deposits. Meshy texture task IDs are `01a1dfc9-3012-74d2-ab9b-7026527e854c` (ordinary) and `01a1dfc9-1bee-7496-a6d4-61379c69b20e` (rare). The embedded JPEG textures were converted to PNG for the game's existing image decoder. Meshy did not return license metadata for these tasks.
