@@ -53,6 +53,7 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
                         vel: bullet_vel,
                         life_time: 4.0,
                         style: BulletStyle::Enemy,
+                        homing: false,
                         damage: ENEMY_BULLET_DAMAGE,
                         radius: 9.0,
                     });
@@ -128,6 +129,7 @@ pub fn update_boss(game: &mut Game, dt: f32) {
                 vel: vec2(dx * BOSS_BULLET_SPEED, dy * BOSS_BULLET_SPEED),
                 life_time: 4.0,
                 style: BulletStyle::Enemy,
+                homing: false,
                 damage: ENEMY_BULLET_DAMAGE,
                 radius: 9.0,
             });

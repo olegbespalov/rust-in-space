@@ -31,7 +31,7 @@
   - **Magnet Effect**: Loot items are automatically attracted to your ship when nearby
   - **Animated Loot**: Items rotate and drift realistically in space
 - **Shield System**: Activate shields that absorb damage before it reaches your health
-- **Weapon Boosts**: Rapid fire mode and big bullet mode for enhanced firepower
+- **Weapon Boosts**: Rapid fire, bigger bullets, and magnetic ammo
 - **Resource Management**: Track rust piles (scrap) and gold (rare metals) separately
 - **Health Point System**: Start with 150 HP - bigger asteroids deal more damage!
 - **Health Restoration**: Health is fully restored to 150 HP at the start of each mission
@@ -144,6 +144,7 @@ Loot items drop from destroyed asteroids and enemies:
 - **Rapid Fire Boost** (18% chance): Rapid fire for 10 seconds (3x faster shooting)
 - **Big Bullet Boost** (12% chance): Bigger, more powerful bullets for 15 seconds (30 damage vs 15)
 - **Shield** (8% chance): Activates shield with 30-100 HP that lasts 30 seconds
+- **Magnetic Ammo** (separate 8% roll): For 10 seconds, newly fired shots home toward nearby enemy ships and bosses ahead of them.
 - **Nothing** (7% chance)
 
 **Note**: Health packs, weapon boosts, and shields do NOT count toward resource collection objectives

@@ -23,6 +23,7 @@ pub struct Resources {
     pub loot_health: Texture2D,
     pub loot_rapid_fire: Texture2D,
     pub loot_big_bullet: Texture2D,
+    pub loot_magnetic_ammo: Texture2D,
     pub loot_shield: Texture2D,
     pub shield_active: Texture2D,
     pub asteroid: Texture2D,
@@ -95,6 +96,7 @@ impl Resources {
         let loot_health = load_texture("assets/loot/health.png").await.unwrap();
         let loot_rapid_fire = load_texture("assets/loot/energy.png").await.unwrap();
         let loot_big_bullet = load_texture("assets/loot/bigger-ammo.png").await.unwrap();
+        let loot_magnetic_ammo = load_texture("assets/loot/magnetic-ammo.png").await.unwrap();
         let loot_shield = load_texture("assets/loot/shield.png").await.unwrap();
         let shield_active = load_texture("assets/shield.png").await.unwrap();
         shield_active.set_filter(FilterMode::Nearest);
@@ -174,6 +176,7 @@ impl Resources {
             loot_health,
             loot_rapid_fire,
             loot_big_bullet,
+            loot_magnetic_ammo,
             loot_shield,
             shield_active,
             asteroid,

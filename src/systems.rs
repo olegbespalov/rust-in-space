@@ -202,6 +202,10 @@ pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> O
         }
     };
 
+    Some(spawn_loot(pos, item_type, radius))
+}
+
+pub fn spawn_loot(pos: Vec2, item_type: LootType, radius: f32) -> LootItem {
     // Random slow drift velocity (super slow, like floating in space)
     let drift_speed = gen_range(5.0, 15.0);
     let drift_angle = gen_range(0.0, std::f32::consts::PI * 2.0);
@@ -210,7 +214,7 @@ pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> O
     // Random rotation speed (can be positive or negative for random direction)
     let rotation_speed = gen_range(-1.5, 1.5);
 
-    Some(LootItem {
+    LootItem {
         pos,
         vel: vec2(gen_range(-50.0, 50.0), gen_range(-50.0, 50.0)), // Fly apart on explosion
         drift_vel,
@@ -219,5 +223,5 @@ pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> O
         magnet_active: false,
         rotation: gen_range(0.0, std::f32::consts::PI * 2.0), // Random initial rotation
         rotation_speed,
-    })
+    }
 }

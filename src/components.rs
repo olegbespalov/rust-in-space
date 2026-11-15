@@ -97,6 +97,7 @@ pub struct Bullet {
     pub vel: Vec2,
     pub life_time: f32,
     pub style: BulletStyle,
+    pub homing: bool,
     pub damage: f32, // Damage dealt by this bullet
     pub radius: f32, // Bullet radius (for collision and drawing)
 }
@@ -148,6 +149,7 @@ pub struct Ship {
     pub shield_timer: f32,  // Time remaining for shield (0 if inactive)
 
     // Weapon boost timers
+    pub magnetic_ammo_timer: f32,
     pub big_bullet_timer: f32, // Time remaining for big bullet boost (0 if inactive)
 }
 
@@ -192,6 +194,7 @@ pub enum LootType {
     // Buffs (applied immediately)
     HealthPack(i32), // Health recovery
     RapidFireBoost,  // Fast ammo boost (reduced cooldown)
+    MagneticAmmo,    // Player shots steer toward enemies
     BigBulletBoost,  // Bigger bullets with more damage
     Shield(u32),     // Shield with HP capacity
 }

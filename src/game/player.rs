@@ -20,6 +20,7 @@ pub fn create_ship() -> Ship {
         shield_max_hp: 0.0,
         shield_timer: 0.0,
         big_bullet_timer: 0.0,
+        magnetic_ammo_timer: 0.0,
     }
 }
 
@@ -68,6 +69,7 @@ pub fn update_ship_shooting(game: &mut Game) {
             vel: ship_dir * BULLET_SPEED + game.ship.vel,
             life_time: BULLET_LIFETIME,
             style: BulletStyle::Player,
+            homing: game.ship.magnetic_ammo_timer > 0.0,
             damage: damage * damage_mult,
             radius,
         });

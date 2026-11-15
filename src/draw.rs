@@ -240,6 +240,7 @@ pub fn draw_loot(item: &LootItem, res: &Resources) {
         LootType::HealthPack(_) => &res.loot_health,
         LootType::RapidFireBoost => &res.loot_rapid_fire,
         LootType::BigBulletBoost => &res.loot_big_bullet,
+        LootType::MagneticAmmo => &res.loot_magnetic_ammo,
         LootType::Shield(_) => &res.loot_shield,
     };
 
@@ -385,12 +386,17 @@ pub fn render_game(game: &Game, resources: &Resources) {
 
         let rotation = b.vel.y.atan2(b.vel.x) + std::f32::consts::FRAC_PI_2;
         let size = b.radius * 2.0;
+        let tint = if b.homing {
+            Color::from_rgba(210, 145, 255, 255)
+        } else {
+            WHITE
+        };
 
         draw_texture_ex(
             texture,
             b.pos.x - size / 2.0,
             b.pos.y - size / 2.0,
-            WHITE,
+            tint,
             DrawTextureParams {
                 dest_size: Some(vec2(size, size)),
                 rotation,
