@@ -3,6 +3,7 @@
 <div align="center">
   <img src="assets/logo.png" alt="Logo" width="400">
   
+  [![Latest Release](https://img.shields.io/github/v/release/olegbespalov/rust-in-space)](https://github.com/olegbespalov/rust-in-space/releases/latest)
   ![CI](https://github.com/olegbespalov/rust-in-space/workflows/CI/badge.svg)
 </div>
 
