@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+    env:
+      TARGET: ${{ matrix.target }}
+      PACKAGE: rust-in-space-${{ github.ref_name }}-${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ALSA development files
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes libasound2-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build and package
+        run: |
+          cargo build --locked --release --target "$TARGET"
+          mkdir -p "dist/$PACKAGE"
+          cp -R assets LICENSE README.md "dist/$PACKAGE/"
+          install -m 755 "target/$TARGET/release/rust-in-space" "dist/$PACKAGE/rust-in-space"
+          tar -czf "dist/$PACKAGE.tar.gz" -C dist "$PACKAGE"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/${{ env.PACKAGE }}.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish the tagged release with all three archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          assets=(dist/*.tar.gz)
+          test "${#assets[@]}" -eq 3
+
+          flags=()
+          if [[ "${TAG%%+*}" == *-* ]]; then
+            flags+=(--prerelease --latest=false)
+          fi
+
+          gh release create "$TAG" "${assets[@]}" --verify-tag --generate-notes "${flags[@]}"

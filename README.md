@@ -51,6 +51,16 @@
 
 ## Installation
 
+### Download a release
+
+Download the archive for your platform from [GitHub Releases](https://github.com/olegbespalov/rust-in-space/releases).
+
+- Linux (64-bit Intel or AMD): `x86_64-unknown-linux-gnu`
+- macOS (Intel): `x86_64-apple-darwin`
+- macOS (Apple Silicon): `aarch64-apple-darwin`
+
+Extract the archive, then open the extracted folder in a terminal and run `./rust-in-space`. The game loads resources from the included `assets` directory. The Linux build uses Ubuntu 22.04 and requires the ALSA runtime library (`libasound2` on Ubuntu 22.04).
+
 ### Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable version)
@@ -93,6 +103,10 @@ This project includes a Makefile with useful commands:
 - `make install-hooks` - Install pre-commit hook
 
 The pre-commit hook automatically runs the same checks as CI before each commit.
+
+### Publishing a release
+
+Push a version tag such as `v0.1.0-beta.1` from a commit that has passed CI. The release workflow builds and attaches all three archives to the GitHub release. A tag with a prerelease suffix, such as `-beta.1`, is published as a prerelease.
 
 ## Game Mechanics
 
