@@ -59,7 +59,7 @@ Download the archive for your platform from [GitHub Releases](https://github.com
 - macOS (Intel): `x86_64-apple-darwin`
 - macOS (Apple Silicon): `aarch64-apple-darwin`
 
-Extract the archive, then open the extracted folder in a terminal and run `./rust-in-space`. The game loads resources from the included `assets` directory. The Linux build uses Ubuntu 22.04 and requires the ALSA runtime library (`libasound2` on Ubuntu 22.04).
+Extract the entire archive and keep the `assets` directory next to the `rust-in-space` executable. Open the executable or run it by its path from a terminal. The Linux build uses Ubuntu 22.04 and requires the ALSA runtime library (`libasound2` on Ubuntu 22.04).
 
 ### Prerequisites
 

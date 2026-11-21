@@ -3,6 +3,7 @@ use crate::model_sprite::ModelSprite;
 use crate::ship_model::ShipModel;
 use macroquad::audio::{load_sound, Sound};
 use macroquad::prelude::*;
+use std::path::Path;
 
 pub struct Resources {
     pub logo: Texture2D,
@@ -58,6 +59,17 @@ pub struct AudioAssets {
 impl Resources {
     // Async constructor that will load everything at once
     pub async fn new() -> Self {
+        // Cargo builds use the project directory. Release archives ship assets beside the binary.
+        if let Ok(executable) = std::env::current_exe() {
+            if let Some(root) = executable
+                .parent()
+                .filter(|directory| directory.join("assets").is_dir())
+                .and_then(Path::to_str)
+            {
+                set_pc_assets_folder(root);
+            }
+        }
+
         let logo = load_texture("assets/logo.png").await.unwrap();
         logo.set_filter(FilterMode::Nearest);
 
