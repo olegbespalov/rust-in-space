@@ -6,11 +6,29 @@ A reference to the loot items currently implemented in the game. Images use the 
 |---|---|---|
 | Scrap (`Scrap`) | ![Scrap](../assets/loot/resources/rust_pile.png) | Common resource used for upgrades. The amount depends on the drop source. |
 | Rare metal (`RareMetal`) | ![Rare metal](../assets/loot/resources/gold.png) | Rare resource used for major upgrades. |
-| Health pack (`HealthPack`) | ![Health pack](../assets/loot/health.png) | Restores 25 health. |
-| Rapid fire (`RapidFireBoost`) | ![Rapid fire](../assets/loot/energy.png) | Temporarily reduces the interval between shots. |
-| Big bullets (`BigBulletBoost`) | ![Big bullets](../assets/loot/bigger-ammo.png) | Temporarily increases projectile damage and size. |
-| Magnetic ammo (`MagneticAmmo`) | ![Magnetic ammo](../assets/loot/magnetic-ammo.png) | Player projectiles begin homing toward enemies. |
-| Shield (`Shield`) | ![Shield](../assets/loot/shield.png) | Adds a separate durability pool; drops contain 30–100 HP. |
-| Invisibility (`Invisibility`) | ![Mystery item](../assets/loot/mystery.png) | Temporarily makes the ship invisible. |
+| Health pack (`HealthPack`) | ![Health pack](../assets/loot/health.png) | Restores 25 HP up to the ship's current maximum. |
+| Rapid fire (`RapidFireBoost`) | ![Rapid fire](../assets/loot/energy.png) | Triples the firing rate for 10 seconds. |
+| Big bullets (`BigBulletBoost`) | ![Big bullets](../assets/loot/bigger-ammo.png) | Increases projectile size and base damage from 15 to 30 for 15 seconds. |
+| Magnetic ammo (`MagneticAmmo`) | ![Magnetic ammo](../assets/loot/magnetic-ammo.png) | For 10 seconds, newly fired shots home toward nearby enemy ships and bosses ahead of them. |
+| Shield (`Shield`) | ![Shield](../assets/loot/shield.png) | Grants 30–100 shield HP for up to 30 seconds. The shield expires when its HP or timer runs out. |
+| Invisibility (`Invisibility`) | ![Mystery item](../assets/loot/mystery.png) | Cloaks the ship for 10 seconds. Enemy ships stop tracking and firing. Existing shots, collisions, and the Guardian's sweeping volleys can still deal damage. |
 
-Loot drop chances vary by source and are modified by the selected difficulty. Destroying a regular enemy can also grant magnetic ammo or invisibility as an extra drop. Rare asteroids always drop an item, and bosses always drop rare metal.
+## Collection
+
+Loot drifts and rotates until it is collected on contact. The ship pulls loot in from within 150 units at base, and Magnet Array upgrades extend that range. The HUD tracks your current scrap and rare metal balances separately from mission progress. Scrap collected during a mission counts toward its scrap objective.
+
+## Drop rates
+
+These are the standard drop rates on Supernova. The standard roll adds 10 on Nebula and subtracts 15 on BlackHole, which shifts the distribution.
+
+| Standard drop | Regular asteroid | Rare asteroid | Enemy ship |
+|---|---:|---:|---:|
+| Scrap | 40% (1–3) | 15% (5–9) | 30% (5–9) |
+| Rare metal | 5% (1) | 30% (2–4) | — |
+| Health pack | — | 25% | 25% |
+| Rapid fire | — | 18% | 18% |
+| Big bullets | — | 12% | 12% |
+| Shield | — | — | 8% |
+| No standard drop | 55% | — | 7% |
+
+Enemy ships have two independent extra rolls, one for magnetic ammo and one for invisibility, each with an 8% chance on every difficulty. Rare asteroids always drop an item. The Guardian always drops 10–49 rare metal.
