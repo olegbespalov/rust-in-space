@@ -71,8 +71,8 @@ impl Localization {
         en.insert("obj_destroy_boss", "Defeat the Guardian");
         ru.insert("obj_destroy_boss", "Уничтожить Стража");
 
-        en.insert("press_space", "Press [SPACE] to Launch");
-        ru.insert("press_space", "Нажми [ПРОБЕЛ] для запуска");
+        en.insert("press_space", "Launch [SPACE]");
+        ru.insert("press_space", "Запустить [ПРОБЕЛ]");
 
         // --- GAMEPLAY / UI ---
         en.insert("mission_complete", "MISSION COMPLETE!");
@@ -84,11 +84,13 @@ impl Localization {
         en.insert("level_cleared_suffix", "Cleared");
         ru.insert("level_cleared_suffix", "Пройден");
 
-        en.insert("next_mission", "Press [ENTER] for Upgrades");
-        ru.insert("next_mission", "Нажми [ENTER] для улучшений");
+        en.insert("next_mission", "Upgrades [ENTER]");
+        ru.insert("next_mission", "Улучшения [ENTER]");
 
         en.insert("game_over", "GAME OVER");
         ru.insert("game_over", "ИГРА ОКОНЧЕНА");
+        en.insert("return_to_menu", "Main Menu [ENTER]");
+        ru.insert("return_to_menu", "Главное меню [ENTER]");
 
         en.insert("final_score_prefix", "Final Score:");
         ru.insert("final_score_prefix", "Итоговый счет:");
@@ -96,11 +98,11 @@ impl Localization {
         en.insert("high_score", "HIGH SCORE:");
         ru.insert("high_score", "РЕКОРД:");
 
-        en.insert("press_enter_resume", "Press [ENTER] to Resume");
-        ru.insert("press_enter_resume", "Нажми [ENTER] для продолжения");
+        en.insert("press_enter_resume", "Resume [ENTER]");
+        ru.insert("press_enter_resume", "Продолжить [ENTER]");
 
-        en.insert("press_esc", "Press [ESC] for Main Menu");
-        ru.insert("press_esc", "Нажми [ESC] для выхода в меню");
+        en.insert("press_esc", "Main Menu [ESC]");
+        ru.insert("press_esc", "Главное меню [ESC]");
 
         en.insert("controls", "ARROWS to move | SPACE to shoot");
         ru.insert("controls", "СТРЕЛКИ для движения | ПРОБЕЛ для стрельбы");
@@ -244,16 +246,17 @@ impl Localization {
         de.insert("goal_scrap", "Schrott sammeln");
         de.insert("goal_survive", "Überleben (Sek.)");
         de.insert("obj_destroy_boss", "Den Wächter besiegen");
-        de.insert("press_space", "Drücke [LEERTASTE] zum Starten");
+        de.insert("press_space", "Starten [LEERTASTE]");
         de.insert("mission_complete", "MISSION ERFOLGREICH!");
         de.insert("level_cleared_prefix", "Level");
         de.insert("level_cleared_suffix", "Geschafft");
-        de.insert("next_mission", "Drücke [ENTER] für Verbesserungen");
+        de.insert("next_mission", "Verbesserungen [ENTER]");
         de.insert("game_over", "SPIEL VORBEI");
+        de.insert("return_to_menu", "Hauptmenü [ENTER]");
         de.insert("final_score_prefix", "Endpunktzahl:");
         de.insert("high_score", "REKORD:");
-        de.insert("press_enter_resume", "Drücke [ENTER] zum Fortsetzen");
-        de.insert("press_esc", "Drücke [ESC] für Hauptmenü");
+        de.insert("press_enter_resume", "Fortsetzen [ENTER]");
+        de.insert("press_esc", "Hauptmenü [ESC]");
         de.insert("controls", "PFEILE zum Bewegen | LEERTASTE zum Schießen");
         de.insert("paused", "PAUSIERT");
         de.insert("score", "PUNKTE:");

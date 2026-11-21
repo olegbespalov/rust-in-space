@@ -1,6 +1,6 @@
 use crate::components::{
-    Asteroid, Boss, BulletStyle, Difficulty, EnemyShip, EnemyType, Engine, Explosion, LootItem,
-    LootType, MenuItem, Mission, MissionObjective, Ship,
+    Asteroid, AudioSettings, Boss, BulletStyle, Difficulty, EnemyShip, EnemyType, Engine,
+    Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective, Ship,
 };
 use crate::game::constants::{
     ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, KAMIKAZE_RADIUS,
@@ -481,26 +481,91 @@ pub fn render_game(game: &Game, resources: &Resources) {
     }
 }
 
-pub fn render_menu(game: &Game, res: &Resources) {
-    draw_background(&res.background);
+fn draw_menu_button(bounds: Rect, selected: bool) -> bool {
+    let (mouse_x, mouse_y) = mouse_position();
+    let hovered = bounds.contains(vec2(mouse_x, mouse_y));
+    let fill = if hovered {
+        Color::from_rgba(82, 66, 27, 255)
+    } else {
+        Color::from_rgba(17, 24, 40, 255)
+    };
+    let border = if hovered || selected { YELLOW } else { GRAY };
 
-    let time = get_time();
-    let pulse = 1.0 + (time * 2.0).sin() as f32 * 0.05;
+    draw_rectangle(bounds.x, bounds.y, bounds.w, bounds.h, fill);
+    let thickness = if hovered || selected { 4.0 } else { 2.0 };
+    draw_rectangle_lines(bounds.x, bounds.y, bounds.w, bounds.h, thickness, border);
 
-    let target_width = screen_width() * 0.3;
+    hovered && is_mouse_button_pressed(MouseButton::Left)
+}
+
+fn draw_menu_label(text: &str, bounds: Rect, size: u16, color: Color, res: &Resources) {
+    let font = res.font.as_ref();
+    let dims = measure_text(text, font, size, 1.0);
+    let scale = ((bounds.w - 12.0) / dims.width)
+        .min((bounds.h - 4.0) / dims.height)
+        .clamp(0.0, 1.0);
+    draw_text_ex(
+        text,
+        bounds.x + (bounds.w - dims.width * scale) / 2.0,
+        bounds.y + (bounds.h - dims.height * scale) / 2.0 + dims.offset_y * scale,
+        TextParams {
+            font,
+            font_size: size,
+            font_scale: scale,
+            color,
+            ..Default::default()
+        },
+    );
+}
+
+fn menu_button(text: &str, bounds: Rect, size: u16, selected: bool, res: &Resources) -> bool {
+    let clicked = draw_menu_button(bounds, selected);
+    draw_menu_label(text, bounds, size, WHITE, res);
+    clicked
+}
+
+fn centered_menu_button(text: &str, y_offset: f32, res: &Resources) -> bool {
+    let width =
+        (measure_text(text, res.font.as_ref(), 24, 1.0).width + 32.0).min(screen_width() * 0.94);
+    let bounds = Rect::new(
+        (screen_width() - width) / 2.0,
+        screen_height() / 2.0 + y_offset - 20.0,
+        width,
+        40.0,
+    );
+    menu_button(text, bounds, 24, false, res)
+}
+
+#[derive(Clone, Copy)]
+pub enum MenuClick {
+    Activate(MenuItem),
+    Select(MenuItem),
+    DecreaseVolume(MenuItem),
+    IncreaseVolume(MenuItem),
+}
+
+impl MenuClick {
+    pub fn item(self) -> MenuItem {
+        match self {
+            Self::Activate(item)
+            | Self::Select(item)
+            | Self::DecreaseVolume(item)
+            | Self::IncreaseVolume(item) => item,
+        }
+    }
+}
+
+pub fn render_menu(game: &Game, settings: &AudioSettings, res: &Resources) -> Option<MenuClick> {
+    let screen_w = screen_width();
+    let screen_h = screen_height();
+    let pulse = 1.0 + (get_time() * 2.0).sin() as f32 * 0.05;
     let aspect_ratio = res.logo.height() / res.logo.width();
-    let target_height = target_width * aspect_ratio;
-
-    let logo_w = target_width * pulse;
-    let logo_h = target_height * pulse;
-
-    let logo_x = screen_width() / 2.0 - logo_w / 2.0;
-    let logo_y = screen_height() / 2.0 - logo_h / 2.0 - 200.0;
-
+    let logo_w = (screen_w * 0.3).min(screen_h * 0.28 / aspect_ratio) * pulse;
+    let logo_h = logo_w * aspect_ratio;
     draw_texture_ex(
         &res.logo,
-        logo_x,
-        logo_y,
+        (screen_w - logo_w) / 2.0,
+        screen_h * 0.18 - logo_h / 2.0,
         WHITE,
         DrawTextureParams {
             dest_size: Some(vec2(logo_w, logo_h)),
@@ -508,97 +573,112 @@ pub fn render_menu(game: &Game, res: &Resources) {
         },
     );
 
-    let base_y = logo_h / 2.0 - 50.0;
-    let item_spacing = 60.0;
+    let start_y = screen_h * 0.39;
+    let row_step = (screen_h * 0.075).min(46.0);
+    let row_width = (screen_w * 0.94).min(420.0);
+    let row_x = (screen_w - row_width) / 2.0;
 
-    let start_font_size = 32;
-    let start_selected_font_size = 36;
-    let other_font_size = 16;
-    let other_selected_font_size = 18;
-
-    let start_y = base_y + 40.0;
-    let is_selected = game.menu_selection == MenuItem::Start;
-    let start_color = if is_selected { YELLOW } else { WHITE };
-    let start_size = if is_selected {
-        start_selected_font_size
-    } else {
-        start_font_size
-    };
-    let start_prefix = if is_selected { "> " } else { "  " };
-    draw_text_centered(
-        &format!("{}{}", start_prefix, res.lang.t("menu_start")),
-        start_y,
-        start_size,
-        start_color,
-        res,
-    );
-
-    let diff_y = start_y + item_spacing;
-    let is_selected = game.menu_selection == MenuItem::Difficulty;
-    let diff_color = if is_selected { YELLOW } else { WHITE };
-    let diff_size = if is_selected {
-        other_selected_font_size
-    } else {
-        other_font_size
-    };
-    let diff_prefix = if is_selected { "> " } else { "  " };
-
-    let diff_key = match game.difficulty {
+    let difficulty = match game.difficulty {
         Difficulty::Nebula => "diff_nebula",
         Difficulty::Supernova => "diff_supernova",
         Difficulty::BlackHole => "diff_blackhole",
     };
-    let diff_text = res.lang.t(diff_key);
+    let language = match res.lang.current_lang {
+        crate::localization::Language::English => "lang_english",
+        crate::localization::Language::Russian => "lang_russian",
+        crate::localization::Language::German => "lang_german",
+    };
+    let audio_status = if settings.audio_muted {
+        "audio_off"
+    } else {
+        "audio_on"
+    };
 
-    let final_diff_color = if is_selected {
-        match game.difficulty {
-            Difficulty::Nebula => GREEN,
-            Difficulty::Supernova => YELLOW,
-            Difficulty::BlackHole => RED,
+    let rows = [
+        (MenuItem::Start, "menu_start", None),
+        (
+            MenuItem::Difficulty,
+            "menu_difficulty",
+            Some(res.lang.t(difficulty).to_owned()),
+        ),
+        (
+            MenuItem::Language,
+            "menu_language",
+            Some(res.lang.t(language).to_owned()),
+        ),
+        (
+            MenuItem::MasterVolume,
+            "menu_master_volume",
+            Some(format!("{:.0}%", settings.master_volume * 100.0)),
+        ),
+        (
+            MenuItem::MusicVolume,
+            "menu_music_volume",
+            Some(format!("{:.0}%", settings.music_volume * 100.0)),
+        ),
+        (
+            MenuItem::SfxVolume,
+            "menu_sfx_volume",
+            Some(format!("{:.0}%", settings.sfx_volume * 100.0)),
+        ),
+        (
+            MenuItem::AudioMute,
+            "menu_audio_mute",
+            Some(res.lang.t(audio_status).to_owned()),
+        ),
+    ];
+
+    let mut click = None;
+    for (index, (item, key, value)) in rows.into_iter().enumerate() {
+        let bounds = Rect::new(
+            row_x,
+            start_y + index as f32 * row_step,
+            row_width,
+            row_step * 0.88,
+        );
+        let selected = game.menu_selection == item;
+        let label = res.lang.t(key);
+        let text = value.map_or_else(|| label.to_owned(), |value| format!("{label}  {value}"));
+
+        if matches!(
+            item,
+            MenuItem::MasterVolume | MenuItem::MusicVolume | MenuItem::SfxVolume
+        ) {
+            let side_width = (row_width * 0.16).min(48.0);
+            let left = Rect::new(bounds.x, bounds.y, side_width, bounds.h);
+            let center = Rect::new(
+                bounds.x + side_width + 4.0,
+                bounds.y,
+                bounds.w - (side_width + 4.0) * 2.0,
+                bounds.h,
+            );
+            let right = Rect::new(bounds.right() - side_width, bounds.y, side_width, bounds.h);
+
+            if menu_button("-", left, 22, false, res) {
+                click = Some(MenuClick::DecreaseVolume(item));
+            }
+            if menu_button(&text, center, 18, selected, res) {
+                click = Some(MenuClick::Select(item));
+            }
+            if menu_button("+", right, 22, false, res) {
+                click = Some(MenuClick::IncreaseVolume(item));
+            }
+        } else {
+            let size = if item == MenuItem::Start { 26 } else { 18 };
+            if menu_button(&text, bounds, size, selected, res) {
+                click = Some(MenuClick::Activate(item));
+            }
         }
-    } else {
-        diff_color
-    };
-
-    draw_text_centered(
-        &format!("{diff_prefix}< {diff_text} >"),
-        diff_y,
-        diff_size,
-        final_diff_color,
-        res,
-    );
-
-    let lang_y = diff_y + item_spacing;
-    let is_selected = game.menu_selection == MenuItem::Language;
-    let lang_color = if is_selected { YELLOW } else { WHITE };
-    let lang_size = if is_selected {
-        other_selected_font_size
-    } else {
-        other_font_size
-    };
-    let lang_prefix = if is_selected { "> " } else { "  " };
-
-    let lang_text = match res.lang.current_lang {
-        crate::localization::Language::English => res.lang.t("lang_english"),
-        crate::localization::Language::Russian => res.lang.t("lang_russian"),
-        crate::localization::Language::German => res.lang.t("lang_german"),
-    };
-
-    draw_text_centered(
-        &format!("{lang_prefix}< {lang_text} >"),
-        lang_y,
-        lang_size,
-        lang_color,
-        res,
-    );
+    }
 
     draw_text_centered(
         res.lang.t("menu_instructions"),
-        base_y + 250.0,
+        start_y + 7.0 * row_step + 22.0 - screen_h / 2.0,
         14,
         GRAY,
         res,
     );
+    click
 }
 
 fn objective_label(objective: MissionObjective) -> &'static str {
@@ -613,7 +693,7 @@ fn objective_label(objective: MissionObjective) -> &'static str {
     }
 }
 
-pub fn render_briefing(mission: &Mission, res: &Resources) {
+pub fn render_briefing(mission: &Mission, res: &Resources) -> bool {
     draw_text_centered(
         &format!("{} {}", res.lang.t("mission"), mission.level_id),
         -100.0,
@@ -634,10 +714,10 @@ pub fn render_briefing(mission: &Mission, res: &Resources) {
         draw_text_centered(&text, 60.0 + row as f32 * 32.0, 24, WHITE, res);
     }
 
-    draw_text_centered(res.lang.t("press_space"), 200.0, 24, GREEN, res);
+    centered_menu_button(res.lang.t("press_space"), 190.0, res)
 }
 
-pub fn render_mission_success(mission: &Mission, res: &Resources) {
+pub fn render_mission_success(mission: &Mission, res: &Resources) -> bool {
     draw_text_centered(res.lang.t("mission_complete"), -50.0, 40, GREEN, res);
     draw_text_centered(
         &format!(
@@ -651,10 +731,10 @@ pub fn render_mission_success(mission: &Mission, res: &Resources) {
         WHITE,
         res,
     );
-    draw_text_centered(res.lang.t("next_mission"), 100.0, 24, YELLOW, res);
+    centered_menu_button(res.lang.t("next_mission"), 100.0, res)
 }
 
-pub fn render_upgrade_bay(game: &Game, res: &Resources) {
+pub fn render_upgrade_bay(game: &Game, res: &Resources) -> Option<usize> {
     draw_text_centered(res.lang.t("upgrade_bay_title"), -260.0, 40, ORANGE, res);
     draw_text_centered(res.lang.t("upgrade_bay_subtitle"), -220.0, 18, GRAY, res);
 
@@ -668,16 +748,17 @@ pub fn render_upgrade_bay(game: &Game, res: &Resources) {
     );
     draw_text_centered(&resources_text, -175.0, 22, YELLOW, res);
 
-    let start_y = screen_height() * 0.5 - 110.0;
+    let start_y = screen_height() * 0.5 - 130.0;
     let line_height = 52.0;
+    let row_width = (screen_width() * 0.94).min(850.0);
+    let row_x = (screen_width() - row_width) / 2.0;
+    let mut clicked = None;
 
     for (idx, id) in UPGRADABLE_IDS.iter().copied().enumerate() {
         let def = upgrade_definition(id);
         let level = game.upgrade_level(id);
         let max_level = def.max_level;
         let selected = game.upgrade_selection == idx;
-        let line_color = if selected { YELLOW } else { WHITE };
-        let prefix = if selected { "> " } else { "  " };
 
         let status_text = if level >= max_level {
             res.lang.t("upgrade_status_maxed").to_string()
@@ -702,7 +783,7 @@ pub fn render_upgrade_bay(game: &Game, res: &Resources) {
         };
 
         let row_text = format!(
-            "{prefix}{}  [{} {}/{}]  {}",
+            "{}  [{} {}/{}]  {}",
             res.lang.t(def.name_key),
             res.lang.t("upgrade_level"),
             level,
@@ -710,43 +791,49 @@ pub fn render_upgrade_bay(game: &Game, res: &Resources) {
             status_text
         );
 
-        draw_text_with_font(
+        let y = start_y + line_height * idx as f32;
+        let bounds = Rect::new(row_x, y, row_width, 46.0);
+        if draw_menu_button(bounds, selected) {
+            clicked = Some(idx);
+        }
+        draw_menu_label(
             &row_text,
-            screen_width() * 0.14,
-            start_y + line_height * idx as f32,
-            20.0,
-            line_color,
+            Rect::new(row_x, y, row_width, 26.0),
+            20,
+            WHITE,
             res,
         );
-
-        let desc_text = res.lang.t(def.desc_key);
-        draw_text_with_font(
-            desc_text,
-            screen_width() * 0.16,
-            start_y + line_height * idx as f32 + 20.0,
-            14.0,
-            GRAY,
+        draw_menu_label(
+            res.lang.t(def.desc_key),
+            Rect::new(row_x, y + 25.0, row_width, 18.0),
+            14,
+            LIGHTGRAY,
             res,
         );
     }
 
     let continue_idx = UPGRADABLE_IDS.len();
-    let continue_selected = game.upgrade_selection == continue_idx;
-    let continue_prefix = if continue_selected { "> " } else { "  " };
-    let continue_color = if continue_selected { GREEN } else { WHITE };
-    draw_text_with_font(
-        &format!("{continue_prefix}{}", res.lang.t("upgrade_continue")),
-        screen_width() * 0.14,
-        start_y + line_height * continue_idx as f32 + 12.0,
-        24.0,
-        continue_color,
-        res,
+    let bounds = Rect::new(
+        row_x,
+        start_y + line_height * continue_idx as f32,
+        row_width,
+        40.0,
     );
+    if menu_button(
+        res.lang.t("upgrade_continue"),
+        bounds,
+        24,
+        game.upgrade_selection == continue_idx,
+        res,
+    ) {
+        clicked = Some(continue_idx);
+    }
 
-    draw_text_centered(res.lang.t("upgrade_controls"), 285.0, 16, GRAY, res);
+    draw_text_centered(res.lang.t("upgrade_controls"), 205.0, 16, GRAY, res);
+    clicked
 }
 
-pub fn render_game_over(score: u32, high_score: u32, res: &Resources) {
+pub fn render_game_over(score: u32, high_score: u32, res: &Resources) -> bool {
     draw_text_centered(res.lang.t("game_over"), -40.0, 48, RED, res);
     draw_text_centered(
         &format!("{} {}", res.lang.t("final_score_prefix"), score),
@@ -762,9 +849,10 @@ pub fn render_game_over(score: u32, high_score: u32, res: &Resources) {
         YELLOW,
         res,
     );
+    centered_menu_button(res.lang.t("return_to_menu"), 115.0, res)
 }
 
-pub fn render_pause(res: &Resources) {
+pub fn render_pause(res: &Resources) -> (bool, bool) {
     draw_rectangle(
         0.0,
         0.0,
@@ -773,7 +861,8 @@ pub fn render_pause(res: &Resources) {
         Color::new(0.0, 0.0, 0.0, 0.7),
     );
 
-    draw_text_centered(res.lang.t("paused"), -20.0, 48, YELLOW, res);
-    draw_text_centered(res.lang.t("press_enter_resume"), 20.0, 24, WHITE, res);
-    draw_text_centered(res.lang.t("press_esc"), 55.0, 24, WHITE, res);
+    draw_text_centered(res.lang.t("paused"), -40.0, 48, YELLOW, res);
+    let resume = centered_menu_button(res.lang.t("press_enter_resume"), 20.0, res);
+    let main_menu = centered_menu_button(res.lang.t("press_esc"), 70.0, res);
+    (resume, main_menu)
 }

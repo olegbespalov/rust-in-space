@@ -85,8 +85,6 @@ async fn main() {
             GameState::Menu => {
                 audio.play_music(&resources.audio, MusicTrack::Menu);
 
-                render_menu(&game, &resources);
-
                 // Menu navigation
                 if is_key_pressed(KeyCode::Up) {
                     game.menu_selection = game.menu_selection.prev();
@@ -97,72 +95,64 @@ async fn main() {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                 }
 
-                // Handle actions based on selected menu item
+                let click = render_menu(&game, audio.settings(), &resources);
+                if let Some(click) = click {
+                    let item = click.item();
+                    if matches!(click, MenuClick::Select(_)) && item != game.menu_selection {
+                        audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
+                    }
+                    game.menu_selection = item;
+                }
+                let activate = matches!(click, Some(MenuClick::Activate(_)));
+                let enter = click.is_none() && is_key_pressed(KeyCode::Enter);
+                let left = click.is_none() && is_key_pressed(KeyCode::Left);
+                let right = click.is_none() && is_key_pressed(KeyCode::Right);
+
                 match game.menu_selection {
                     MenuItem::Start => {
-                        if is_key_pressed(KeyCode::Enter) {
+                        if enter || activate {
                             game.reset();
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                             state = GameState::Briefing;
                         }
                     }
                     MenuItem::Difficulty => {
-                        if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::Right) {
+                        if left || right || activate {
                             game.cycle_difficulty();
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }
                     }
                     MenuItem::Language => {
-                        if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::Right) {
+                        if left || right || activate {
                             resources.lang.cycle_lang();
                             saved.language = resources.lang.current_lang;
                             save_timer = Some(0.0);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }
                     }
-                    MenuItem::MasterVolume => {
-                        if is_key_pressed(KeyCode::Left) {
-                            audio.adjust_master_volume(&resources.audio, -0.05);
-                            save_timer = Some(0.25);
-                            audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
-                        }
-                        if is_key_pressed(KeyCode::Right) {
-                            audio.adjust_master_volume(&resources.audio, 0.05);
-                            save_timer = Some(0.25);
-                            audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
-                        }
-                    }
-                    MenuItem::MusicVolume => {
-                        if is_key_pressed(KeyCode::Left) {
-                            audio.adjust_music_volume(&resources.audio, -0.05);
-                            save_timer = Some(0.25);
-                            audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
-                        }
-                        if is_key_pressed(KeyCode::Right) {
-                            audio.adjust_music_volume(&resources.audio, 0.05);
-                            save_timer = Some(0.25);
-                            audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
-                        }
-                    }
-                    MenuItem::SfxVolume => {
-                        if is_key_pressed(KeyCode::Left) {
-                            audio.adjust_sfx_volume(&resources.audio, -0.05);
-                            save_timer = Some(0.25);
-                            audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
-                        }
-                        if is_key_pressed(KeyCode::Right) {
-                            audio.adjust_sfx_volume(&resources.audio, 0.05);
-                            save_timer = Some(0.25);
-                            audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
-                        }
-                    }
                     MenuItem::AudioMute => {
-                        if is_key_pressed(KeyCode::Left)
-                            || is_key_pressed(KeyCode::Right)
-                            || is_key_pressed(KeyCode::Enter)
-                        {
+                        if left || right || enter || activate {
                             audio.toggle_mute(&resources.audio);
                             save_timer = Some(0.25);
+                        }
+                    }
+                    item @ (MenuItem::MasterVolume
+                    | MenuItem::MusicVolume
+                    | MenuItem::SfxVolume) => {
+                        let decrease = left || matches!(click, Some(MenuClick::DecreaseVolume(_)));
+                        let increase = right || matches!(click, Some(MenuClick::IncreaseVolume(_)));
+                        let adjust_volume = match item {
+                            MenuItem::MasterVolume => AudioState::adjust_master_volume,
+                            MenuItem::MusicVolume => AudioState::adjust_music_volume,
+                            MenuItem::SfxVolume => AudioState::adjust_sfx_volume,
+                            _ => unreachable!(),
+                        };
+                        for (pressed, delta) in [(decrease, -0.05), (increase, 0.05)] {
+                            if pressed {
+                                adjust_volume(&mut audio, &resources.audio, delta);
+                                save_timer = Some(0.25);
+                                audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
+                            }
                         }
                     }
                 }
@@ -170,9 +160,9 @@ async fn main() {
 
             GameState::Briefing => {
                 audio.play_music(&resources.audio, MusicTrack::Menu);
-                render_briefing(&game.current_mission, &resources);
+                let launch = render_briefing(&game.current_mission, &resources);
 
-                if is_key_pressed(KeyCode::Space) {
+                if launch || is_key_pressed(KeyCode::Space) {
                     game.start_mission();
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     audio.play_music(&resources.audio, MusicTrack::Gameplay);
@@ -230,14 +220,13 @@ async fn main() {
             GameState::Paused => {
                 // Render the game in paused state (frozen frame)
                 render_game(&game, &resources);
-                render_pause(&resources);
+                let (resume, main_menu) = render_pause(&resources);
 
-                // ENTER resumes the mission, ESC exits to main menu
-                if is_key_pressed(KeyCode::Enter) {
+                if resume || (!main_menu && is_key_pressed(KeyCode::Enter)) {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     audio.set_paused(&resources.audio, false);
                     state = GameState::Playing;
-                } else if is_key_pressed(KeyCode::Escape) {
+                } else if main_menu || is_key_pressed(KeyCode::Escape) {
                     audio.set_paused(&resources.audio, false);
                     state = GameState::Menu;
                 }
@@ -246,9 +235,9 @@ async fn main() {
             GameState::MissionSuccess => {
                 audio.set_paused(&resources.audio, false);
                 audio.play_music(&resources.audio, MusicTrack::Menu);
-                render_mission_success(&game.current_mission, &resources);
+                let upgrades = render_mission_success(&game.current_mission, &resources);
 
-                if is_key_pressed(KeyCode::Enter) {
+                if upgrades || is_key_pressed(KeyCode::Enter) {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     game.upgrade_selection = 0;
                     state = GameState::UpgradeBay;
@@ -256,8 +245,6 @@ async fn main() {
             }
 
             GameState::UpgradeBay => {
-                render_upgrade_bay(&game, &resources);
-
                 if is_key_pressed(KeyCode::Up) {
                     game.prev_upgrade_selection();
                 }
@@ -265,7 +252,12 @@ async fn main() {
                     game.next_upgrade_selection();
                 }
 
-                if is_key_pressed(KeyCode::Enter) {
+                let clicked = render_upgrade_bay(&game, &resources);
+                if let Some(index) = clicked {
+                    game.upgrade_selection = index;
+                }
+
+                if clicked.is_some() || is_key_pressed(KeyCode::Enter) {
                     if game.is_continue_selected() {
                         game.next_mission();
                         audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
@@ -279,9 +271,9 @@ async fn main() {
             GameState::GameOver(score) => {
                 audio.set_paused(&resources.audio, false);
                 audio.play_music(&resources.audio, MusicTrack::Menu);
-                render_game_over(score, saved.high_score, &resources);
+                let main_menu = render_game_over(score, saved.high_score, &resources);
 
-                if is_key_pressed(KeyCode::Enter) {
+                if main_menu || is_key_pressed(KeyCode::Enter) {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     state = GameState::Menu;
                 }
