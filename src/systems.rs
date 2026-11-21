@@ -4,6 +4,7 @@ use crate::components::{Difficulty, LootItem, LootType};
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use std::fs;
+use std::path::PathBuf;
 
 // Where does the item drop from?
 pub enum LootSource {
@@ -29,9 +30,36 @@ pub fn wrap_around(pos: &mut Vec2) {
 
 const SAVE_FILE: &str = "highscore.json";
 
+fn save_file() -> PathBuf {
+    #[cfg(target_os = "macos")]
+    if std::env::current_exe()
+        .ok()
+        .and_then(|executable| crate::resources::macos_bundle_resources(&executable))
+        .is_some()
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home)
+                .join("Library/Application Support/Rust in Space/highscore.json");
+        }
+    }
+
+    PathBuf::from(SAVE_FILE)
+}
+
 pub fn save_data(data: &SaveData) {
     if let Ok(json) = serde_json::to_string(data) {
-        let _ = fs::write(SAVE_FILE, json);
+        let path = save_file();
+        let result = match path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
+            Some(parent) => fs::create_dir_all(parent),
+            None => Ok(()),
+        }
+        .and_then(|()| fs::write(&path, json));
+        if let Err(error) = result {
+            eprintln!("Failed to write {}: {error}", path.display());
+        }
     }
 }
 
@@ -53,7 +81,7 @@ pub fn save_audio_settings(audio: crate::components::AudioSettings) {
 }
 
 pub fn load_score() -> SaveData {
-    match fs::read_to_string(SAVE_FILE) {
+    match fs::read_to_string(save_file()) {
         Ok(content) => match serde_json::from_str::<SaveData>(&content) {
             Ok(data) => data,
             Err(e) => {

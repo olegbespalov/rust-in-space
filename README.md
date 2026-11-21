@@ -53,13 +53,12 @@
 
 ### Download a release
 
-Download the archive for your platform from [GitHub Releases](https://github.com/olegbespalov/rust-in-space/releases).
+Download the package for your platform from [GitHub Releases](https://github.com/olegbespalov/rust-in-space/releases).
 
-- Linux (64-bit Intel or AMD): `x86_64-unknown-linux-gnu`
-- macOS (Intel): `x86_64-apple-darwin`
-- macOS (Apple Silicon): `aarch64-apple-darwin`
+- **Linux (64-bit Intel or AMD)**. Download the `x86_64-unknown-linux-gnu.AppImage` file, make it executable with `chmod +x ./rust-in-space-*.AppImage`, and open it. An AppImage integration tool can add the game and its icon to your application menu. The Linux build targets Ubuntu 22.04 and uses the system ALSA runtime (`libasound2` on Ubuntu 22.04). If FUSE is unavailable, run the file with `--appimage-extract-and-run`. The `.tar.gz` is also available. Extract it and keep `assets` beside the executable.
+- **macOS (Intel or Apple Silicon)**. Download the `x86_64-apple-darwin.zip` for Intel or `aarch64-apple-darwin.zip` for Apple Silicon. Unzip it, move **Rust in Space.app** to Applications, and open it. The bundle is ad hoc signed. macOS Gatekeeper may block a downloaded copy because it has no Apple notarization.
 
-Extract the entire archive and keep the `assets` directory next to the `rust-in-space` executable. Open the executable or run it by its path from a terminal. The Linux build uses Ubuntu 22.04 and requires the ALSA runtime library (`libasound2` on Ubuntu 22.04).
+The AppImage saves high scores and audio settings in `$XDG_DATA_HOME/rust-in-space/` (by default `~/.local/share/rust-in-space/`). The macOS app saves them in `~/Library/Application Support/Rust in Space/`.
 
 ### Prerequisites
 

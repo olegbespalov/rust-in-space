@@ -25,12 +25,28 @@ jobs:
     env:
       TARGET: ${{ matrix.target }}
       PACKAGE: rust-in-space-${{ github.ref_name }}-${{ matrix.target }}
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ALSA development files
+      - name: Install Linux build and packaging tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install --yes libasound2-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libasound2-dev desktop-file-utils
+          tool_dir="$RUNNER_TEMP/appimage-tools"
+          mkdir -p "$tool_dir"
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage \
+            -o "$tool_dir/appimagetool"
+          echo "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  $tool_dir/appimagetool" | sha256sum --check
+          curl --fail --location --silent --show-error --retry 3 \
+            https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64 \
+            -o "$tool_dir/runtime-x86_64"
+          echo "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  $tool_dir/runtime-x86_64" | sha256sum --check
+          chmod +x "$tool_dir/appimagetool"
+          echo "$tool_dir" >> "$GITHUB_PATH"
+          echo "APPIMAGETOOL_RUNTIME_FILE=$tool_dir/runtime-x86_64" >> "$GITHUB_ENV"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -40,15 +56,20 @@ jobs:
       - name: Build and package
         run: |
           cargo build --locked --release --target "$TARGET"
-          mkdir -p "dist/$PACKAGE"
-          cp -R assets LICENSE README.md "dist/$PACKAGE/"
-          install -m 755 "target/$TARGET/release/rust-in-space" "dist/$PACKAGE/rust-in-space"
-          tar -czf "dist/$PACKAGE.tar.gz" -C dist "$PACKAGE"
+          mkdir -p dist
+          binary="target/$TARGET/release/rust-in-space"
+          bash packaging/package.sh "$RUNNER_OS" "$binary" "dist/$PACKAGE" "$TAG"
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            mkdir -p "dist/$PACKAGE"
+            cp -R assets LICENSE README.md "dist/$PACKAGE/"
+            install -m 755 "$binary" "dist/$PACKAGE/rust-in-space"
+            tar -czf "dist/$PACKAGE.tar.gz" -C dist "$PACKAGE"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: dist/${{ env.PACKAGE }}.tar.gz
+          path: dist/${{ env.PACKAGE }}.*
           if-no-files-found: error
 
   publish:
@@ -63,14 +84,22 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Publish the tagged release with all three archives
+      - name: Publish the tagged release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          assets=(dist/*.tar.gz)
-          test "${#assets[@]}" -eq 3
+          prefix="dist/rust-in-space-$TAG"
+          assets=(
+            "$prefix-x86_64-unknown-linux-gnu.AppImage"
+            "$prefix-x86_64-unknown-linux-gnu.tar.gz"
+            "$prefix-x86_64-apple-darwin.zip"
+            "$prefix-aarch64-apple-darwin.zip"
+          )
+          for asset in "${assets[@]}"; do
+            test -s "$asset"
+          done
 
           flags=()
           if [[ "${TAG%%+*}" == *-* ]]; then

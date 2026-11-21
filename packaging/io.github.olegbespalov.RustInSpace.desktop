@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Rust in Space
+Exec=rust-in-space
+Icon=io.github.olegbespalov.RustInSpace
+StartupWMClass=io.github.olegbespalov.RustInSpace
+Terminal=false
+Categories=Game;ActionGame;

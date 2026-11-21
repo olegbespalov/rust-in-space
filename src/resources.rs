@@ -5,6 +5,18 @@ use macroquad::audio::{load_sound, Sound};
 use macroquad::prelude::*;
 use std::path::Path;
 
+#[cfg(target_os = "macos")]
+pub(crate) fn macos_bundle_resources(executable: &Path) -> Option<std::path::PathBuf> {
+    let macos = executable.parent()?;
+    let contents = macos.parent()?;
+    let bundle = contents.parent()?;
+    if macos.ends_with("MacOS") && contents.ends_with("Contents") && bundle.extension()? == "app" {
+        Some(contents.join("Resources"))
+    } else {
+        None
+    }
+}
+
 pub struct Resources {
     pub logo: Texture2D,
     pub background: Texture2D,
@@ -59,10 +71,13 @@ pub struct AudioAssets {
 impl Resources {
     // Async constructor that will load everything at once
     pub async fn new() -> Self {
-        // Cargo builds use the project directory. Release archives ship assets beside the binary.
+        // Cargo builds use the project directory. Release packages resolve assets from the binary.
         if let Ok(executable) = std::env::current_exe() {
-            if let Some(root) = executable
-                .parent()
+            let root = executable.parent().map(Path::to_path_buf);
+            #[cfg(target_os = "macos")]
+            let root = macos_bundle_resources(&executable).or(root);
+            if let Some(root) = root
+                .as_deref()
                 .filter(|directory| directory.join("assets").is_dir())
                 .and_then(Path::to_str)
             {

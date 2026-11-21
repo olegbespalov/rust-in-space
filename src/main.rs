@@ -26,8 +26,16 @@ fn window_conf() -> macroquad::conf::Conf {
         window_width: WINDOW_WIDTH,
         window_height: WINDOW_HEIGHT,
         high_dpi: true,
+        #[cfg(target_os = "linux")]
+        icon: Some(macroquad::miniquad::conf::Icon {
+            small: *include_bytes!(concat!(env!("OUT_DIR"), "/icon-16.rgba")),
+            medium: *include_bytes!(concat!(env!("OUT_DIR"), "/icon-32.rgba")),
+            big: *include_bytes!(concat!(env!("OUT_DIR"), "/icon-64.rgba")),
+        }),
+        #[cfg(target_os = "macos")]
+        icon: None,
         platform: macroquad::miniquad::conf::Platform {
-            linux_wm_class: "rust-in-space",
+            linux_wm_class: "io.github.olegbespalov.RustInSpace",
             ..Default::default()
         },
         ..Default::default()

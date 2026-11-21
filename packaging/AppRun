@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+app_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+case "${XDG_DATA_HOME:-}" in
+    /*) data_dir=$XDG_DATA_HOME ;;
+    *) data_dir=$HOME/.local/share ;;
+esac
+
+save_dir=$data_dir/rust-in-space
+mkdir -p -- "$save_dir"
+cd -- "$save_dir"
+exec "$app_dir/usr/bin/rust-in-space" "$@"
