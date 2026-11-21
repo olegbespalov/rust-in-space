@@ -212,6 +212,16 @@ impl Localization {
         // --- MENU ITEMS ---
         en.insert("menu_start", "START");
         ru.insert("menu_start", "НАЧАТЬ");
+        en.insert("ship_selection", "Choose your ship");
+        ru.insert("ship_selection", "Выбор корабля");
+        en.insert("ship_alpha", "Alpha");
+        ru.insert("ship_alpha", "Alpha");
+        en.insert("ship_delta", "Delta");
+        ru.insert("ship_delta", "Дельта");
+        en.insert("ship_confirm", "Continue [Enter]");
+        ru.insert("ship_confirm", "Далее [Enter]");
+        en.insert("ship_back", "Back [Esc]");
+        ru.insert("ship_back", "Назад [Esc]");
 
         en.insert("menu_difficulty", "Difficulty");
         ru.insert("menu_difficulty", "Сложность");
@@ -314,6 +324,11 @@ impl Localization {
         de.insert("upgrade_shield_name", "Schildkondensator");
         de.insert("upgrade_shield_desc", "Mission beginnt mit kleinem Schild");
         de.insert("menu_start", "STARTEN");
+        de.insert("ship_selection", "Raumschiff wählen");
+        de.insert("ship_alpha", "Alpha");
+        de.insert("ship_delta", "Delta");
+        de.insert("ship_confirm", "Weiter [Enter]");
+        de.insert("ship_back", "Zurück [Esc]");
         de.insert("menu_difficulty", "Schwierigkeit");
         de.insert("menu_language", "Sprache");
         de.insert("menu_master_volume", "Gesamtlautstärke");

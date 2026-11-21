@@ -159,7 +159,7 @@ pub struct Game {
 impl Game {
     pub fn new() -> Self {
         Self {
-            ship: create_ship(),
+            ship: create_ship(ShipKind::Alpha),
             bullets: Vec::new(),
             asteroids: Vec::new(),
             enemy_ships: Vec::new(),
@@ -185,7 +185,7 @@ impl Game {
         std::mem::take(&mut self.audio_cues)
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, ship_kind: ShipKind) {
         let saved_diff = self.difficulty;
         self.bullets.clear();
         self.asteroids = (0..5).map(|_| Asteroid::new_large()).collect();
@@ -195,7 +195,7 @@ impl Game {
         self.score = 0;
         self.current_level_idx = 1;
         self.current_mission = get_mission(self.current_level_idx);
-        self.ship = create_ship();
+        self.ship = create_ship(ship_kind);
         self.difficulty = saved_diff;
         self.pending_enemy_hint = None;
         self.upgrade_levels = UpgradeLevels::default();

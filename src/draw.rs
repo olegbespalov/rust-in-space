@@ -1,6 +1,6 @@
 use crate::components::{
     Asteroid, AudioSettings, Boss, BulletStyle, Difficulty, EnemyShip, EnemyType, Engine,
-    Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective, ShieldKind, Ship,
+    Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective, ShieldKind, Ship, ShipKind,
 };
 use crate::game::constants::{
     ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, KAMIKAZE_RADIUS,
@@ -87,27 +87,15 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
     };
 
     let ship_size = 72.0 * SHIP_VISUAL_SCALE;
-    if let Some(model) = &resources.ship_model {
-        model.draw(
-            ship.pos,
-            ship_size,
-            hull_rotation,
-            ship.engine.current_thrust,
-            tint,
-        );
-    } else {
-        draw_texture_ex(
-            &resources.ship_body,
-            ship.pos.x - ship_size / 2.0,
-            ship.pos.y - ship_size / 2.0,
-            tint,
-            DrawTextureParams {
-                dest_size: Some(vec2(ship_size, ship_size)),
-                rotation: hull_rotation,
-                ..Default::default()
-            },
-        );
-    }
+    draw_ship_hull(
+        ship.kind,
+        ship.pos,
+        ship_size,
+        hull_rotation,
+        ship.engine.current_thrust,
+        tint,
+        resources,
+    );
 
     if ship.has_shield() {
         let shield_size = ship_size * 1.8;
@@ -125,6 +113,32 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
             shield_color,
             DrawTextureParams {
                 dest_size: Some(vec2(shield_size, shield_size)),
+                ..Default::default()
+            },
+        );
+    }
+}
+
+fn draw_ship_hull(
+    kind: ShipKind,
+    position: Vec2,
+    size: f32,
+    rotation: f32,
+    thrust: f32,
+    tint: Color,
+    res: &Resources,
+) {
+    if let Some(model) = res.ship_model(kind) {
+        model.draw(position, size, rotation, thrust, tint);
+    } else {
+        draw_texture_ex(
+            &res.ship_body,
+            position.x - size / 2.0,
+            position.y - size / 2.0,
+            tint,
+            DrawTextureParams {
+                dest_size: Some(Vec2::splat(size)),
+                rotation,
                 ..Default::default()
             },
         );
@@ -707,6 +721,69 @@ pub fn render_menu(
         LIGHTGRAY,
         res,
     );
+    click
+}
+
+pub enum ShipSelectionClick {
+    Select(ShipKind),
+    Confirm,
+    Back,
+}
+
+pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<ShipSelectionClick> {
+    let center = vec2(screen_width() / 2.0, screen_height() / 2.0);
+    let card_width = (screen_width() * 0.43).min(260.0);
+    let card_height = (screen_height() * 0.4).min(218.0);
+    let gap = 18.0;
+    let has_delta = res.ship_model(ShipKind::Delta).is_some();
+    let x = if has_delta {
+        center.x - card_width - gap / 2.0
+    } else {
+        center.x - card_width / 2.0
+    };
+    let y = center.y - card_height / 2.0;
+    draw_text_centered(
+        res.lang.t("ship_selection"),
+        -card_height / 2.0 - 40.0,
+        30,
+        ORANGE,
+        res,
+    );
+
+    let mut click = None;
+    for (kind, label, shortcut, x) in [
+        (ShipKind::Alpha, "ship_alpha", "←", x),
+        (ShipKind::Delta, "ship_delta", "→", x + card_width + gap),
+    ] {
+        if kind == ShipKind::Delta && !has_delta {
+            continue;
+        }
+        let card = Rect::new(x, y, card_width, card_height);
+        if draw_menu_button(card, kind == selected) {
+            click = Some(ShipSelectionClick::Select(kind));
+        }
+        if has_delta {
+            let key_bounds = Rect::new(x + 8.0, y + 8.0, 30.0, 24.0);
+            draw_menu_label(shortcut, key_bounds, 16, LIGHTGRAY, res);
+        }
+        draw_ship_hull(
+            kind,
+            vec2(x + card_width / 2.0, y + card_height * 0.43),
+            (card_height * 0.73).min(card_width * 0.86),
+            0.0,
+            0.0,
+            WHITE,
+            res,
+        );
+        let label_bounds = Rect::new(x, y + card_height * 0.76, card_width, card_height * 0.2);
+        draw_menu_label(res.lang.t(label), label_bounds, 20, WHITE, res);
+    }
+    if centered_menu_button(res.lang.t("ship_confirm"), card_height / 2.0 + 32.0, res) {
+        return Some(ShipSelectionClick::Confirm);
+    }
+    if centered_menu_button(res.lang.t("ship_back"), card_height / 2.0 + 82.0, res) {
+        return Some(ShipSelectionClick::Back);
+    }
     click
 }
 

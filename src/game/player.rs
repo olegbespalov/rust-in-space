@@ -4,8 +4,9 @@ use crate::game::Game;
 use crate::systems::wrap_around;
 use macroquad::prelude::*;
 
-pub fn create_ship() -> Ship {
+pub fn create_ship(kind: ShipKind) -> Ship {
     Ship {
+        kind,
         pos: vec2(screen_width() / 2.0, screen_height() / 2.0),
         vel: vec2(0.0, 0.0),
         rotation: 0.0,

@@ -1,6 +1,9 @@
 # Ship models and upgrades
 
-The player flies a weathered white-and-blue fighter with an orange cockpit. The player hull uses a [textured Meshy GLB](assets/models/player_ship.glb) generated from [the original sprite](assets/ship_body.png). Macroquad renders the mesh from a shallow overhead angle in a 90-pixel drawing area. Thrust tips the hull to expose more of its rear profile. The original sprite is the fallback.
+The player chooses a ship before the first mission briefing. Both ships share the same flight and combat stats. Macroquad renders the selected mesh from a shallow overhead angle in a 90-pixel drawing area. Thrust tips the hull to expose more of its rear profile.
+
+- **Alpha** is the weathered white-and-blue fighter with an orange cockpit. Its [textured Meshy GLB](assets/models/player_ship.glb) was generated from [the original sprite](assets/ship_body.png), which also serves as the fallback.
+- **Delta** is the copper-red fighter with ivory wing panels and a pale cyan cockpit. Its [textured Meshy GLB](assets/models/player_delta.glb) was generated from a text prompt, with 3,682 triangles and an embedded 512-pixel base-color texture. The textured Meshy task is `01a1ffd1-213f-767c-bc8e-dbd9c79e3f03`. Meshy returned no license metadata.
 
 ## Player upgrades
 

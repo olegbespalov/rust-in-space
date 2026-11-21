@@ -2,7 +2,6 @@ use gltf::{buffer, image, mesh, Gltf};
 use macroquad::prelude::*;
 
 pub const MODEL_MESH_INDEX_CAPACITY: usize = 12_001;
-const MODEL_PATH: &str = "assets/models/player_ship.glb";
 const RENDER_SIZE: u32 = 192;
 
 pub struct ShipModel {
@@ -11,13 +10,13 @@ pub struct ShipModel {
 }
 
 impl ShipModel {
-    pub async fn load() -> Option<Self> {
-        let mesh = match load_file(MODEL_PATH).await {
+    pub async fn load(path: &str) -> Option<Self> {
+        let mesh = match load_file(path).await {
             Ok(bytes) => load_mesh(&bytes),
             Err(_) => None,
         };
         if mesh.is_none() {
-            eprintln!("Could not load {MODEL_PATH}. Using the player ship sprite.");
+            eprintln!("Could not load {path}.");
         }
 
         mesh.map(|mesh| Self {

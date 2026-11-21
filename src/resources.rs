@@ -1,3 +1,4 @@
+use crate::components::ShipKind;
 use crate::localization::Localization;
 use crate::model_sprite::ModelSprite;
 use crate::ship_model::ShipModel;
@@ -25,7 +26,8 @@ pub struct Resources {
     pub audio: AudioAssets,
 
     pub ship_body: Texture2D,
-    pub ship_model: Option<ShipModel>,
+    ship_model: Option<ShipModel>,
+    delta_model: Option<ShipModel>,
     pub ship_flame: Texture2D,
     pub enemy_small: ModelSprite,
     pub enemy_kamikaze: ModelSprite,
@@ -69,6 +71,13 @@ pub struct AudioAssets {
 }
 
 impl Resources {
+    pub fn ship_model(&self, kind: ShipKind) -> Option<&ShipModel> {
+        match kind {
+            ShipKind::Alpha => self.ship_model.as_ref(),
+            ShipKind::Delta => self.delta_model.as_ref(),
+        }
+    }
+
     // Async constructor that will load everything at once
     pub async fn new() -> Self {
         // Cargo builds use the project directory. Release packages resolve assets from the binary.
@@ -101,7 +110,8 @@ impl Resources {
 
         let ship_body = load_texture("assets/ship_body.png").await.unwrap();
         ship_body.set_filter(FilterMode::Nearest);
-        let ship_model = ShipModel::load().await;
+        let ship_model = ShipModel::load("assets/models/player_ship.glb").await;
+        let delta_model = ShipModel::load("assets/models/player_delta.glb").await;
 
         let ship_flame = load_texture("assets/ship_flame.png").await.unwrap();
         ship_flame.set_filter(FilterMode::Nearest);
@@ -278,6 +288,7 @@ impl Resources {
             audio,
             ship_body,
             ship_model,
+            delta_model,
             ship_flame,
             enemy_small,
             enemy_kamikaze,

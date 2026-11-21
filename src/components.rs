@@ -52,6 +52,7 @@ impl MissionObjective {
 
 pub enum GameState {
     Menu,
+    ShipSelection(ShipKind),
     Briefing, // briefing screen before the mission
     Playing,
     Paused,         // game is paused
@@ -159,7 +160,14 @@ pub struct Boss {
     pub burst_shots_left: u32,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ShipKind {
+    Alpha,
+    Delta,
+}
+
 pub struct Ship {
+    pub kind: ShipKind,
     pub pos: Vec2,
     pub vel: Vec2,
     pub rotation: f32,
