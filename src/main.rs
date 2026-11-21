@@ -14,6 +14,7 @@ use audio::{AudioState, MusicTrack};
 use components::{GameState, MenuItem};
 use draw::*;
 use game::*;
+use localization::Language;
 use resources::Resources;
 use systems::{load_save, save_data, save_file};
 
@@ -51,7 +52,7 @@ async fn main() {
     let save_path = save_file();
     let mut saved = load_save(save_path.as_deref());
     let mut resources = Resources::new().await;
-    resources.lang.current_lang = saved.language;
+    resources.lang.current_lang = saved.language.unwrap_or_else(Language::from_system_locale);
     let mut audio = AudioState::new(saved.audio.clone());
     let mut save_timer = None;
     audio.play_music(&resources.audio, MusicTrack::Menu);
@@ -125,7 +126,7 @@ async fn main() {
                     MenuItem::Language => {
                         if left || right || activate {
                             resources.lang.cycle_lang();
-                            saved.language = resources.lang.current_lang;
+                            saved.language = Some(resources.lang.current_lang);
                             save_timer = Some(0.0);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }

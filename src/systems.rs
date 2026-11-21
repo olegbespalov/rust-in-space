@@ -266,24 +266,24 @@ mod tests {
 
         let missing = load_or_migrate(&save_path, &legacy_path);
         assert_eq!(missing.high_score, 0);
-        assert_eq!(missing.language, Language::English);
+        assert_eq!(missing.language, None);
         assert!(!save_path.exists());
 
         let legacy = r#"{"high_score":450,"audio":{"master_volume":0.5,"audio_muted":true}}"#;
         fs::write(&legacy_path, legacy).unwrap();
         let mut data = load_or_migrate(&save_path, &legacy_path);
         assert_eq!(data.high_score, 450);
-        assert_eq!(data.language, Language::English);
+        assert_eq!(data.language, None);
         assert!(data.audio.audio_muted);
-        assert!(save_path.is_file());
+        assert!(!fs::read_to_string(&save_path).unwrap().contains("language"));
 
         data.high_score = 600;
-        data.language = Language::German;
+        data.language = Some(Language::German);
         write_save(&save_path, &data).unwrap();
 
         let restored = load_or_migrate(&save_path, &legacy_path);
         assert_eq!(restored.high_score, 600);
-        assert_eq!(restored.language, Language::German);
+        assert_eq!(restored.language, Some(Language::German));
         assert_eq!(restored.audio.master_volume, 0.5);
         assert!(restored.audio.audio_muted);
         assert_eq!(fs::read_to_string(&legacy_path).unwrap(), legacy);
@@ -291,13 +291,13 @@ mod tests {
         fs::write(&save_path, b"invalid JSON").unwrap();
         let invalid = load_or_migrate(&save_path, &legacy_path);
         assert_eq!(invalid.high_score, 0);
-        assert_eq!(invalid.language, Language::English);
+        assert_eq!(invalid.language, None);
 
         fs::remove_file(&save_path).unwrap();
         fs::create_dir(&save_path).unwrap();
         let unreadable = load_or_migrate(&save_path, &legacy_path);
         assert_eq!(unreadable.high_score, 0);
-        assert_eq!(unreadable.language, Language::English);
+        assert_eq!(unreadable.language, None);
 
         fs::remove_dir_all(directory).unwrap();
     }
@@ -307,6 +307,6 @@ mod tests {
         let data: SaveData =
             serde_json::from_str(r#"{"high_score":900,"language":"unknown"}"#).unwrap();
         assert_eq!(data.high_score, 900);
-        assert_eq!(data.language, Language::English);
+        assert_eq!(data.language, Some(Language::English));
     }
 }

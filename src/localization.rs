@@ -11,6 +11,26 @@ pub enum Language {
     English,
 }
 
+impl Language {
+    pub fn from_system_locale() -> Self {
+        Self::from_locale(sys_locale::get_locale().as_deref())
+    }
+
+    fn from_locale(locale: Option<&str>) -> Self {
+        let language = locale
+            .and_then(|locale| locale.split(['-', '_', '.', '@']).next())
+            .unwrap_or_default();
+
+        if language.eq_ignore_ascii_case("ru") {
+            Self::Russian
+        } else if language.eq_ignore_ascii_case("de") {
+            Self::German
+        } else {
+            Self::English
+        }
+    }
+}
+
 pub struct Localization {
     pub current_lang: Language,
     en_dict: HashMap<&'static str, &'static str>,
@@ -330,5 +350,25 @@ impl Localization {
             Language::Russian => Language::German,
             Language::German => Language::English,
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Language;
+
+    #[test]
+    fn selects_supported_system_languages_and_falls_back_to_english() {
+        for (locale, expected) in [
+            (Some("ru_RU.UTF-8"), Language::Russian),
+            (Some("de-AT"), Language::German),
+            (Some("DE_DE@euro"), Language::German),
+            (Some("en-GB"), Language::English),
+            (Some("fr-FR"), Language::English),
+            (Some("C.UTF-8"), Language::English),
+            (None, Language::English),
+        ] {
+            assert_eq!(Language::from_locale(locale), expected, "{locale:?}");
+        }
     }
 }

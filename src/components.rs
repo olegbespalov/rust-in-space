@@ -260,7 +260,8 @@ pub struct AudioSettings {
 pub struct SaveData {
     pub high_score: u32,
     pub audio: AudioSettings,
-    pub language: Language,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<Language>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
