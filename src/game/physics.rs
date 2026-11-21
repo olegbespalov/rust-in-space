@@ -1,3 +1,4 @@
+use crate::audio::AudioCue;
 use crate::components::*;
 use crate::game::constants::*;
 use crate::game::Game;
@@ -90,9 +91,10 @@ pub fn update_physics(game: &mut Game, dt: f32) {
     }
 }
 
-pub fn update_loot(game: &mut Game, dt: f32) {
+pub fn update_loot(game: &mut Game, dt: f32) -> bool {
     let mut items_to_remove = Vec::new();
     let magnet_radius = game.loot_magnet_radius();
+    let mut ship_destroyed = false;
 
     for (i, item) in game.loot_items.iter_mut().enumerate() {
         item.vel *= LOOT_VEL_DECAY;
@@ -114,7 +116,7 @@ pub fn update_loot(game: &mut Game, dt: f32) {
         }
 
         if item.magnet_active {
-            let dir = (game.ship.pos - item.pos).normalize();
+            let dir = (game.ship.pos - item.pos).normalize_or_zero();
             item.pos += dir * LOOT_MAGNET_SPEED * dt;
         }
 
@@ -123,44 +125,89 @@ pub fn update_loot(game: &mut Game, dt: f32) {
                 LootType::Scrap(amount) => {
                     game.ship.scrap += amount;
                     game.mission_progress.scrap_collected += amount;
-                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
+                    game.audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::RareMetal(amount) => {
                     game.ship.rare_metal += amount;
-                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
+                    game.audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::HealthPack(hp) => {
                     game.ship.heal(hp as f32);
-                    game.audio_cues.push(crate::audio::AudioCue::PickupHealth);
+                    game.audio_cues.push(AudioCue::PickupHealth);
                 }
                 LootType::RapidFireBoost => {
                     game.ship.rapid_fire_timer = RAPID_FIRE_DURATION;
-                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
+                    game.audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::BigBulletBoost => {
                     game.ship.big_bullet_timer = BIG_BULLET_DURATION;
-                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
+                    game.audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::MagneticAmmo => {
                     game.ship.magnetic_ammo_timer = MAGNETIC_AMMO_DURATION;
-                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
+                    game.audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::Invisibility => {
                     game.ship.invisibility_timer = INVISIBILITY_DURATION;
-                    game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
+                    game.audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::Shield(hp) => {
                     game.ship.activate_shield(hp as f32, SHIELD_DURATION);
-                    game.audio_cues.push(crate::audio::AudioCue::ShieldOn);
+                    game.audio_cues.push(AudioCue::ShieldOn);
+                }
+                LootType::MysteryBox => {
+                    let (cue, lethal) = open_mystery_box(&mut game.ship, gen_range(0, 4));
+                    game.audio_cues.push(cue);
+                    ship_destroyed = lethal;
                 }
             }
             items_to_remove.push(i);
+            if ship_destroyed {
+                break;
+            }
         }
     }
 
     for &i in items_to_remove.iter().rev() {
         game.loot_items.remove(i);
     }
+    ship_destroyed
+}
+
+fn open_mystery_box(ship: &mut Ship, roll: i32) -> (AudioCue, bool) {
+    const REPAIR_HP: f32 = 25.0;
+    const RARE_METAL: u32 = 5;
+    const SHIELD_HP: f32 = 45.0;
+    const TRAP_DAMAGE: f32 = 20.0;
+
+    let cue = match roll {
+        0 => {
+            ship.heal(REPAIR_HP);
+            AudioCue::PickupHealth
+        }
+        1 => {
+            ship.rare_metal += RARE_METAL;
+            AudioCue::PickupScrap
+        }
+        2 => {
+            let duration = ship.shield_timer.max(SHIELD_DURATION);
+            if ship.shield_hp < SHIELD_HP {
+                ship.activate_shield(SHIELD_HP, duration);
+            } else {
+                ship.shield_timer = duration;
+            }
+            AudioCue::ShieldOn
+        }
+        _ => {
+            let cue = if ship.has_shield() {
+                AudioCue::ShieldHit
+            } else {
+                AudioCue::ShipHit
+            };
+            return (cue, ship.take_damage(TRAP_DAMAGE));
+        }
+    };
+    (cue, false)
 }
 
 pub fn update_collisions(game: &mut Game) -> bool {
@@ -217,6 +264,9 @@ fn drop_small_enemy_loot(items: &mut Vec<LootItem>, pos: Vec2, difficulty: Diffi
     }
     if gen_range(0, 100) < INVISIBILITY_DROP_PERCENT {
         items.push(spawn_loot(pos, LootType::Invisibility, 15.0));
+    }
+    if gen_range(0, 100) < MYSTERY_BOX_DROP_PERCENT {
+        items.push(spawn_loot(pos, LootType::MysteryBox, 15.0));
     }
 }
 

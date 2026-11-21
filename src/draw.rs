@@ -249,10 +249,13 @@ pub fn draw_loot(item: &LootItem, res: &Resources) {
         LootType::BigBulletBoost => &res.loot_big_bullet,
         LootType::MagneticAmmo => &res.loot_magnetic_ammo,
         LootType::Shield(_) => &res.loot_shield,
-        LootType::Invisibility => &res.loot_invisibility,
+        LootType::Invisibility | LootType::MysteryBox => &res.loot_invisibility,
     };
 
     sprite.draw(item.pos, size, item.rotation);
+    if item.item_type == LootType::MysteryBox {
+        draw_circle_lines(item.pos.x, item.pos.y, size * 0.5, 2.0, GOLD);
+    }
 }
 
 pub fn draw_asteroid(asteroid: &Asteroid, res: &Resources) {

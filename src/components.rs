@@ -229,6 +229,8 @@ pub enum LootType {
     BigBulletBoost,  // Bigger bullets with more damage
     Invisibility,
     Shield(u32), // Shield with HP capacity
+
+    MysteryBox,
 }
 
 // 2. The entity of the dropped item

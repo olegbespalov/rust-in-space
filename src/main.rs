@@ -190,10 +190,13 @@ async fn main() {
                     update_ship_shooting(&mut game);
                     update_enemies(&mut game, dt);
                     update_boss(&mut game, dt);
-                    update_loot(&mut game, dt);
-                    update_physics(&mut game, dt);
+                    let mut ship_destroyed = update_loot(&mut game, dt);
+                    if !ship_destroyed {
+                        update_physics(&mut game, dt);
+                        ship_destroyed = update_collisions(&mut game);
+                    }
 
-                    if update_collisions(&mut game) {
+                    if ship_destroyed {
                         audio.set_engine_active(&resources.audio, false, 0.0);
                         audio.play_sfx(&resources.audio, audio::AudioCue::GameOver);
                         state = GameState::GameOver(game.score);

@@ -12,6 +12,7 @@ A reference to the loot items currently implemented in the game. Images use the 
 | Magnetic ammo (`MagneticAmmo`) | ![Magnetic ammo](../assets/loot/magnetic-ammo.png) | For 10 seconds, newly fired shots home toward nearby enemy ships and bosses ahead of them. |
 | Shield (`Shield`) | ![Shield](../assets/loot/shield.png) | Grants 30–100 shield HP for up to 30 seconds. The shield expires when its HP or timer runs out. |
 | Invisibility (`Invisibility`) | ![Mystery item](../assets/loot/mystery.png) | Cloaks the ship for 10 seconds. Enemy ships stop tracking and firing. Existing shots, collisions, and the Guardian's sweeping volleys can still deal damage. |
+| Mystery box (`MysteryBox`) | The in-game crate has a gold ring. | Opens on contact. Each outcome has a 25% chance: restore up to 25 HP, gain 5 rare metal, refresh the shield to at least 45 HP and 30 seconds, or take 20 damage. An active shield absorbs trap damage before the hull takes the rest. |
 
 ## Collection
 
@@ -31,4 +32,4 @@ These are the standard drop rates on Supernova. The standard roll adds 10 on Neb
 | Shield | — | — | 8% |
 | No standard drop | 55% | — | 7% |
 
-Enemy ships have two independent extra rolls, one for magnetic ammo and one for invisibility, each with an 8% chance on every difficulty. Rare asteroids always drop an item. The Guardian always drops 10–49 rare metal.
+Enemy ships have independent extra rolls for magnetic ammo (8%), invisibility (8%), and a mystery box (5%) on every difficulty. Rare asteroids always drop an item. The Guardian always drops 10–49 rare metal.

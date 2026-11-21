@@ -56,6 +56,7 @@ pub const INVISIBILITY_DURATION: f32 = 10.0;
 pub const INVISIBILITY_DROP_PERCENT: i32 = 8;
 pub const MAGNETIC_AMMO_DURATION: f32 = 10.0;
 pub const MAGNETIC_AMMO_DROP_PERCENT: i32 = 8;
+pub const MYSTERY_BOX_DROP_PERCENT: i32 = 5;
 pub const HOMING_RANGE: f32 = 450.0;
 pub const HOMING_HALF_ANGLE: f32 = 70.0;
 pub const HOMING_TURN_SPEED: f32 = 5.0; // Radians per second
