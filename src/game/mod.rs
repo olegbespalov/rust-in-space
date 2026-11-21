@@ -342,8 +342,8 @@ mod tests {
     fn asteroid_clearing_requires_both_objectives() {
         let mission = get_mission(1);
         let mut progress = MissionProgress {
-            enemies_defeated: 5,
-            asteroids_destroyed: 7,
+            enemies_defeated: 8,
+            asteroids_destroyed: 9,
             ..Default::default()
         };
         assert!(!progress.completes(&mission));
@@ -355,7 +355,7 @@ mod tests {
     fn patrol_requires_full_survival_time_and_interceptor_kills() {
         let mission = get_mission(2);
         let mut progress = MissionProgress {
-            elapsed_seconds: 44.99,
+            elapsed_seconds: 59.99,
             ..Default::default()
         };
         progress.record_enemy_defeat(EnemyType::Interceptor);
@@ -364,10 +364,13 @@ mod tests {
         progress.record_enemy_defeat(EnemyType::Interceptor);
         assert!(!progress.completes(&mission));
 
-        progress.elapsed_seconds = 45.0;
+        progress.elapsed_seconds = 60.0;
+        assert!(!progress.completes(&mission));
+        progress.record_enemy_defeat(EnemyType::Interceptor);
+        progress.record_enemy_defeat(EnemyType::Interceptor);
         assert!(progress.completes(&mission));
         assert!(!MissionProgress {
-            elapsed_seconds: 45.0,
+            elapsed_seconds: 60.0,
             enemies_defeated: 12,
             ..Default::default()
         }
@@ -381,15 +384,17 @@ mod tests {
             ..Default::default()
         };
         assert!(!progress.completes(&get_mission(3)));
-        for _ in 0..4 {
+        for _ in 0..6 {
             progress.record_enemy_defeat(EnemyType::Regular);
         }
         assert!(progress.completes(&get_mission(3)));
 
         let mut progress = MissionProgress {
-            scrap_collected: 24,
+            scrap_collected: 35,
             ..Default::default()
         };
+        progress.record_enemy_defeat(EnemyType::Heavy);
+        assert!(!progress.completes(&get_mission(4)));
         progress.record_enemy_defeat(EnemyType::Heavy);
         assert!(!progress.completes(&get_mission(4)));
         progress.record_enemy_defeat(EnemyType::Heavy);

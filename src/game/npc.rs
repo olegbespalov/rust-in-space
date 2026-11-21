@@ -188,7 +188,7 @@ mod tests {
 
     #[test]
     fn targeted_ships_are_scheduled_while_their_objective_is_incomplete() {
-        for (level, target, quota) in [(2, EnemyType::Interceptor, 3), (4, EnemyType::Heavy, 2)] {
+        for (level, target, quota) in [(2, EnemyType::Interceptor, 5), (4, EnemyType::Heavy, 3)] {
             let mission = get_mission(level);
             let mut progress = MissionProgress::default();
             assert!(scheduled_target_enemy(&mission, &progress, 3).is_none());
