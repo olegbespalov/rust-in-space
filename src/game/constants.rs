@@ -62,3 +62,5 @@ pub const HOMING_HALF_ANGLE: f32 = 70.0;
 pub const HOMING_TURN_SPEED: f32 = 5.0; // Radians per second
 pub const BIG_BULLET_DURATION: f32 = 15.0;
 pub const SHIELD_DURATION: f32 = 30.0;
+pub const GOLDEN_SHIELD_DURATION: f32 = 60.0;
+pub const GOLDEN_SHIELD_DROP_PERCENT: i32 = 2;

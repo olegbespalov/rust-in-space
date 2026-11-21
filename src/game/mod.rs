@@ -230,8 +230,11 @@ impl Game {
         self.ship.health = self.ship.max_health;
 
         if self.upgrade_levels.get(UpgradeId::ShieldCapacitor) > 0 && !self.ship.has_shield() {
-            self.ship
-                .activate_shield(SHIELD_CAPACITOR_HP, SHIELD_CAPACITOR_DURATION);
+            self.ship.activate_shield(
+                ShieldKind::Standard,
+                SHIELD_CAPACITOR_HP,
+                SHIELD_CAPACITOR_DURATION,
+            );
         }
     }
 

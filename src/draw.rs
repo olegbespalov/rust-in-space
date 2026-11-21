@@ -1,6 +1,6 @@
 use crate::components::{
     Asteroid, AudioSettings, Boss, BulletStyle, Difficulty, EnemyShip, EnemyType, Engine,
-    Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective, Ship,
+    Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective, ShieldKind, Ship,
 };
 use crate::game::constants::{
     ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, KAMIKAZE_RADIUS,
@@ -113,7 +113,10 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
         let shield_size = ship_size * 1.8;
         let hp_ratio = ship.shield_hp / ship.shield_max_hp;
         let alpha = (hp_ratio * 0.7 + 0.3).min(1.0);
-        let shield_color = Color::new(tint.r, tint.g, tint.b, alpha * tint.a);
+        let shield_color = match ship.shield_kind {
+            ShieldKind::Standard => Color::new(tint.r, tint.g, tint.b, alpha * tint.a),
+            ShieldKind::Golden => Color::new(GOLD.r, GOLD.g, GOLD.b, alpha * tint.a),
+        };
 
         draw_texture_ex(
             &resources.shield_active,
@@ -248,12 +251,15 @@ pub fn draw_loot(item: &LootItem, res: &Resources) {
         LootType::RapidFireBoost => &res.loot_rapid_fire,
         LootType::BigBulletBoost => &res.loot_big_bullet,
         LootType::MagneticAmmo => &res.loot_magnetic_ammo,
-        LootType::Shield(_) => &res.loot_shield,
+        LootType::Shield(..) => &res.loot_shield,
         LootType::Invisibility | LootType::MysteryBox => &res.loot_invisibility,
     };
 
     sprite.draw(item.pos, size, item.rotation);
-    if item.item_type == LootType::MysteryBox {
+    if matches!(
+        item.item_type,
+        LootType::MysteryBox | LootType::Shield(ShieldKind::Golden, _)
+    ) {
         draw_circle_lines(item.pos.x, item.pos.y, size * 0.5, 2.0, GOLD);
     }
 }

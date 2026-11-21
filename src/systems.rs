@@ -1,6 +1,6 @@
 use crate::components::Mission;
 use crate::components::SaveData;
-use crate::components::{Difficulty, LootItem, LootType};
+use crate::components::{Difficulty, LootItem, LootType, ShieldKind};
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use std::fs;
@@ -210,7 +210,7 @@ pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> O
             // 12% big bullet boost
             else if roll < 93 {
                 // 8% chance of shield with varying HP (30-100 HP)
-                (LootType::Shield(gen_range(30, 101)), 15.0)
+                return Some(spawn_shield_loot(pos, ShieldKind::Standard));
             } else {
                 return None;
             }
@@ -223,6 +223,10 @@ pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> O
     };
 
     Some(spawn_loot(pos, item_type, radius))
+}
+
+pub fn spawn_shield_loot(pos: Vec2, kind: ShieldKind) -> LootItem {
+    spawn_loot(pos, LootType::Shield(kind, gen_range(30, 101)), 15.0)
 }
 
 pub fn spawn_loot(pos: Vec2, item_type: LootType, radius: f32) -> LootItem {

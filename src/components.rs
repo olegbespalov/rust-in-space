@@ -173,6 +173,7 @@ pub struct Ship {
     pub rare_metal: u32, // Premium money
 
     // Shield state
+    pub shield_kind: ShieldKind,
     pub shield_hp: f32,     // Current shield HP (0 if inactive)
     pub shield_max_hp: f32, // Maximum shield HP capacity
     pub shield_timer: f32,  // Time remaining for shield (0 if inactive)
@@ -215,6 +216,12 @@ pub struct UpgradeLevels {
     pub shield_capacitor: u8,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ShieldKind {
+    Standard,
+    Golden,
+}
+
 // 1. Types of loot
 #[derive(Clone, PartialEq)]
 pub enum LootType {
@@ -228,7 +235,7 @@ pub enum LootType {
     MagneticAmmo,    // Player shots steer toward enemies
     BigBulletBoost,  // Bigger bullets with more damage
     Invisibility,
-    Shield(u32), // Shield with HP capacity
+    Shield(ShieldKind, u32),
 
     MysteryBox,
 }
@@ -386,7 +393,8 @@ impl Ship {
     }
 
     // Activate shield with given HP capacity and duration
-    pub fn activate_shield(&mut self, hp: f32, duration: f32) {
+    pub fn activate_shield(&mut self, kind: ShieldKind, hp: f32, duration: f32) {
+        self.shield_kind = kind;
         self.shield_max_hp = hp;
         self.shield_hp = hp;
         self.shield_timer = duration;

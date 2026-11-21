@@ -16,6 +16,7 @@ pub fn create_ship() -> Ship {
         engine: Engine::basic(),
         scrap: 0,
         rare_metal: 0,
+        shield_kind: ShieldKind::Standard,
         shield_hp: 0.0,
         shield_max_hp: 0.0,
         shield_timer: 0.0,

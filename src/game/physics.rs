@@ -2,7 +2,7 @@ use crate::audio::AudioCue;
 use crate::components::*;
 use crate::game::constants::*;
 use crate::game::Game;
-use crate::systems::{generate_loot, spawn_loot, wrap_around, LootSource};
+use crate::systems::{generate_loot, spawn_loot, spawn_shield_loot, wrap_around, LootSource};
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use std::collections::HashSet;
@@ -151,8 +151,12 @@ pub fn update_loot(game: &mut Game, dt: f32) -> bool {
                     game.ship.invisibility_timer = INVISIBILITY_DURATION;
                     game.audio_cues.push(AudioCue::PickupScrap);
                 }
-                LootType::Shield(hp) => {
-                    game.ship.activate_shield(hp as f32, SHIELD_DURATION);
+                LootType::Shield(kind, hp) => {
+                    let duration = match kind {
+                        ShieldKind::Standard => SHIELD_DURATION,
+                        ShieldKind::Golden => GOLDEN_SHIELD_DURATION,
+                    };
+                    game.ship.activate_shield(kind, hp as f32, duration);
                     game.audio_cues.push(AudioCue::ShieldOn);
                 }
                 LootType::MysteryBox => {
@@ -190,9 +194,13 @@ fn open_mystery_box(ship: &mut Ship, roll: i32) -> (AudioCue, bool) {
             AudioCue::PickupScrap
         }
         2 => {
-            let duration = ship.shield_timer.max(SHIELD_DURATION);
+            let (kind, duration) = if ship.has_shield() {
+                (ship.shield_kind, ship.shield_timer.max(SHIELD_DURATION))
+            } else {
+                (ShieldKind::Standard, SHIELD_DURATION)
+            };
             if ship.shield_hp < SHIELD_HP {
-                ship.activate_shield(SHIELD_HP, duration);
+                ship.activate_shield(kind, SHIELD_HP, duration);
             } else {
                 ship.shield_timer = duration;
             }
@@ -267,6 +275,9 @@ fn drop_small_enemy_loot(items: &mut Vec<LootItem>, pos: Vec2, difficulty: Diffi
     }
     if gen_range(0, 100) < MYSTERY_BOX_DROP_PERCENT {
         items.push(spawn_loot(pos, LootType::MysteryBox, 15.0));
+    }
+    if gen_range(0, 100) < GOLDEN_SHIELD_DROP_PERCENT {
+        items.push(spawn_shield_loot(pos, ShieldKind::Golden));
     }
 }
 
