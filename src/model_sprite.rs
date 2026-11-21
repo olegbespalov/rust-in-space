@@ -1,10 +1,9 @@
 use crate::ship_model::load_mesh;
 use macroquad::prelude::*;
 
-const RENDER_SIZE: u32 = 192;
-
 pub struct ModelSprite {
-    target: RenderTarget,
+    fallback: Texture2D,
+    target: Option<RenderTarget>,
 }
 
 #[cfg(test)]
@@ -19,8 +18,19 @@ mod tests {
             include_bytes!("../assets/models/asteroid.glb").as_slice(),
             include_bytes!("../assets/models/rare_asteroid.glb").as_slice(),
             include_bytes!("../assets/models/invisibility.glb").as_slice(),
+            include_bytes!("../assets/models/enemy_regular.glb").as_slice(),
+            include_bytes!("../assets/models/enemy_kamikaze.glb").as_slice(),
+            include_bytes!("../assets/models/enemy_guardian.glb").as_slice(),
+            include_bytes!("../assets/models/enemy_projectile.glb").as_slice(),
             include_bytes!("../assets/models/enemy_interceptor.glb").as_slice(),
             include_bytes!("../assets/models/enemy_heavy.glb").as_slice(),
+            include_bytes!("../assets/models/loot_scrap.glb").as_slice(),
+            include_bytes!("../assets/models/loot_gold.glb").as_slice(),
+            include_bytes!("../assets/models/loot_health.glb").as_slice(),
+            include_bytes!("../assets/models/loot_rapid_fire.glb").as_slice(),
+            include_bytes!("../assets/models/loot_big_bullet.glb").as_slice(),
+            include_bytes!("../assets/models/loot_shield.glb").as_slice(),
+            include_bytes!("../assets/models/magnetic_ammo.glb").as_slice(),
         ] {
             let glb = Gltf::from_slice(bytes).unwrap();
             let blob = glb.blob.as_deref().unwrap();
@@ -56,7 +66,22 @@ mod tests {
 }
 
 impl ModelSprite {
-    pub async fn load(path: &str, view_position: Vec3) -> Option<Self> {
+    pub async fn load(sprite_path: &str, model_path: &str, view: Vec3, pixels: u32) -> Self {
+        let fallback = load_texture(sprite_path).await.unwrap();
+        fallback.set_filter(FilterMode::Nearest);
+        let target = Self::bake(model_path, view, pixels).await;
+        Self { fallback, target }
+    }
+
+    pub async fn with_model(&self, path: &str, view: Vec3, pixels: u32) -> Self {
+        let target = Self::bake(path, view, pixels).await;
+        Self {
+            fallback: self.fallback.clone(),
+            target,
+        }
+    }
+
+    async fn bake(path: &str, view_position: Vec3, pixels: u32) -> Option<RenderTarget> {
         let mesh = match load_file(path).await {
             Ok(bytes) => load_mesh(&bytes),
             Err(_) => None,
@@ -67,13 +92,14 @@ impl ModelSprite {
         };
 
         let target = render_target_ex(
-            RENDER_SIZE,
-            RENDER_SIZE,
+            pixels,
+            pixels,
             RenderTargetParams {
                 depth: true,
                 ..Default::default()
             },
         );
+        target.texture.set_filter(FilterMode::Nearest);
         push_camera_state();
         set_camera(&Camera3D {
             position: view_position,
@@ -87,19 +113,23 @@ impl ModelSprite {
         draw_mesh(&mesh);
         pop_camera_state();
 
-        Some(Self { target })
+        Some(target)
     }
 
     pub fn draw(&self, position: Vec2, size: f32, rotation: f32) {
+        let (texture, flip_y) = match &self.target {
+            Some(target) => (&target.texture, true),
+            None => (&self.fallback, false),
+        };
         draw_texture_ex(
-            &self.target.texture,
+            texture,
             position.x - size / 2.0,
             position.y - size / 2.0,
             WHITE,
             DrawTextureParams {
                 dest_size: Some(Vec2::splat(size)),
                 rotation,
-                flip_y: true,
+                flip_y,
                 ..Default::default()
             },
         );

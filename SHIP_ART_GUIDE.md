@@ -1,6 +1,6 @@
 # Ship models and upgrades
 
-The player flies a weathered white-and-blue fighter with an orange cockpit. The player hull uses a [textured Meshy GLB](assets/models/player_ship.glb) generated from [the original sprite](assets/ship_body.png). Macroquad renders the mesh from a shallow overhead angle in a 72-pixel drawing area. Thrust tips the hull to expose more of its rear profile. The original sprite is the fallback.
+The player flies a weathered white-and-blue fighter with an orange cockpit. The player hull uses a [textured Meshy GLB](assets/models/player_ship.glb) generated from [the original sprite](assets/ship_body.png). Macroquad renders the mesh from a shallow overhead angle in a 90-pixel drawing area. Thrust tips the hull to expose more of its rear profile. The original sprite is the fallback.
 
 ## Player upgrades
 
@@ -18,10 +18,21 @@ Use the purchased upgrade level to select each part or effect. Author one hull a
 
 The regular shooter, kamikaze, Guardian, interceptor, and heavy gunship belong to the same civilization in the first world. Their ships share segmented green armor, violet chitin spikes, and red eye-like sensors. Distinguish combat roles by silhouette and proportions. Give the second world's civilization its own hull shapes, materials, and palette so players can recognize the change in faction at a glance.
 
-1. **Interceptor (48 px)**. An elongated fighter with a forked nose and swept-back violet spines, derived from the [regular shooter sprite](assets/enemy.png). [Meshy GLB](assets/models/enemy_interceptor.glb), task `01a1fef7-fbff-76d4-a1fe-12f2b74d0a8a`.
-2. **Heavy enemy (72 px)**. A wide gunship with green armor, red seams, and a single eye above three gun pods, derived from the [Guardian sprite](assets/boss_1.png). [Meshy GLB](assets/models/enemy_heavy.glb), task `01a1fef8-18a1-7399-88bd-6eb5033417be`.
+1. **Interceptor (60 px)**. An elongated fighter with a forked nose and swept-back violet spines, derived from the [regular shooter sprite](assets/enemy.png). [Meshy GLB](assets/models/enemy_interceptor.glb), task `01a1fef7-fbff-76d4-a1fe-12f2b74d0a8a`.
+2. **Heavy enemy (90 px)**. A wide gunship with green armor, red seams, and a single eye above three gun pods, derived from the [Guardian sprite](assets/boss_1.png). [Meshy GLB](assets/models/enemy_heavy.glb), task `01a1fef8-18a1-7399-88bd-6eb5033417be`.
 
 Both meshes are oriented with the nose at +Y and the top at +Z. The embedded 512-pixel PNG textures were brightened for the dark space background. The heavy gunship's textured eye was fitted into the forward recess to keep it visible at gameplay scale. Macroquad renders the meshes once at startup and rotates their baked textures during play. Meshy did not return license metadata for either task.
+
+## Sprite-based Meshy assets
+
+The regular fighter, kamikaze, Guardian, organic projectile, and pickups use Meshy geometry generated from sprite references. Colors from the original sprite are projected onto the model's visible surfaces to preserve faction markings and pickup emblems. Macroquad bakes each model into a small texture at startup and samples it with nearest-neighbor filtering for crisp pixel edges. The source PNG serves as the fallback if the GLB cannot load.
+
+- Regular fighter, kamikaze, Guardian and organic projectile use [enemy.png](assets/enemy.png), [enemy_kamikaze.png](assets/enemy_kamikaze.png), [boss_1.png](assets/boss_1.png) and [enemy_bullet.png](assets/enemy_bullet.png). Their Meshy tasks are `01a1ff40-989e-736a-9fd3-f5d1faa1e49c`, `01a1ff40-aa91-707c-b8a5-60cb39d65cbb`, `01a1ff40-e152-75bb-a821-d4f317ef5290` and `01a1ff42-1546-77bb-b82f-79e28fe3becd`.
+- Scrap and gold use [rust_pile.png](assets/loot/resources/rust_pile.png) and [gold.png](assets/loot/resources/gold.png). Their Meshy tasks are `01a1ff40-efcb-75c1-802a-78df3717d3d1` and `01a1ff40-d15d-7540-9ed6-6ecb9f2e21ba`.
+- The health, rapid-fire, big-bullet and shield crates use the matching [loot PNGs](assets/loot/). Their Meshy tasks are `01a1ff41-e83b-735d-86b1-d3851cb1e396`, `01a1ff42-21b8-7103-84e6-d03c0cd50739`, `01a1ff42-063c-72b1-9b85-d62981c81c34` and `01a1ff41-f428-77a8-b173-741628998c3d`.
+- Magnetic ammo and invisibility use their existing Meshy meshes with colors and icons from [magnetic-ammo.png](assets/loot/magnetic-ammo.png) and [mystery.png](assets/loot/mystery.png).
+
+Meshy did not supply license metadata for the new tasks.
 
 ## Meshy production workflow
 
@@ -35,4 +46,6 @@ The visual upgrades and Upgrade Bay model preview are proposed work.
 
 ## Asteroids
 
-The ordinary and rare asteroids use textured low-poly Meshy models, rendered once to textures at startup. Their original sprites remain fallbacks. The models were generated from text descriptions; the rare model includes mineral deposits. Meshy texture task IDs are `01a1dfc9-3012-74d2-ab9b-7026527e854c` (ordinary) and `01a1dfc9-1bee-7496-a6d4-61379c69b20e` (rare). The embedded JPEG textures were converted to PNG for the game's existing image decoder. Meshy did not return license metadata for these tasks.
+The ordinary and rare asteroids use low-poly Meshy meshes with crater colors projected from the [ordinary](assets/asteroid.png) and [rare](assets/rare_asteroid.png) pixel-art sprites. The projection uses a reduced palette that keeps the rare asteroid's gold and turquoise deposits visible. Macroquad bakes each mesh into a 40×40 texture and enlarges it with nearest-neighbor filtering. The source sprites serve as fallbacks.
+
+The models were generated from text descriptions. Meshy texture task IDs are `01a1dfc9-3012-74d2-ab9b-7026527e854c` (ordinary) and `01a1dfc9-1bee-7496-a6d4-61379c69b20e` (rare). Meshy did not return license metadata for these tasks.

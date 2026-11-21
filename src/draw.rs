@@ -74,6 +74,8 @@ pub fn draw_background(texture: &Texture2D) {
     );
 }
 
+const SHIP_VISUAL_SCALE: f32 = 1.25;
+
 pub fn draw_ship(ship: &Ship, resources: &Resources) {
     let r_rad = ship.rotation.to_radians();
     let hull_rotation = r_rad + std::f32::consts::FRAC_PI_2;
@@ -85,7 +87,7 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
         WHITE
     };
 
-    let ship_size = 72.0;
+    let ship_size = 72.0 * SHIP_VISUAL_SCALE;
     if let Some(model) = &resources.ship_model {
         model.draw(
             ship.pos,
@@ -127,7 +129,7 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
     }
 }
 
-pub fn draw_engine(engine: &Engine, ship_pos: Vec2, ship_rotation_rad: f32, texture: &Texture2D) {
+fn draw_engine(engine: &Engine, ship_pos: Vec2, ship_rotation_rad: f32, texture: &Texture2D) {
     if engine.current_thrust <= 0.05 {
         return;
     }
@@ -137,11 +139,11 @@ pub fn draw_engine(engine: &Engine, ship_pos: Vec2, ship_rotation_rad: f32, text
     let max_flame_w = 22.0;
     let max_flame_h = 52.0;
 
-    let current_w = max_flame_w * engine.current_thrust;
+    let current_w = max_flame_w * engine.current_thrust * SHIP_VISUAL_SCALE;
     let flicker = gen_range(-3.0, 3.0) * engine.current_thrust;
-    let current_h = max_flame_h * engine.current_thrust + flicker;
+    let current_h = (max_flame_h * engine.current_thrust + flicker) * SHIP_VISUAL_SCALE;
 
-    let flame_pos = ship_pos - (dir_vec * engine.offset);
+    let flame_pos = ship_pos - (dir_vec * engine.offset * SHIP_VISUAL_SCALE);
 
     draw_texture_ex(
         texture,
@@ -160,21 +162,36 @@ const ENEMY_HP_BAR_HEIGHT: f32 = 5.0;
 const ENEMY_HP_BAR_GAP: f32 = 5.0;
 const ENEMY_HP_BAR_BG_COLOR: Color = Color::new(0.25, 0.0, 0.0, 0.9);
 
-pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
-    let (radius, model, fallback) = match enemy.enemy_type {
-        EnemyType::Regular => (ENEMY_SMALL_RADIUS, None, &res.enemy_small),
-        EnemyType::Kamikaze => (KAMIKAZE_RADIUS, None, &res.enemy_kamikaze),
-        EnemyType::Interceptor => (
-            INTERCEPTOR_RADIUS,
-            res.enemy_interceptor_model.as_ref(),
-            &res.enemy_small,
-        ),
-        EnemyType::Heavy => (HEAVY_RADIUS, res.enemy_heavy_model.as_ref(), &res.boss_1),
-    };
-    let size = radius * 2.0;
+fn health_bar_top(center_y: f32, radius: f32, gap: f32, height: f32) -> f32 {
+    let above = center_y - radius - gap - height;
+    if above < 0.0 {
+        center_y + radius + gap
+    } else {
+        above
+    }
+}
 
-    let bar_left = enemy.pos.x - radius;
-    let bar_top = enemy.pos.y - radius - ENEMY_HP_BAR_GAP - ENEMY_HP_BAR_HEIGHT;
+fn health_bar_left(center_x: f32, width: f32) -> f32 {
+    (center_x - width / 2.0).clamp(0.0, (screen_width() - width).max(0.0))
+}
+
+pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
+    let (radius, sprite) = match enemy.enemy_type {
+        EnemyType::Regular => (ENEMY_SMALL_RADIUS, &res.enemy_small),
+        EnemyType::Kamikaze => (KAMIKAZE_RADIUS, &res.enemy_kamikaze),
+        EnemyType::Interceptor => (INTERCEPTOR_RADIUS, &res.enemy_interceptor),
+        EnemyType::Heavy => (HEAVY_RADIUS, &res.enemy_heavy),
+    };
+    let visual_radius = radius * SHIP_VISUAL_SCALE;
+    let size = visual_radius * 2.0;
+
+    let bar_left = health_bar_left(enemy.pos.x, size);
+    let bar_top = health_bar_top(
+        enemy.pos.y,
+        visual_radius,
+        ENEMY_HP_BAR_GAP,
+        ENEMY_HP_BAR_HEIGHT,
+    );
 
     draw_rectangle(
         bar_left,
@@ -192,21 +209,7 @@ pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
     }
 
     let rotation = enemy.rotation + std::f32::consts::FRAC_PI_2;
-    if let Some(model) = model {
-        model.draw(enemy.pos, size, rotation);
-    } else {
-        draw_texture_ex(
-            fallback,
-            enemy.pos.x - radius,
-            enemy.pos.y - radius,
-            WHITE,
-            DrawTextureParams {
-                dest_size: Some(Vec2::splat(size)),
-                rotation,
-                ..Default::default()
-            },
-        );
-    }
+    sprite.draw(enemy.pos, size, rotation);
 }
 
 const BOSS_SIZE: f32 = 120.0;
@@ -214,12 +217,10 @@ const BOSS_HP_BAR_HEIGHT: f32 = 8.0;
 const BOSS_HP_BAR_GAP: f32 = 8.0;
 
 pub fn draw_boss(boss: &Boss, res: &Resources) {
-    let size = vec2(BOSS_SIZE, BOSS_SIZE);
-    let texture = &res.boss_1;
-
-    let bar_width = size.x * 1.2;
-    let bar_left = boss.pos.x - bar_width / 2.0;
-    let bar_top = boss.pos.y - size.y / 2.0 - BOSS_HP_BAR_GAP - BOSS_HP_BAR_HEIGHT;
+    let size = BOSS_SIZE * SHIP_VISUAL_SCALE;
+    let bar_width = size * 1.2;
+    let bar_left = health_bar_left(boss.pos.x, bar_width);
+    let bar_top = health_bar_top(boss.pos.y, size / 2.0, BOSS_HP_BAR_GAP, BOSS_HP_BAR_HEIGHT);
 
     draw_rectangle(
         bar_left,
@@ -236,29 +237,12 @@ pub fn draw_boss(boss: &Boss, res: &Resources) {
         draw_rectangle(bar_left, bar_top, fill_width, BOSS_HP_BAR_HEIGHT, hp_color);
     }
 
-    draw_texture_ex(
-        texture,
-        boss.pos.x - size.x / 2.0,
-        boss.pos.y - size.y / 2.0,
-        WHITE,
-        DrawTextureParams {
-            dest_size: Some(size),
-            rotation: boss.rotation,
-            ..Default::default()
-        },
-    );
+    res.boss_1.draw(boss.pos, size, boss.rotation);
 }
 
 pub fn draw_loot(item: &LootItem, res: &Resources) {
     let size = item.radius * 4.5;
-    if matches!(item.item_type, LootType::Invisibility) {
-        if let Some(model) = &res.loot_invisibility_model {
-            model.draw(item.pos, size, item.rotation);
-            return;
-        }
-    }
-
-    let texture = match item.item_type {
+    let sprite = match item.item_type {
         LootType::Scrap(_) => &res.loot_scrap,
         LootType::RareMetal(_) => &res.loot_rare,
         LootType::HealthPack(_) => &res.loot_health,
@@ -269,50 +253,18 @@ pub fn draw_loot(item: &LootItem, res: &Resources) {
         LootType::Invisibility => &res.loot_invisibility,
     };
 
-    let size = Vec2::splat(size);
-    draw_texture_ex(
-        texture,
-        item.pos.x - size.x / 2.0,
-        item.pos.y - size.y / 2.0,
-        WHITE,
-        DrawTextureParams {
-            dest_size: Some(size),
-            rotation: item.rotation,
-            ..Default::default()
-        },
-    );
+    sprite.draw(item.pos, size, item.rotation);
 }
 
 pub fn draw_asteroid(asteroid: &Asteroid, res: &Resources) {
     const ASTEROID_VISUAL_SCALE: f32 = 1.5;
     let size = asteroid.radius * 2.0 * ASTEROID_VISUAL_SCALE;
-    let model = if asteroid.is_rare {
-        &res.rare_asteroid_model
-    } else {
-        &res.asteroid_model
-    };
-    if let Some(model) = model {
-        model.draw(asteroid.pos, size, 0.0);
-        return;
-    }
-
-    let texture = if asteroid.is_rare {
+    let sprite = if asteroid.is_rare {
         &res.rare_asteroid
     } else {
         &res.asteroid
     };
-
-    let size = Vec2::splat(size);
-    draw_texture_ex(
-        texture,
-        asteroid.pos.x - size.x / 2.0,
-        asteroid.pos.y - size.y / 2.0,
-        WHITE,
-        DrawTextureParams {
-            dest_size: Some(size),
-            ..Default::default()
-        },
-    );
+    sprite.draw(asteroid.pos, size, 0.0);
 }
 
 pub fn draw_explosion(expl: &Explosion, res: &Resources) {
@@ -404,13 +356,13 @@ pub fn render_game(game: &Game, resources: &Resources) {
     }
 
     for b in &game.bullets {
-        let texture = match b.style {
-            BulletStyle::Player => &resources.bullet,
-            BulletStyle::Enemy => &resources.enemy_bullet,
-        };
-
         let rotation = b.vel.y.atan2(b.vel.x) + std::f32::consts::FRAC_PI_2;
         let size = b.radius * 2.0;
+        if b.style == BulletStyle::Enemy {
+            resources.enemy_bullet.draw(b.pos, size, rotation);
+            continue;
+        }
+
         let tint = if b.homing {
             Color::from_rgba(210, 145, 255, 255)
         } else {
@@ -418,7 +370,7 @@ pub fn render_game(game: &Game, resources: &Resources) {
         };
 
         draw_texture_ex(
-            texture,
+            &resources.bullet,
             b.pos.x - size / 2.0,
             b.pos.y - size / 2.0,
             tint,

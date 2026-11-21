@@ -14,28 +14,25 @@ pub struct Resources {
     pub ship_body: Texture2D,
     pub ship_model: Option<ShipModel>,
     pub ship_flame: Texture2D,
-    pub enemy_small: Texture2D,
-    pub enemy_kamikaze: Texture2D,
-    pub enemy_interceptor_model: Option<ModelSprite>,
-    pub enemy_heavy_model: Option<ModelSprite>,
+    pub enemy_small: ModelSprite,
+    pub enemy_kamikaze: ModelSprite,
+    pub enemy_interceptor: ModelSprite,
+    pub enemy_heavy: ModelSprite,
     pub bullet: Texture2D,
-    pub enemy_bullet: Texture2D,
-    pub loot_scrap: Texture2D,
-    pub loot_rare: Texture2D,
-    pub loot_health: Texture2D,
-    pub loot_rapid_fire: Texture2D,
-    pub loot_big_bullet: Texture2D,
-    pub loot_magnetic_ammo: Texture2D,
-    pub loot_shield: Texture2D,
-    pub loot_invisibility: Texture2D,
-    pub loot_invisibility_model: Option<ModelSprite>,
+    pub enemy_bullet: ModelSprite,
+    pub loot_scrap: ModelSprite,
+    pub loot_rare: ModelSprite,
+    pub loot_health: ModelSprite,
+    pub loot_rapid_fire: ModelSprite,
+    pub loot_big_bullet: ModelSprite,
+    pub loot_magnetic_ammo: ModelSprite,
+    pub loot_shield: ModelSprite,
+    pub loot_invisibility: ModelSprite,
     pub shield_active: Texture2D,
-    pub asteroid: Texture2D,
-    pub rare_asteroid: Texture2D,
-    pub asteroid_model: Option<ModelSprite>,
-    pub rare_asteroid_model: Option<ModelSprite>,
+    pub asteroid: ModelSprite,
+    pub rare_asteroid: ModelSprite,
     pub explosion: Texture2D,
-    pub boss_1: Texture2D,
+    pub boss_1: ModelSprite,
 }
 
 #[allow(dead_code)]
@@ -75,9 +72,6 @@ impl Resources {
         let bullet: Texture2D = load_texture("assets/bullet.png").await.unwrap();
         bullet.set_filter(FilterMode::Nearest);
 
-        let enemy_bullet: Texture2D = load_texture("assets/enemy_bullet.png").await.unwrap();
-        enemy_bullet.set_filter(FilterMode::Nearest);
-
         let ship_body = load_texture("assets/ship_body.png").await.unwrap();
         ship_body.set_filter(FilterMode::Nearest);
         let ship_model = ShipModel::load().await;
@@ -85,51 +79,126 @@ impl Resources {
         let ship_flame = load_texture("assets/ship_flame.png").await.unwrap();
         ship_flame.set_filter(FilterMode::Nearest);
 
-        let enemy_small = load_texture("assets/enemy.png").await.unwrap();
-        enemy_small.set_filter(FilterMode::Nearest);
-
-        let enemy_kamikaze = load_texture("assets/enemy_kamikaze.png").await.unwrap();
-        enemy_kamikaze.set_filter(FilterMode::Nearest);
-
-        let enemy_interceptor_model =
-            ModelSprite::load("assets/models/enemy_interceptor.glb", vec3(0.0, 0.55, 2.0)).await;
+        let overhead = vec3(0.0, 0.0, 2.0);
+        let enemy_bullet = ModelSprite::load(
+            "assets/enemy_bullet.png",
+            "assets/models/enemy_projectile.glb",
+            overhead,
+            24,
+        )
+        .await;
+        let enemy_small = ModelSprite::load(
+            "assets/enemy.png",
+            "assets/models/enemy_regular.glb",
+            vec3(0.0, 0.85, 2.0),
+            48,
+        )
+        .await;
+        let enemy_kamikaze = ModelSprite::load(
+            "assets/enemy_kamikaze.png",
+            "assets/models/enemy_kamikaze.glb",
+            overhead,
+            40,
+        )
+        .await;
+        let boss_1 = ModelSprite::load(
+            "assets/boss_1.png",
+            "assets/models/enemy_guardian.glb",
+            overhead,
+            72,
+        )
+        .await;
+        let enemy_interceptor = enemy_small
+            .with_model(
+                "assets/models/enemy_interceptor.glb",
+                vec3(0.0, 0.55, 2.0),
+                40,
+            )
+            .await;
         // Tilt the heavy ship's view enough to show its recessed eye and three gun pods.
-        let enemy_heavy_model =
-            ModelSprite::load("assets/models/enemy_heavy.glb", vec3(0.0, 1.15, 2.0)).await;
+        let enemy_heavy = boss_1
+            .with_model("assets/models/enemy_heavy.glb", vec3(0.0, 1.15, 2.0), 56)
+            .await;
 
-        let loot_scrap = load_texture("assets/loot/resources/rust_pile.png")
-            .await
-            .unwrap();
-        let loot_rare = load_texture("assets/loot/resources/gold.png")
-            .await
-            .unwrap();
-        let loot_health = load_texture("assets/loot/health.png").await.unwrap();
-        let loot_rapid_fire = load_texture("assets/loot/energy.png").await.unwrap();
-        let loot_big_bullet = load_texture("assets/loot/bigger-ammo.png").await.unwrap();
-        let loot_magnetic_ammo = load_texture("assets/loot/magnetic-ammo.png").await.unwrap();
-        let loot_shield = load_texture("assets/loot/shield.png").await.unwrap();
-        let loot_invisibility = load_texture("assets/loot/mystery.png").await.unwrap();
-        // Match the source sprite’s view of the front, left side, and top.
-        let loot_invisibility_model =
-            ModelSprite::load("assets/models/invisibility.glb", vec3(-0.68, 0.55, 2.0)).await;
+        let loot_scrap = ModelSprite::load(
+            "assets/loot/resources/rust_pile.png",
+            "assets/models/loot_scrap.glb",
+            vec3(0.0, 2.0, 1.8),
+            48,
+        )
+        .await;
+        let loot_rare = ModelSprite::load(
+            "assets/loot/resources/gold.png",
+            "assets/models/loot_gold.glb",
+            overhead,
+            48,
+        )
+        .await;
+        // Show the top, left side, and identifying emblem as in the crate sprites.
+        let crate_view = vec3(-1.5, 0.85, 2.0);
+        let loot_health = ModelSprite::load(
+            "assets/loot/health.png",
+            "assets/models/loot_health.glb",
+            crate_view,
+            48,
+        )
+        .await;
+        let loot_rapid_fire = ModelSprite::load(
+            "assets/loot/energy.png",
+            "assets/models/loot_rapid_fire.glb",
+            crate_view,
+            48,
+        )
+        .await;
+        let loot_big_bullet = ModelSprite::load(
+            "assets/loot/bigger-ammo.png",
+            "assets/models/loot_big_bullet.glb",
+            crate_view,
+            48,
+        )
+        .await;
+        let loot_shield = ModelSprite::load(
+            "assets/loot/shield.png",
+            "assets/models/loot_shield.glb",
+            crate_view,
+            48,
+        )
+        .await;
+        let loot_magnetic_ammo = ModelSprite::load(
+            "assets/loot/magnetic-ammo.png",
+            "assets/models/magnetic_ammo.glb",
+            crate_view,
+            48,
+        )
+        .await;
+        let loot_invisibility = ModelSprite::load(
+            "assets/loot/mystery.png",
+            "assets/models/invisibility.glb",
+            vec3(-0.68, 0.55, 2.0),
+            48,
+        )
+        .await;
+
         let shield_active = load_texture("assets/shield.png").await.unwrap();
         shield_active.set_filter(FilterMode::Nearest);
 
-        let asteroid = load_texture("assets/asteroid.png").await.unwrap();
-        asteroid.set_filter(FilterMode::Nearest);
-
-        let rare_asteroid = load_texture("assets/rare_asteroid.png").await.unwrap();
-        rare_asteroid.set_filter(FilterMode::Nearest);
-        let asteroid_view = vec3(0.0, 0.0, 2.0);
-        let asteroid_model = ModelSprite::load("assets/models/asteroid.glb", asteroid_view).await;
-        let rare_asteroid_model =
-            ModelSprite::load("assets/models/rare_asteroid.glb", asteroid_view).await;
+        let asteroid = ModelSprite::load(
+            "assets/asteroid.png",
+            "assets/models/asteroid.glb",
+            vec3(0.0, 0.85, -2.0),
+            40,
+        )
+        .await;
+        let rare_asteroid = ModelSprite::load(
+            "assets/rare_asteroid.png",
+            "assets/models/rare_asteroid.glb",
+            overhead,
+            40,
+        )
+        .await;
 
         let explosion = load_texture("assets/explosion.png").await.unwrap();
         explosion.set_filter(FilterMode::Nearest);
-
-        let boss_1 = load_texture("assets/boss_1.png").await.unwrap();
-        boss_1.set_filter(FilterMode::Nearest);
 
         let audio = AudioAssets {
             ui_move: load_audio_asset("assets/audio/sfx/ui_move").await,
@@ -185,8 +254,8 @@ impl Resources {
             ship_flame,
             enemy_small,
             enemy_kamikaze,
-            enemy_interceptor_model,
-            enemy_heavy_model,
+            enemy_interceptor,
+            enemy_heavy,
             bullet,
             enemy_bullet,
             loot_scrap,
@@ -197,12 +266,9 @@ impl Resources {
             loot_magnetic_ammo,
             loot_shield,
             loot_invisibility,
-            loot_invisibility_model,
             shield_active,
             asteroid,
             rare_asteroid,
-            asteroid_model,
-            rare_asteroid_model,
             explosion,
             boss_1,
         }
