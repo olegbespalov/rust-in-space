@@ -95,7 +95,7 @@ async fn main() {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                 }
 
-                let click = render_menu(&game, audio.settings(), &resources);
+                let click = render_menu(&game, saved.high_score, audio.settings(), &resources);
                 if let Some(click) = click {
                     let item = click.item();
                     if matches!(click, MenuClick::Select(_)) && item != game.menu_selection {

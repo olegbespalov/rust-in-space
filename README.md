@@ -38,7 +38,7 @@
 - **Health Restoration**: Health is fully restored to 150 HP at the start of each mission
 - **Variable Damage**: Damage scales with asteroid size and bullet type
 - **Enemy Health System**: Enemies have 24 HP and take multiple hits to destroy
-- **High Score System**: Your high score is automatically saved and persists between sessions
+- **High Score System**: Your high score is saved automatically and displayed on the start screen
 
 ## Controls
 

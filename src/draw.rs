@@ -555,7 +555,12 @@ impl MenuClick {
     }
 }
 
-pub fn render_menu(game: &Game, settings: &AudioSettings, res: &Resources) -> Option<MenuClick> {
+pub fn render_menu(
+    game: &Game,
+    high_score: u32,
+    settings: &AudioSettings,
+    res: &Resources,
+) -> Option<MenuClick> {
     let screen_w = screen_width();
     let screen_h = screen_height();
     let pulse = 1.0 + (get_time() * 2.0).sin() as f32 * 0.05;
@@ -577,6 +582,13 @@ pub fn render_menu(game: &Game, settings: &AudioSettings, res: &Resources) -> Op
     let row_step = (screen_h * 0.075).min(46.0);
     let row_width = (screen_w * 0.94).min(420.0);
     let row_x = (screen_w - row_width) / 2.0;
+    draw_text_centered(
+        &format!("{} {}", res.lang.t("high_score"), high_score),
+        screen_h * 0.35 - screen_h / 2.0,
+        18,
+        YELLOW,
+        res,
+    );
 
     let difficulty = match game.difficulty {
         Difficulty::Nebula => "diff_nebula",
