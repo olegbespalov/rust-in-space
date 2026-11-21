@@ -55,12 +55,26 @@ fn homing_velocity(pos: Vec2, vel: Vec2, targets: impl Iterator<Item = Vec2>, dt
 pub fn update_physics(game: &mut Game, dt: f32) {
     for b in &mut game.bullets {
         if b.homing {
-            let targets = game
-                .enemy_ships
-                .iter()
-                .map(|enemy| enemy.pos)
-                .chain(game.boss.iter().map(|boss| boss.pos));
-            b.vel = homing_velocity(b.pos, b.vel, targets, dt);
+            match b.style {
+                BulletStyle::Player => {
+                    let targets = game
+                        .enemy_ships
+                        .iter()
+                        .filter(|enemy| !enemy.power_ups.is_invisible())
+                        .map(|enemy| enemy.pos)
+                        .chain(
+                            game.boss
+                                .iter()
+                                .filter(|boss| !boss.power_ups.is_invisible())
+                                .map(|boss| boss.pos),
+                        );
+                    b.vel = homing_velocity(b.pos, b.vel, targets, dt);
+                }
+                BulletStyle::Enemy if !game.ship.is_invisible() => {
+                    b.vel = homing_velocity(b.pos, b.vel, std::iter::once(game.ship.pos), dt);
+                }
+                BulletStyle::Enemy => {}
+            }
         }
         b.pos += b.vel * dt;
         b.life_time -= dt;
@@ -92,11 +106,18 @@ pub fn update_physics(game: &mut Game, dt: f32) {
 }
 
 pub fn update_loot(game: &mut Game, dt: f32) -> bool {
-    let mut items_to_remove = Vec::new();
     let magnet_radius = game.loot_magnet_radius();
     let mut ship_destroyed = false;
 
-    for (i, item) in game.loot_items.iter_mut().enumerate() {
+    game.loot_items.retain_mut(|item| {
+        if ship_destroyed {
+            return true;
+        }
+        item.time_left -= dt;
+        if item.time_left <= 0.0 {
+            return false;
+        }
+
         item.vel *= LOOT_VEL_DECAY;
         item.pos += item.vel * dt;
         item.pos += item.drift_vel * dt;
@@ -120,7 +141,7 @@ pub fn update_loot(game: &mut Game, dt: f32) -> bool {
             item.pos += dir * LOOT_MAGNET_SPEED * dt;
         }
 
-        if dist_to_ship < (SHIP_RADIUS + item.radius) {
+        if dist_to_ship < SHIP_RADIUS + item.radius {
             match item.item_type {
                 LootType::Scrap(amount) => {
                     game.ship.scrap += amount;
@@ -152,11 +173,7 @@ pub fn update_loot(game: &mut Game, dt: f32) -> bool {
                     game.audio_cues.push(AudioCue::PickupScrap);
                 }
                 LootType::Shield(kind, hp) => {
-                    let duration = match kind {
-                        ShieldKind::Standard => SHIELD_DURATION,
-                        ShieldKind::Golden => GOLDEN_SHIELD_DURATION,
-                    };
-                    game.ship.activate_shield(kind, hp as f32, duration);
+                    game.ship.activate_shield(kind, hp as f32, kind.duration());
                     game.audio_cues.push(AudioCue::ShieldOn);
                 }
                 LootType::MysteryBox => {
@@ -165,54 +182,82 @@ pub fn update_loot(game: &mut Game, dt: f32) -> bool {
                     ship_destroyed = lethal;
                 }
             }
-            items_to_remove.push(i);
-            if ship_destroyed {
-                break;
-            }
+            return false;
         }
-    }
 
-    for &i in items_to_remove.iter().rev() {
-        game.loot_items.remove(i);
+        !enemy_picks_up(item, &mut game.enemy_ships, game.boss.as_mut())
+    });
+    // A mystery box can destroy its collector. Resolve those deaths before collisions.
+    game.enemy_ships.retain(|enemy| {
+        if enemy.health > 0.0 {
+            return true;
+        }
+        game.mission_progress.record_enemy_defeat(enemy.enemy_type);
+        game.explosions.push(Explosion::new(enemy.pos, 0.4));
+        game.audio_cues.push(AudioCue::ExplosionBig);
+        false
+    });
+    if let Some(boss) = &game.boss {
+        if boss.health <= 0.0 {
+            finish_boss_defeat(game, boss.pos, boss.max_health);
+        }
     }
     ship_destroyed
 }
 
-fn open_mystery_box(ship: &mut Ship, roll: i32) -> (AudioCue, bool) {
-    const REPAIR_HP: f32 = 25.0;
-    const RARE_METAL: u32 = 5;
-    const SHIELD_HP: f32 = 45.0;
-    const TRAP_DAMAGE: f32 = 20.0;
+fn enemy_picks_up(item: &LootItem, enemies: &mut [EnemyShip], boss: Option<&mut Boss>) -> bool {
+    if let Some(enemy) = enemies.iter_mut().find(|enemy| {
+        enemy.health > 0.0
+            && item.pos.distance(enemy.pos)
+                < item.radius + enemy.enemy_type.projectile_hitbox_radius()
+    }) {
+        enemy
+            .power_ups
+            .pick_up(&item.item_type, &mut enemy.health, enemy.max_health);
+        return true;
+    }
 
-    let cue = match roll {
-        0 => {
-            ship.heal(REPAIR_HP);
+    if let Some(boss) = boss {
+        if boss.health > 0.0 && item.pos.distance(boss.pos) < item.radius + BOSS_HITBOX_RADIUS {
+            boss.power_ups
+                .pick_up(&item.item_type, &mut boss.health, boss.max_health);
+            return true;
+        }
+    }
+
+    false
+}
+
+fn open_mystery_box(ship: &mut Ship, roll: i32) -> (AudioCue, bool) {
+    let cue = match MysteryEffect::from_roll(roll) {
+        MysteryEffect::Repair(hp) => {
+            ship.heal(hp);
             AudioCue::PickupHealth
         }
-        1 => {
-            ship.rare_metal += RARE_METAL;
+        MysteryEffect::Gold(amount) => {
+            ship.rare_metal += amount;
             AudioCue::PickupScrap
         }
-        2 => {
+        MysteryEffect::Shield(hp) => {
             let (kind, duration) = if ship.has_shield() {
                 (ship.shield_kind, ship.shield_timer.max(SHIELD_DURATION))
             } else {
                 (ShieldKind::Standard, SHIELD_DURATION)
             };
-            if ship.shield_hp < SHIELD_HP {
-                ship.activate_shield(kind, SHIELD_HP, duration);
+            if ship.shield_hp < hp {
+                ship.activate_shield(kind, hp, duration);
             } else {
                 ship.shield_timer = duration;
             }
             AudioCue::ShieldOn
         }
-        _ => {
+        MysteryEffect::Trap(damage) => {
             let cue = if ship.has_shield() {
                 AudioCue::ShieldHit
             } else {
                 AudioCue::ShipHit
             };
-            return (cue, ship.take_damage(TRAP_DAMAGE));
+            return (cue, ship.take_damage(damage));
         }
     };
     (cue, false)
@@ -356,16 +401,20 @@ fn handle_player_bullet_collisions(game: &mut Game) {
     });
 
     if let Some((pos, max_health)) = boss_died_at {
-        game.boss = None;
-        game.mission_progress.boss_defeated = true;
-        game.score += (max_health as u32) * SCORE_PER_ENEMY_HP;
-        game.explosions.push(Explosion::new(pos, 0.8));
-        game.audio_cues.push(crate::audio::AudioCue::ExplosionBig);
-        if let Some(loot) = generate_loot(pos, LootSource::EnemyBoss, game.difficulty) {
-            game.loot_items.push(loot);
-        }
+        finish_boss_defeat(game, pos, max_health);
     }
     game.asteroids.extend(new_asteroids);
+}
+
+fn finish_boss_defeat(game: &mut Game, pos: Vec2, max_health: f32) {
+    game.boss = None;
+    game.mission_progress.boss_defeated = true;
+    game.score += (max_health as u32) * SCORE_PER_ENEMY_HP;
+    game.explosions.push(Explosion::new(pos, 0.8));
+    game.audio_cues.push(AudioCue::ExplosionBig);
+    if let Some(loot) = generate_loot(pos, LootSource::EnemyBoss, game.difficulty) {
+        game.loot_items.push(loot);
+    }
 }
 
 fn handle_enemy_bullet_collisions(game: &mut Game) -> bool {
@@ -447,6 +496,35 @@ fn handle_ship_entity_collisions(game: &mut Game) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn enemy_can_collect_a_shield_and_it_absorbs_damage_until_expiry() {
+        let mut enemies = [EnemyShip {
+            pos: vec2(100.0, 100.0),
+            vel: Vec2::ZERO,
+            shoot_timer: 0.0,
+            rotation: 0.0,
+            health: 24.0,
+            max_health: 24.0,
+            enemy_type: EnemyType::Regular,
+            power_ups: EnemyPowerUps::default(),
+        }];
+        let mut item = spawn_loot(Vec2::ZERO, LootType::Shield(ShieldKind::Golden, 40), 15.0);
+        assert!(!enemy_picks_up(&item, &mut enemies, None));
+
+        item.pos = enemies[0].pos;
+        assert!(enemy_picks_up(&item, &mut enemies, None));
+        let enemy = &mut enemies[0];
+        assert!(!enemy.take_damage(15.0));
+        assert_eq!(enemy.health, 24.0);
+        enemy.power_ups.tick(SHIELD_DURATION);
+        assert!(enemy.power_ups.shield.is_some());
+        enemy
+            .power_ups
+            .tick(GOLDEN_SHIELD_DURATION - SHIELD_DURATION);
+        assert!(enemy.power_ups.shield.is_none());
+        assert!(enemy.take_damage(24.0));
+    }
 
     #[test]
     fn magnetic_shot_curves_into_a_moving_target() {

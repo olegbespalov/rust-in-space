@@ -242,6 +242,7 @@ pub fn spawn_loot(pos: Vec2, item_type: LootType, radius: f32) -> LootItem {
         pos,
         vel: vec2(gen_range(-50.0, 50.0), gen_range(-50.0, 50.0)), // Fly apart on explosion
         drift_vel,
+        time_left: item_type.lifetime(),
         item_type,
         radius,
         magnet_active: false,

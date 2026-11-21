@@ -74,13 +74,14 @@ pub fn draw_background(texture: &Texture2D) {
 }
 
 const SHIP_VISUAL_SCALE: f32 = 1.25;
+const INVISIBLE_TINT: Color = Color::new(0.65, 0.9, 1.0, 0.3);
 
 pub fn draw_ship(ship: &Ship, resources: &Resources) {
     let r_rad = ship.rotation.to_radians();
     let hull_rotation = r_rad + std::f32::consts::FRAC_PI_2;
 
     let tint = if ship.is_invisible() {
-        Color::new(0.65, 0.9, 1.0, 0.3)
+        INVISIBLE_TINT
     } else {
         draw_engine(&ship.engine, ship.pos, r_rad, &resources.ship_flame);
         WHITE
@@ -98,25 +99,41 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
     );
 
     if ship.has_shield() {
-        let shield_size = ship_size * 1.8;
-        let hp_ratio = ship.shield_hp / ship.shield_max_hp;
-        let alpha = (hp_ratio * 0.7 + 0.3).min(1.0);
-        let shield_color = match ship.shield_kind {
-            ShieldKind::Standard => Color::new(tint.r, tint.g, tint.b, alpha * tint.a),
-            ShieldKind::Golden => Color::new(GOLD.r, GOLD.g, GOLD.b, alpha * tint.a),
-        };
-
-        draw_texture_ex(
+        draw_active_shield(
+            ship.pos,
+            ship_size,
+            ship.shield_kind,
+            ship.shield_hp / ship.shield_max_hp,
+            tint,
             &resources.shield_active,
-            ship.pos.x - shield_size / 2.0,
-            ship.pos.y - shield_size / 2.0,
-            shield_color,
-            DrawTextureParams {
-                dest_size: Some(vec2(shield_size, shield_size)),
-                ..Default::default()
-            },
         );
     }
+}
+
+fn draw_active_shield(
+    pos: Vec2,
+    hull_size: f32,
+    kind: ShieldKind,
+    hp_ratio: f32,
+    tint: Color,
+    texture: &Texture2D,
+) {
+    let size = hull_size * 1.8;
+    let alpha = (hp_ratio * 0.7 + 0.3).min(1.0) * tint.a;
+    let color = match kind {
+        ShieldKind::Standard => Color::new(tint.r, tint.g, tint.b, alpha),
+        ShieldKind::Golden => Color::new(GOLD.r, GOLD.g, GOLD.b, alpha),
+    };
+    draw_texture_ex(
+        texture,
+        pos.x - size / 2.0,
+        pos.y - size / 2.0,
+        color,
+        DrawTextureParams {
+            dest_size: Some(Vec2::splat(size)),
+            ..Default::default()
+        },
+    );
 }
 
 fn draw_ship_hull(
@@ -209,23 +226,31 @@ pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
         ENEMY_HP_BAR_HEIGHT,
     );
 
-    draw_rectangle(
-        bar_left,
-        bar_top,
-        size,
-        ENEMY_HP_BAR_HEIGHT,
-        ENEMY_HP_BAR_BG_COLOR,
-    );
-
-    let ratio = (enemy.health / enemy.max_health).clamp(0.0, 1.0);
-    let fill_width = size * ratio;
-    if fill_width > 0.0 {
-        let hp_color = Color::new(1.0 - ratio, ratio, 0.0, 1.0);
-        draw_rectangle(bar_left, bar_top, fill_width, ENEMY_HP_BAR_HEIGHT, hp_color);
-    }
+    let tint = if enemy.power_ups.is_invisible() {
+        INVISIBLE_TINT
+    } else {
+        draw_enemy_health_bar(
+            bar_left,
+            bar_top,
+            size,
+            ENEMY_HP_BAR_HEIGHT,
+            enemy.health / enemy.max_health,
+        );
+        WHITE
+    };
 
     let rotation = enemy.rotation + std::f32::consts::FRAC_PI_2;
-    sprite.draw(enemy.pos, size, rotation);
+    sprite.draw_tinted(enemy.pos, size, rotation, tint);
+    if let Some(shield) = &enemy.power_ups.shield {
+        draw_active_shield(
+            enemy.pos,
+            size,
+            shield.kind,
+            shield.hp / shield.max_hp,
+            tint,
+            &res.shield_active,
+        );
+    }
 }
 
 const BOSS_SIZE: f32 = 120.0;
@@ -238,22 +263,39 @@ pub fn draw_boss(boss: &Boss, res: &Resources) {
     let bar_left = health_bar_left(boss.pos.x, bar_width);
     let bar_top = health_bar_top(boss.pos.y, size / 2.0, BOSS_HP_BAR_GAP, BOSS_HP_BAR_HEIGHT);
 
-    draw_rectangle(
-        bar_left,
-        bar_top,
-        bar_width,
-        BOSS_HP_BAR_HEIGHT,
-        ENEMY_HP_BAR_BG_COLOR,
-    );
+    let tint = if boss.power_ups.is_invisible() {
+        INVISIBLE_TINT
+    } else {
+        draw_enemy_health_bar(
+            bar_left,
+            bar_top,
+            bar_width,
+            BOSS_HP_BAR_HEIGHT,
+            boss.health / boss.max_health,
+        );
+        WHITE
+    };
 
-    let ratio = (boss.health / boss.max_health).clamp(0.0, 1.0);
-    let fill_width = bar_width * ratio;
-    if fill_width > 0.0 {
-        let hp_color = Color::new(1.0 - ratio, ratio, 0.0, 1.0);
-        draw_rectangle(bar_left, bar_top, fill_width, BOSS_HP_BAR_HEIGHT, hp_color);
+    res.boss_1.draw_tinted(boss.pos, size, boss.rotation, tint);
+    if let Some(shield) = &boss.power_ups.shield {
+        draw_active_shield(
+            boss.pos,
+            size,
+            shield.kind,
+            shield.hp / shield.max_hp,
+            tint,
+            &res.shield_active,
+        );
     }
+}
 
-    res.boss_1.draw(boss.pos, size, boss.rotation);
+fn draw_enemy_health_bar(x: f32, y: f32, width: f32, height: f32, ratio: f32) {
+    draw_rectangle(x, y, width, height, ENEMY_HP_BAR_BG_COLOR);
+    let ratio = ratio.clamp(0.0, 1.0);
+    if ratio > 0.0 {
+        let hp_color = Color::new(1.0 - ratio, ratio, 0.0, 1.0);
+        draw_rectangle(x, y, width * ratio, height, hp_color);
+    }
 }
 
 pub fn draw_loot(item: &LootItem, res: &Resources) {
@@ -276,6 +318,22 @@ pub fn draw_loot(item: &LootItem, res: &Resources) {
     ) {
         draw_circle_lines(item.pos.x, item.pos.y, size * 0.5, 2.0, GOLD);
     }
+
+    const TIMER_FONT_SIZE: u16 = 14;
+    const TIMER_GAP: f32 = 4.0;
+    let seconds = format!("{}", item.time_left.ceil() as u32);
+    let width = measure_text(&seconds, res.font.as_ref(), TIMER_FONT_SIZE, 1.0).width;
+    let right = item.pos.x + size * 0.5 + TIMER_GAP;
+    let x = if right + width + TIMER_GAP <= screen_width() {
+        right.max(TIMER_GAP)
+    } else {
+        item.pos.x - size * 0.5 - TIMER_GAP - width
+    };
+    let font_size = f32::from(TIMER_FONT_SIZE);
+    let y = (item.pos.y + font_size / 3.0).clamp(font_size, (screen_height() - 1.0).max(font_size));
+    let color = if item.time_left <= 3.0 { GOLD } else { WHITE };
+    draw_text_with_font(&seconds, x + 1.0, y + 1.0, font_size, BLACK, res);
+    draw_text_with_font(&seconds, x, y, font_size, color, res);
 }
 
 pub fn draw_asteroid(asteroid: &Asteroid, res: &Resources) {

@@ -119,6 +119,10 @@ impl ModelSprite {
     }
 
     pub fn draw(&self, position: Vec2, size: f32, rotation: f32) {
+        self.draw_tinted(position, size, rotation, WHITE);
+    }
+
+    pub fn draw_tinted(&self, position: Vec2, size: f32, rotation: f32, tint: Color) {
         let (texture, flip_y) = match &self.target {
             Some(target) => (&target.texture, true),
             None => (&self.fallback, false),
@@ -127,7 +131,7 @@ impl ModelSprite {
             texture,
             position.x - size / 2.0,
             position.y - size / 2.0,
-            WHITE,
+            tint,
             DrawTextureParams {
                 dest_size: Some(Vec2::splat(size)),
                 rotation,

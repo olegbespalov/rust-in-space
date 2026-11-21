@@ -30,6 +30,7 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
 
     let player_visible = !game.ship.is_invisible();
     for e in game.enemy_ships.iter_mut() {
+        e.power_ups.tick(dt);
         if !player_visible {
             e.pos += e.vel * dt;
             keep_enemy_in_bounds(e);
@@ -49,17 +50,14 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
             if e.shoot_timer <= 0.0 {
                 for &offset in angles {
                     let angle = e.rotation + offset;
-                    game.bullets.push(Bullet {
-                        pos: e.pos,
-                        vel: vec2(angle.cos(), angle.sin()) * speed,
-                        life_time: 4.0,
-                        style: BulletStyle::Enemy,
-                        homing: false,
-                        damage: ENEMY_BULLET_DAMAGE,
-                        radius: 9.0,
-                    });
+                    game.bullets.push(enemy_bullet(
+                        e.pos,
+                        vec2(angle.cos(), angle.sin()) * speed,
+                        ENEMY_BULLET_DAMAGE,
+                        &e.power_ups,
+                    ));
                 }
-                e.shoot_timer = interval;
+                e.shoot_timer = enemy_shot_delay(interval, &e.power_ups);
                 game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
             }
         }
@@ -68,6 +66,35 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
     }
     game.enemy_ships
         .retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
+}
+
+fn enemy_bullet(pos: Vec2, vel: Vec2, base_damage: f32, power_ups: &EnemyPowerUps) -> Bullet {
+    const BASE_RADIUS: f32 = 9.0;
+    let (damage, radius) = if power_ups.big_bullet_timer > 0.0 {
+        (
+            base_damage * (BIG_BULLET_DAMAGE / PLAYER_BULLET_DAMAGE),
+            BASE_RADIUS * (BIG_BULLET_RADIUS / PLAYER_BULLET_RADIUS),
+        )
+    } else {
+        (base_damage, BASE_RADIUS)
+    };
+    Bullet {
+        pos,
+        vel,
+        life_time: 4.0,
+        style: BulletStyle::Enemy,
+        homing: power_ups.magnetic_ammo_timer > 0.0,
+        damage,
+        radius,
+    }
+}
+
+fn enemy_shot_delay(interval: f32, power_ups: &EnemyPowerUps) -> f32 {
+    if power_ups.rapid_fire_timer > 0.0 {
+        interval / 3.0
+    } else {
+        interval
+    }
 }
 
 fn spawn_enemy(game: &mut Game, from_left: bool, y: f32) {
@@ -134,6 +161,32 @@ mod tests {
     use crate::systems::get_mission;
 
     #[test]
+    fn enemy_weapon_pickups_change_new_shots_until_the_boosts_expire() {
+        let mut power_ups = EnemyPowerUps::default();
+        let mut health = 30.0;
+        for item in [
+            LootType::BigBulletBoost,
+            LootType::RapidFireBoost,
+            LootType::MagneticAmmo,
+        ] {
+            power_ups.pick_up(&item, &mut health, 30.0);
+        }
+
+        let boosted = enemy_bullet(Vec2::ZERO, Vec2::X, ENEMY_BULLET_DAMAGE, &power_ups);
+        assert_eq!(boosted.damage, ENEMY_BULLET_DAMAGE * 2.0);
+        assert_eq!(boosted.radius, 18.0);
+        assert!(boosted.homing);
+        assert_eq!(enemy_shot_delay(3.0, &power_ups), 1.0);
+
+        power_ups.tick(BIG_BULLET_DURATION);
+        let normal = enemy_bullet(Vec2::ZERO, Vec2::X, ENEMY_BULLET_DAMAGE, &power_ups);
+        assert_eq!(normal.damage, ENEMY_BULLET_DAMAGE);
+        assert_eq!(normal.radius, 9.0);
+        assert!(!normal.homing);
+        assert_eq!(enemy_shot_delay(3.0, &power_ups), 3.0);
+    }
+
+    #[test]
     fn targeted_ships_are_scheduled_while_their_objective_is_incomplete() {
         for (level, target, quota) in [(2, EnemyType::Interceptor, 3), (4, EnemyType::Heavy, 2)] {
             let mission = get_mission(level);
@@ -194,9 +247,8 @@ fn keep_enemy_in_bounds(e: &mut EnemyShip) {
 }
 
 pub fn update_boss(game: &mut Game, dt: f32) {
-    let mut spawn_volley = false;
-    let mut volley_pos = vec2(0.0, 0.0);
     if let Some(ref mut boss) = game.boss {
+        boss.power_ups.tick(dt);
         boss.pos += boss.vel * dt;
         boss.rotation += BOSS_ROTATION_SPEED * dt * std::f32::consts::PI / 180.0;
         keep_boss_in_bounds(boss);
@@ -205,28 +257,21 @@ pub fn update_boss(game: &mut Game, dt: f32) {
             if boss.burst_shots_left == 0 {
                 boss.burst_shots_left = BOSS_BURST_SIZE;
             }
-            spawn_volley = true;
-            volley_pos = boss.pos;
             boss.burst_shots_left -= 1;
             boss.shoot_timer = if boss.burst_shots_left > 0 {
                 BOSS_BURST_DELAY
             } else {
-                BOSS_SHOOT_INTERVAL
+                enemy_shot_delay(BOSS_SHOOT_INTERVAL, &boss.power_ups)
             };
-        }
-    }
-    if spawn_volley {
-        game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
-        for (dx, dy) in BOSS_VOLLEY_DIRS {
-            game.bullets.push(Bullet {
-                pos: volley_pos,
-                vel: vec2(dx * BOSS_BULLET_SPEED, dy * BOSS_BULLET_SPEED),
-                life_time: 4.0,
-                style: BulletStyle::Enemy,
-                homing: false,
-                damage: BOSS_BULLET_DAMAGE,
-                radius: 9.0,
-            });
+            game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
+            for (dx, dy) in BOSS_VOLLEY_DIRS {
+                game.bullets.push(enemy_bullet(
+                    boss.pos,
+                    vec2(dx, dy) * BOSS_BULLET_SPEED,
+                    BOSS_BULLET_DAMAGE,
+                    &boss.power_ups,
+                ));
+            }
         }
     }
 }

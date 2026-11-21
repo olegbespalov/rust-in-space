@@ -1,4 +1,7 @@
-use crate::game::constants::{ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS};
+use crate::game::constants::{
+    BIG_BULLET_DURATION, ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS,
+    INVISIBILITY_DURATION, MAGNETIC_AMMO_DURATION, RAPID_FIRE_DURATION, SHIELD_DURATION,
+};
 use crate::localization::Language;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
@@ -147,6 +150,7 @@ pub struct EnemyShip {
     pub health: f32,     // Current health points
     pub max_health: f32, // Maximum health points
     pub enemy_type: EnemyType,
+    pub power_ups: EnemyPowerUps,
 }
 
 pub struct Boss {
@@ -158,6 +162,103 @@ pub struct Boss {
     pub shoot_timer: f32,
     /// How many shots left in current burst (0 = waiting for next burst).
     pub burst_shots_left: u32,
+    pub power_ups: EnemyPowerUps,
+}
+
+#[derive(Default)]
+pub struct EnemyPowerUps {
+    pub rapid_fire_timer: f32,
+    pub big_bullet_timer: f32,
+    pub magnetic_ammo_timer: f32,
+    pub shield: Option<EnemyShield>,
+    invisibility_timer: f32,
+}
+
+pub struct EnemyShield {
+    pub kind: ShieldKind,
+    pub hp: f32,
+    pub max_hp: f32,
+    time_left: f32,
+}
+
+impl EnemyPowerUps {
+    pub fn is_invisible(&self) -> bool {
+        self.invisibility_timer > 0.0
+    }
+
+    pub fn tick(&mut self, dt: f32) {
+        self.rapid_fire_timer -= dt;
+        self.big_bullet_timer -= dt;
+        self.magnetic_ammo_timer -= dt;
+        self.invisibility_timer -= dt;
+        if let Some(shield) = &mut self.shield {
+            shield.time_left -= dt;
+            if shield.time_left <= 0.0 {
+                self.shield = None;
+            }
+        }
+    }
+
+    pub fn pick_up(&mut self, item: &LootType, health: &mut f32, max_health: f32) {
+        match *item {
+            LootType::RapidFireBoost => self.rapid_fire_timer = RAPID_FIRE_DURATION,
+            LootType::BigBulletBoost => self.big_bullet_timer = BIG_BULLET_DURATION,
+            LootType::MagneticAmmo => self.magnetic_ammo_timer = MAGNETIC_AMMO_DURATION,
+            LootType::Invisibility => self.invisibility_timer = INVISIBILITY_DURATION,
+            LootType::Shield(kind, hp) => {
+                self.activate_shield(kind, hp as f32, kind.duration());
+            }
+            LootType::HealthPack(hp) => *health = (*health + hp as f32).min(max_health),
+            LootType::MysteryBox => {
+                self.apply_mystery_effect(
+                    MysteryEffect::from_roll(gen_range(0, 4)),
+                    health,
+                    max_health,
+                );
+            }
+            LootType::Scrap(_) | LootType::RareMetal(_) => {}
+        }
+    }
+
+    fn apply_mystery_effect(&mut self, effect: MysteryEffect, health: &mut f32, max_health: f32) {
+        match effect {
+            MysteryEffect::Repair(hp) => *health = (*health + hp).min(max_health),
+            MysteryEffect::Gold(_) => {}
+            MysteryEffect::Shield(hp) => {
+                if let Some(shield) = &mut self.shield {
+                    shield.time_left = shield.time_left.max(SHIELD_DURATION);
+                    if shield.hp < hp {
+                        shield.hp = hp;
+                        shield.max_hp = hp;
+                    }
+                } else {
+                    self.activate_shield(ShieldKind::Standard, hp, SHIELD_DURATION);
+                }
+            }
+            MysteryEffect::Trap(damage) => *health -= self.absorb_damage(damage),
+        }
+    }
+
+    fn activate_shield(&mut self, kind: ShieldKind, hp: f32, duration: f32) {
+        self.shield = Some(EnemyShield {
+            kind,
+            hp,
+            max_hp: hp,
+            time_left: duration,
+        });
+    }
+
+    fn absorb_damage(&mut self, damage: f32) -> f32 {
+        let Some(shield) = &mut self.shield else {
+            return damage;
+        };
+        let absorbed = shield.hp.min(damage);
+        shield.hp -= absorbed;
+        if shield.hp <= 0.0 {
+            self.shield = None;
+        }
+        damage - absorbed
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -230,6 +331,16 @@ pub enum ShieldKind {
     Golden,
 }
 
+impl ShieldKind {
+    pub fn duration(self) -> f32 {
+        use crate::game::constants::{GOLDEN_SHIELD_DURATION, SHIELD_DURATION};
+        match self {
+            Self::Standard => SHIELD_DURATION,
+            Self::Golden => GOLDEN_SHIELD_DURATION,
+        }
+    }
+}
+
 // 1. Types of loot
 #[derive(Clone, PartialEq)]
 pub enum LootType {
@@ -248,12 +359,79 @@ pub enum LootType {
     MysteryBox,
 }
 
+impl LootType {
+    pub fn lifetime(&self) -> f32 {
+        match self {
+            Self::Scrap(_) => 30.0,
+            Self::HealthPack(_) => 24.0,
+            Self::RareMetal(_) => 18.0,
+            Self::RapidFireBoost | Self::BigBulletBoost | Self::Shield(ShieldKind::Standard, _) => {
+                15.0
+            }
+            Self::MagneticAmmo | Self::Invisibility => 12.0,
+            Self::MysteryBox | Self::Shield(ShieldKind::Golden, _) => 10.0,
+        }
+    }
+}
+
+pub enum MysteryEffect {
+    Repair(f32),
+    Gold(u32),
+    Shield(f32),
+    Trap(f32),
+}
+
+impl MysteryEffect {
+    pub fn from_roll(roll: i32) -> Self {
+        match roll {
+            0 => Self::Repair(25.0),
+            1 => Self::Gold(5),
+            2 => Self::Shield(45.0),
+            _ => Self::Trap(20.0),
+        }
+    }
+}
+
+#[cfg(test)]
+mod loot_tests {
+    use super::*;
+
+    #[test]
+    fn enemy_pickups_apply_healing_invisibility_and_mystery_effects() {
+        let mut power_ups = EnemyPowerUps::default();
+        let mut health = 15.0;
+        let max_health = 50.0;
+        power_ups.pick_up(&LootType::HealthPack(25), &mut health, max_health);
+        assert_eq!(health, 40.0);
+        power_ups.apply_mystery_effect(MysteryEffect::from_roll(0), &mut health, max_health);
+        assert_eq!(health, max_health);
+
+        power_ups.pick_up(&LootType::Invisibility, &mut health, max_health);
+        assert!(power_ups.is_invisible());
+        power_ups.tick(INVISIBILITY_DURATION);
+        assert!(!power_ups.is_invisible());
+
+        power_ups.apply_mystery_effect(MysteryEffect::from_roll(2), &mut health, max_health);
+        power_ups.apply_mystery_effect(MysteryEffect::from_roll(3), &mut health, max_health);
+        assert_eq!(health, max_health);
+        assert_eq!(
+            power_ups.shield.as_ref().map(|shield| shield.hp),
+            Some(25.0)
+        );
+
+        power_ups.tick(SHIELD_DURATION);
+        power_ups.apply_mystery_effect(MysteryEffect::from_roll(3), &mut health, max_health);
+        assert_eq!(health, 30.0);
+    }
+}
+
 // 2. The entity of the dropped item
 pub struct LootItem {
     pub pos: Vec2,
     pub vel: Vec2,       // Initial explosion velocity (decays)
     pub drift_vel: Vec2, // Slow constant drift in space
     pub item_type: LootType,
+    pub time_left: f32,
     pub radius: f32,
     pub magnet_active: bool, // Is the magnet active?
     pub rotation: f32,       // Rotation angle in radians
@@ -336,12 +514,13 @@ impl EnemyShip {
             health: max_health,
             max_health,
             enemy_type,
+            power_ups: EnemyPowerUps::default(),
         }
     }
 
     // Returns true if the enemy is destroyed
     pub fn take_damage(&mut self, damage: f32) -> bool {
-        self.health -= damage;
+        self.health -= self.power_ups.absorb_damage(damage);
         self.health <= 0.0
     }
 }
@@ -357,11 +536,12 @@ impl Boss {
             max_health,
             shoot_timer: 0.0,
             burst_shots_left: 0,
+            power_ups: EnemyPowerUps::default(),
         }
     }
 
     pub fn take_damage(&mut self, damage: f32) -> bool {
-        self.health -= damage;
+        self.health -= self.power_ups.absorb_damage(damage);
         self.health <= 0.0
     }
 }
