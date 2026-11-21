@@ -690,6 +690,14 @@ pub fn render_menu(
         GRAY,
         res,
     );
+    draw_text_with_font(
+        concat!("v", env!("CARGO_PKG_VERSION")),
+        16.0,
+        screen_h - 14.0,
+        14.0,
+        LIGHTGRAY,
+        res,
+    );
     click
 }
 
