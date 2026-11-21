@@ -328,7 +328,7 @@ impl EnemyShip {
 
 impl Boss {
     pub fn new() -> Self {
-        let max_health = 300.0;
+        let max_health = 450.0;
         Self {
             pos: vec2(screen_width() / 2.0, 80.0),
             vel: vec2(45.0, 25.0),

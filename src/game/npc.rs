@@ -224,7 +224,7 @@ pub fn update_boss(game: &mut Game, dt: f32) {
                 life_time: 4.0,
                 style: BulletStyle::Enemy,
                 homing: false,
-                damage: ENEMY_BULLET_DAMAGE,
+                damage: BOSS_BULLET_DAMAGE,
                 radius: 9.0,
             });
         }

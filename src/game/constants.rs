@@ -24,9 +24,10 @@ pub const SHIELD_CAPACITOR_HP: f32 = 45.0;
 pub const SHIELD_CAPACITOR_DURATION: f32 = 20.0;
 
 pub const BOSS_SHOOT_INTERVAL: f32 = 3.0;
-pub const BOSS_BURST_SIZE: u32 = 3;
+pub const BOSS_BURST_SIZE: u32 = 4;
 pub const BOSS_BURST_DELAY: f32 = 0.12;
-pub const BOSS_BULLET_SPEED: f32 = 250.0;
+pub const BOSS_BULLET_SPEED: f32 = 290.0;
+pub const BOSS_BULLET_DAMAGE: f32 = 20.0;
 pub const BOSS_BORDER_MARGIN: f32 = 70.0;
 pub const BOSS_ROTATION_SPEED: f32 = 35.0;
 pub const BOSS_HITBOX_RADIUS: f32 = 55.0;
