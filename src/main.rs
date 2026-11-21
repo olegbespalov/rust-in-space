@@ -15,7 +15,7 @@ use components::{GameState, MenuItem};
 use draw::*;
 use game::*;
 use resources::Resources;
-use systems::{load_score, save_audio_settings};
+use systems::{load_save, save_data, save_file};
 
 const WINDOW_WIDTH: i32 = 1280;
 const WINDOW_HEIGHT: i32 = 720;
@@ -48,11 +48,12 @@ fn window_conf() -> macroquad::conf::Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut state = GameState::Menu;
+    let save_path = save_file();
+    let mut saved = load_save(save_path.as_deref());
     let mut resources = Resources::new().await;
-    let save_data = load_score();
-    let mut audio = AudioState::new(save_data.audio);
-    let mut audio_settings_dirty = false;
-    let mut audio_settings_save_timer = 0.0f32;
+    resources.lang.current_lang = saved.language;
+    let mut audio = AudioState::new(saved.audio.clone());
+    let mut save_timer = None;
     audio.play_music(&resources.audio, MusicTrack::Menu);
     let mut game = Game::new();
 
@@ -73,8 +74,8 @@ async fn main() {
         }
 
         let frame_dt = get_frame_time();
-        if audio_settings_save_timer > 0.0 {
-            audio_settings_save_timer -= frame_dt;
+        if let Some(remaining) = &mut save_timer {
+            *remaining -= frame_dt;
         }
 
         clear_background(BLACK);
@@ -83,6 +84,7 @@ async fn main() {
         match state {
             GameState::Menu => {
                 audio.play_music(&resources.audio, MusicTrack::Menu);
+
                 render_menu(&game, &resources);
 
                 // Menu navigation
@@ -113,48 +115,44 @@ async fn main() {
                     MenuItem::Language => {
                         if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::Right) {
                             resources.lang.cycle_lang();
+                            saved.language = resources.lang.current_lang;
+                            save_timer = Some(0.0);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }
                     }
                     MenuItem::MasterVolume => {
                         if is_key_pressed(KeyCode::Left) {
                             audio.adjust_master_volume(&resources.audio, -0.05);
-                            audio_settings_dirty = true;
-                            audio_settings_save_timer = 0.25;
+                            save_timer = Some(0.25);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }
                         if is_key_pressed(KeyCode::Right) {
                             audio.adjust_master_volume(&resources.audio, 0.05);
-                            audio_settings_dirty = true;
-                            audio_settings_save_timer = 0.25;
+                            save_timer = Some(0.25);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }
                     }
                     MenuItem::MusicVolume => {
                         if is_key_pressed(KeyCode::Left) {
                             audio.adjust_music_volume(&resources.audio, -0.05);
-                            audio_settings_dirty = true;
-                            audio_settings_save_timer = 0.25;
+                            save_timer = Some(0.25);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }
                         if is_key_pressed(KeyCode::Right) {
                             audio.adjust_music_volume(&resources.audio, 0.05);
-                            audio_settings_dirty = true;
-                            audio_settings_save_timer = 0.25;
+                            save_timer = Some(0.25);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }
                     }
                     MenuItem::SfxVolume => {
                         if is_key_pressed(KeyCode::Left) {
                             audio.adjust_sfx_volume(&resources.audio, -0.05);
-                            audio_settings_dirty = true;
-                            audio_settings_save_timer = 0.25;
+                            save_timer = Some(0.25);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }
                         if is_key_pressed(KeyCode::Right) {
                             audio.adjust_sfx_volume(&resources.audio, 0.05);
-                            audio_settings_dirty = true;
-                            audio_settings_save_timer = 0.25;
+                            save_timer = Some(0.25);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                         }
                     }
@@ -164,8 +162,7 @@ async fn main() {
                             || is_key_pressed(KeyCode::Enter)
                         {
                             audio.toggle_mute(&resources.audio);
-                            audio_settings_dirty = true;
-                            audio_settings_save_timer = 0.25;
+                            save_timer = Some(0.25);
                         }
                     }
                 }
@@ -213,6 +210,11 @@ async fn main() {
                         audio.set_engine_active(&resources.audio, false, 0.0);
                         audio.play_sfx(&resources.audio, audio::AudioCue::MissionSuccess);
                         state = GameState::MissionSuccess;
+                    }
+
+                    if game.score > saved.high_score {
+                        saved.high_score = game.score;
+                        save_timer = Some(0.0);
                     }
 
                     for cue in game.drain_audio_cues() {
@@ -277,7 +279,7 @@ async fn main() {
             GameState::GameOver(score) => {
                 audio.set_paused(&resources.audio, false);
                 audio.play_music(&resources.audio, MusicTrack::Menu);
-                render_game_over(score, &resources);
+                render_game_over(score, saved.high_score, &resources);
 
                 if is_key_pressed(KeyCode::Enter) {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
@@ -286,9 +288,12 @@ async fn main() {
             }
         }
 
-        if audio_settings_dirty && audio_settings_save_timer <= 0.0 {
-            save_audio_settings(audio.settings().clone());
-            audio_settings_dirty = false;
+        if save_timer.is_some_and(|remaining| remaining <= 0.0) {
+            if let Some(path) = save_path.as_deref() {
+                saved.audio = audio.settings().clone();
+                save_data(path, &saved);
+            }
+            save_timer = None;
         }
 
         next_frame().await

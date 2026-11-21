@@ -7,7 +7,6 @@ use crate::game::constants::{
 };
 use crate::game::{upgrade_definition, Game, UPGRADABLE_IDS};
 use crate::resources::Resources;
-use crate::systems::load_score;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 
@@ -747,8 +746,7 @@ pub fn render_upgrade_bay(game: &Game, res: &Resources) {
     draw_text_centered(res.lang.t("upgrade_controls"), 285.0, 16, GRAY, res);
 }
 
-pub fn render_game_over(score: u32, res: &Resources) {
-    let high_score = load_score().high_score;
+pub fn render_game_over(score: u32, high_score: u32, res: &Resources) {
     draw_text_centered(res.lang.t("game_over"), -40.0, 48, RED, res);
     draw_text_centered(
         &format!("{} {}", res.lang.t("final_score_prefix"), score),

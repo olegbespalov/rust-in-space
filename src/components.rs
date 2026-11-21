@@ -1,4 +1,5 @@
 use crate::game::constants::{ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS};
+use crate::localization::Language;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use serde::{Deserialize, Serialize};
@@ -254,11 +255,12 @@ pub struct AudioSettings {
     pub audio_muted: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Default, Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct SaveData {
     pub high_score: u32,
-    #[serde(default)]
     pub audio: AudioSettings,
+    pub language: Language,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -353,7 +355,7 @@ impl Ship {
 
     // Returns true if the game is over
     // Damage is first applied to shield if active, then to ship health
-    pub fn take_damage(&mut self, damage: f32, score: u32) -> bool {
+    pub fn take_damage(&mut self, damage: f32) -> bool {
         // If shield is active, absorb damage with shield first
         if self.shield_hp > 0.0 {
             if self.shield_hp >= damage {
@@ -372,13 +374,7 @@ impl Ship {
             self.health -= damage;
         }
 
-        if self.health <= 0.0 {
-            // Save score immediately using our system
-            crate::systems::save_score(score);
-            true // Game Over
-        } else {
-            false // Still alive
-        }
+        self.health <= 0.0
     }
 
     // Restore health (used by health packs)
@@ -448,15 +444,6 @@ pub struct Explosion {
     pub max_frames: usize, // How many frames in the texture (e.g. 8)
     pub frame_time: f32,   // Animation speed (e.g. 0.1 sec per frame)
     pub scale: f32,        // Explosion size (for boss large, for enemy small)
-}
-
-impl SaveData {
-    pub fn new() -> Self {
-        Self {
-            high_score: 0,
-            audio: AudioSettings::default(),
-        }
-    }
 }
 
 impl Default for AudioSettings {

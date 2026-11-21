@@ -1,10 +1,14 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Language {
-    English,
     Russian,
     German,
+    #[default]
+    #[serde(other)]
+    English,
 }
 
 pub struct Localization {

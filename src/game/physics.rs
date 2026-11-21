@@ -320,7 +320,7 @@ fn handle_enemy_bullet_collisions(game: &mut Game) -> bool {
                 game.audio_cues.push(crate::audio::AudioCue::ShipHit);
             }
             let damage = b.damage * game.difficulty.damage_mult();
-            if game.ship.take_damage(damage, game.score) {
+            if game.ship.take_damage(damage) {
                 game_over = true;
             }
             false
@@ -351,7 +351,7 @@ fn handle_ship_entity_collisions(game: &mut Game) -> bool {
             } else {
                 game.audio_cues.push(crate::audio::AudioCue::ShipHit);
             }
-            if game.ship.take_damage(asteroid_damage, game.score) {
+            if game.ship.take_damage(asteroid_damage) {
                 game_over = true;
             }
         }
@@ -369,7 +369,7 @@ fn handle_ship_entity_collisions(game: &mut Game) -> bool {
             } else {
                 game.audio_cues.push(crate::audio::AudioCue::ShipHit);
             }
-            if game.ship.take_damage(damage, game.score) {
+            if game.ship.take_damage(damage) {
                 game_over = true;
             }
             game.score += (e.max_health as u32) * SCORE_PER_ENEMY_HP;

@@ -59,8 +59,6 @@ Download the package for your platform from [GitHub Releases](https://github.com
 - **Linux (64-bit Intel or AMD)**. Download the `x86_64-unknown-linux-gnu.AppImage` file, make it executable with `chmod +x ./rust-in-space-*.AppImage`, and open it. An AppImage integration tool can add the game and its icon to your application menu. The Linux build targets Ubuntu 22.04 and uses the system ALSA runtime (`libasound2` on Ubuntu 22.04). If FUSE is unavailable, run the file with `--appimage-extract-and-run`. The `.tar.gz` is also available. Extract it and keep `assets` beside the executable.
 - **macOS (Intel or Apple Silicon)**. Download the `x86_64-apple-darwin.zip` for Intel or `aarch64-apple-darwin.zip` for Apple Silicon. Unzip it, move **Rust in Space.app** to Applications, and open it. The bundle is ad hoc signed. macOS Gatekeeper may block a downloaded copy because it has no Apple notarization.
 
-The AppImage saves high scores and audio settings in `$XDG_DATA_HOME/rust-in-space/` (by default `~/.local/share/rust-in-space/`). The macOS app saves them in `~/Library/Application Support/Rust in Space/`.
-
 ### Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable version)
@@ -216,7 +214,19 @@ Loot items drop from destroyed asteroids and enemies:
 - **Big Bullet Boost**: Shoots larger, more powerful bullets (30 damage vs 15) for 15 seconds
 - **Shield**: Activates a temporary shield that absorbs damage before it reaches your health
 - **State Persistence**: Resources (scrap, gold), active shields, and weapon boost timers persist between missions
-- When HP reaches 0, your score is saved if it's a new high score
+- The game saves a new high score as soon as you set it
+
+## Save Data
+
+The game stores your high score, language, and audio settings in a per-user `highscore.json`:
+
+- **Linux**: `$XDG_DATA_HOME/rust-in-space/highscore.json`. If `XDG_DATA_HOME` is unset or relative, the game uses `~/.local/share/rust-in-space/highscore.json`.
+- **macOS**: `~/Library/Application Support/Rust in Space/highscore.json`.
+- **Windows (native builds)**: `%LOCALAPPDATA%\Rust in Space\highscore.json`.
+
+The JSON object includes `high_score` (a nonnegative integer), `language` (`english`, `russian`, or `german`), and `audio` (volume and mute settings). If the file is missing, unreadable, or malformed, the game can start with a score of zero, English, and the default audio settings. Older saves without a language field start in English.
+
+If the per-user save is missing, the game imports a valid `highscore.json` from the working directory and leaves the original file in place. To migrate a save from an older development or standalone build, launch the game once from the directory containing that file. Existing AppImage and macOS app saves already use the per-user paths above.
 
 ## Project Structure
 
@@ -245,8 +255,7 @@ space_game/
 ├── Cargo.toml       # Project dependencies
 ├── Makefile         # Build and development commands
 ├── rustfmt.toml     # Rust formatting configuration
-├── clippy.toml      # Clippy linter configuration
-└── highscore.json   # Saved high score (auto-generated)
+└── clippy.toml      # Clippy linter configuration
 ```
 
 ## Dependencies
