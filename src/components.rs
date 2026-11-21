@@ -19,19 +19,34 @@ fn default_sfx_volume() -> f32 {
 pub struct Mission {
     pub level_id: u32,
     pub title: String,
-    pub description: String,
-
-    // mission objectives
-    pub target_kills: u32,      // how many enemies to destroy
-    pub target_scrap: u32,      // how many scrap (rust piles) to collect
-    pub target_rare_metal: u32, // how many rare metal (gold) to collect
-
-    // level difficulty settings
+    pub objectives: Vec<MissionObjective>,
     pub enemy_spawn_interval: f32,
     pub asteroid_count: usize,
+}
 
-    /// If true, this level has a single boss; no asteroids, no other enemies.
-    pub is_boss_level: bool,
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum MissionObjective {
+    DefeatEnemies(u32),
+    DestroyAsteroids(u32),
+    DefeatInterceptors(u32),
+    DefeatHeavyShips(u32),
+    CollectScrap(u32),
+    Survive(u32),
+    DefeatBoss,
+}
+
+impl MissionObjective {
+    pub fn target(self) -> u32 {
+        match self {
+            Self::DefeatEnemies(target)
+            | Self::DestroyAsteroids(target)
+            | Self::DefeatInterceptors(target)
+            | Self::DefeatHeavyShips(target)
+            | Self::CollectScrap(target)
+            | Self::Survive(target) => target,
+            Self::DefeatBoss => 1,
+        }
+    }
 }
 
 pub enum GameState {

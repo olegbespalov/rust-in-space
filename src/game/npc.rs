@@ -3,12 +3,10 @@ use crate::game::constants::*;
 use crate::game::Game;
 use macroquad::prelude::*;
 
+const TARGET_ENEMY_SPAWN_PERIOD: u32 = 4;
+
 pub fn update_enemies(game: &mut Game, dt: f32) {
     use macroquad::rand::gen_range;
-
-    if game.current_mission.is_boss_level {
-        return;
-    }
 
     // On Nebula, show the hint before spawning the ship.
     if let Some((from_left, spawn_y, hint_at)) = game.pending_enemy_hint {
@@ -74,10 +72,37 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
 
 fn spawn_enemy(game: &mut Game, from_left: bool, y: f32) {
     let mission = &game.current_mission;
-    let enemy_type = enemy_type_for_roll(mission.level_id, macroquad::rand::gen_range(0, 100));
+    game.enemy_spawn_count += 1;
+    let enemy_type =
+        scheduled_target_enemy(mission, &game.mission_progress, game.enemy_spawn_count)
+            .unwrap_or_else(|| {
+                enemy_type_for_roll(mission.level_id, macroquad::rand::gen_range(0, 100))
+            });
     game.enemy_ships
         .push(EnemyShip::new_at_side(from_left, y, enemy_type));
     game.enemy_spawn_timer = mission.enemy_spawn_interval / game.difficulty.spawn_rate_mult();
+}
+
+fn scheduled_target_enemy(
+    mission: &Mission,
+    progress: &super::MissionProgress,
+    spawn_count: u32,
+) -> Option<EnemyType> {
+    if !spawn_count.is_multiple_of(TARGET_ENEMY_SPAWN_PERIOD) {
+        return None;
+    }
+
+    mission.objectives.iter().find_map(|&objective| {
+        if progress.meets(objective) {
+            return None;
+        }
+
+        match objective {
+            MissionObjective::DefeatInterceptors(_) => Some(EnemyType::Interceptor),
+            MissionObjective::DefeatHeavyShips(_) => Some(EnemyType::Heavy),
+            _ => None,
+        }
+    })
 }
 
 fn enemy_type_for_roll(level: u32, roll: i32) -> EnemyType {
@@ -105,6 +130,23 @@ fn enemy_volley(enemy_type: EnemyType) -> Option<(f32, f32, &'static [f32])> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::MissionProgress;
+    use crate::systems::get_mission;
+
+    #[test]
+    fn targeted_ships_are_scheduled_while_their_objective_is_incomplete() {
+        for (level, target, quota) in [(2, EnemyType::Interceptor, 3), (4, EnemyType::Heavy, 2)] {
+            let mission = get_mission(level);
+            let mut progress = MissionProgress::default();
+            assert!(scheduled_target_enemy(&mission, &progress, 3).is_none());
+            assert!(scheduled_target_enemy(&mission, &progress, 4) == Some(target));
+
+            for _ in 0..quota {
+                progress.record_enemy_defeat(target);
+            }
+            assert!(scheduled_target_enemy(&mission, &progress, 8).is_none());
+        }
+    }
 
     #[test]
     fn enemy_variants_unlock_without_changing_kamikaze_frequency() {

@@ -10,6 +10,6 @@ A reference to the enemies currently implemented in the game. Images use the sam
 | Heavy ship (`Heavy`) | ![Heavy enemy](../assets/boss_1.png) | 60 | 75 | Fires a spread of three projectiles about every 2.2 seconds. It uses a separate 3D model. |
 | Guardian (`Boss`) | ![Boss](../assets/boss_1.png) | 300 | — | Appears in dedicated boss missions, moves around the arena, and fires projectile bursts. Always drops rare metal when destroyed. |
 
-Regular enemies spawn randomly. Kamikazes are available from the start, interceptors appear from level 2, and heavy ships from level 4. Boss missions contain no regular enemies or asteroids.
+Kamikazes are available from the start, interceptors appear from level 2, and heavy ships from level 4. Every fourth enemy spawn supplies the targeted ship type while an interceptor or heavy-ship objective is still active. The Guardian mission also spawns reinforcements.
 
 Speeds are measured in game units per second. Firing intervals are approximate; exact balance values are defined in the source and may change.

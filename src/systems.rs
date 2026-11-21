@@ -98,62 +98,50 @@ pub fn load_score() -> SaveData {
 }
 
 pub fn get_mission(level: u32) -> Mission {
+    use crate::components::MissionObjective::*;
+
     match level {
         1 => Mission {
             level_id: 1,
             title: "Operation: Dust".to_string(),
-            description: "Destroy 3 scouts and collect resources.".to_string(),
-            target_kills: 3,
-            target_scrap: 1,
-            target_rare_metal: 0,
-            enemy_spawn_interval: 10.0, // enemies spawn rarely
-            asteroid_count: 5,
-            is_boss_level: false,
+            objectives: vec![DefeatEnemies(5), DestroyAsteroids(8)],
+            enemy_spawn_interval: 5.5,
+            asteroid_count: 7,
         },
         2 => Mission {
             level_id: 2,
             title: "Into the Void".to_string(),
-            description: "Enemy activity rising. Kill 10 enemies.".to_string(),
-            target_kills: 10,
-            target_scrap: 0, // scrap is not important
-            target_rare_metal: 0,
+            objectives: vec![Survive(45), DefeatInterceptors(3)],
             enemy_spawn_interval: 2.0,
             asteroid_count: 8,
-            is_boss_level: false,
         },
         3 => Mission {
             level_id: 3,
             title: "Boss: Guardian".to_string(),
-            description: "Destroy the boss.".to_string(),
-            target_kills: 0,
-            target_scrap: 0,
-            target_rare_metal: 0,
-            enemy_spawn_interval: 0.0,
+            objectives: vec![DefeatBoss, DefeatEnemies(4)],
+            enemy_spawn_interval: 6.0,
             asteroid_count: 0,
-            is_boss_level: true,
         },
         4 => Mission {
             level_id: 4,
             title: "Scrap Yard".to_string(),
-            description: "Collect 20 rust piles and 3 gold for upgrades.".to_string(),
-            target_kills: 5,
-            target_scrap: 20,
-            target_rare_metal: 3,
+            objectives: vec![CollectScrap(24), DefeatHeavyShips(2)],
             enemy_spawn_interval: 2.5,
             asteroid_count: 12,
-            is_boss_level: false,
         },
         _ => Mission {
-            // generate infinite levels after the 4th one
             level_id: level,
             title: format!("Deep Space sector {level}"),
-            description: "Survive.".to_string(),
-            target_kills: 10 + (level - 1),
-            target_scrap: 10 + ((level - 1) / 2),
-            target_rare_metal: 2 + ((level - 1) / 3),
+            objectives: match level % 3 {
+                2 => vec![Survive(50 + level.min(30)), DefeatHeavyShips(3)],
+                0 => vec![
+                    DefeatEnemies(level.saturating_add(10)),
+                    DefeatInterceptors(4),
+                ],
+                _ => vec![CollectScrap(25 + level / 2), DefeatHeavyShips(3)],
+            },
             enemy_spawn_interval: (1.5 - ((level - 1) as f32 * 0.1)).max(0.5),
             asteroid_count: 10 + (level - 1) as usize,
-            is_boss_level: false,
         },
     }
 }

@@ -1,6 +1,6 @@
 use crate::components::{
     Asteroid, Boss, BulletStyle, Difficulty, EnemyShip, EnemyType, Engine, Explosion, LootItem,
-    LootType, MenuItem, Mission, Ship,
+    LootType, MenuItem, Mission, MissionObjective, Ship,
 };
 use crate::game::constants::{
     ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, KAMIKAZE_RADIUS,
@@ -426,38 +426,37 @@ pub fn render_game(game: &Game, resources: &Resources) {
         draw_text_with_font(&cloak_text, 20.0, 60.0, 24.0, SKYBLUE, resources);
     }
 
-    let status = if game.current_mission.is_boss_level {
-        match &game.boss {
-            Some(boss) => format!(
-                "{} {:.0}/{:.0}",
-                resources.lang.t("boss_hp"),
-                boss.health,
-                boss.max_health
+    let objectives = &game.current_mission.objectives;
+    for (row, &objective) in objectives.iter().enumerate() {
+        let complete = game.mission_progress.meets(objective);
+        let status = match objective {
+            MissionObjective::DefeatBoss => match &game.boss {
+                Some(boss) => format!(
+                    "{} {:.0}/{:.0}",
+                    resources.lang.t("boss_hp"),
+                    boss.health.ceil(),
+                    boss.max_health
+                ),
+                None => resources.lang.t("boss_defeated").to_string(),
+            },
+            _ => format!(
+                "{}  {}/{}",
+                resources.lang.t(objective_label(objective)),
+                game.mission_progress
+                    .amount(objective)
+                    .min(objective.target()),
+                objective.target()
             ),
-            None => resources.lang.t("boss_defeated").to_string(),
-        }
-    } else {
-        format!(
-            "{} {}/{}  {} {}/{}  {} {}/{}",
-            resources.lang.t("defeated"),
-            game.mission_kills,
-            game.current_mission.target_kills,
-            resources.lang.t("rust"),
-            game.mission_scrap_collected,
-            game.current_mission.target_scrap,
-            resources.lang.t("gold"),
-            game.mission_rare_metal_collected,
-            game.current_mission.target_rare_metal
-        )
-    };
-    draw_text_with_font(
-        &status,
-        20.0,
-        screen_height() - 30.0,
-        24.0,
-        WHITE,
-        resources,
-    );
+        };
+        draw_text_with_font(
+            &status,
+            20.0,
+            screen_height() - 30.0 - (objectives.len() - 1 - row) as f32 * 26.0,
+            24.0,
+            if complete { GREEN } else { WHITE },
+            resources,
+        );
+    }
 
     let inventory = format!(
         "{} {} {} | {} {}",
@@ -470,7 +469,7 @@ pub fn render_game(game: &Game, resources: &Resources) {
     draw_text_with_font(
         &inventory,
         20.0,
-        screen_height() - 60.0,
+        screen_height() - 34.0 - objectives.len() as f32 * 26.0,
         20.0,
         GRAY,
         resources,
@@ -603,6 +602,18 @@ pub fn render_menu(game: &Game, res: &Resources) {
     );
 }
 
+fn objective_label(objective: MissionObjective) -> &'static str {
+    match objective {
+        MissionObjective::DefeatEnemies(_) => "goal_enemies",
+        MissionObjective::DestroyAsteroids(_) => "goal_asteroids",
+        MissionObjective::DefeatInterceptors(_) => "goal_interceptors",
+        MissionObjective::DefeatHeavyShips(_) => "goal_heavy_ships",
+        MissionObjective::CollectScrap(_) => "goal_scrap",
+        MissionObjective::Survive(_) => "goal_survive",
+        MissionObjective::DefeatBoss => "obj_destroy_boss",
+    }
+}
+
 pub fn render_briefing(mission: &Mission, res: &Resources) {
     draw_text_centered(
         &format!("{} {}", res.lang.t("mission"), mission.level_id),
@@ -612,38 +623,17 @@ pub fn render_briefing(mission: &Mission, res: &Resources) {
         res,
     );
     draw_text_centered(&mission.title, -50.0, 48, WHITE, res);
-    draw_text_centered(&mission.description, 0.0, 20, GRAY, res);
-
     draw_text_centered(res.lang.t("objectives"), 20.0, 24, GRAY, res);
 
-    let obj_text = if mission.is_boss_level {
-        res.lang.t("obj_destroy_boss").to_string()
-    } else {
-        let mut objectives = vec![format!(
-            "{} {} {}",
-            res.lang.t("obj_destroy_prefix"),
-            mission.target_kills,
-            res.lang.t("obj_enemies")
-        )];
-        if mission.target_scrap > 0 {
-            objectives.push(format!(
-                "{} {} {}",
-                res.lang.t("obj_scrap_prefix"),
-                mission.target_scrap,
-                res.lang.t("obj_rust_piles")
-            ));
-        }
-        if mission.target_rare_metal > 0 {
-            objectives.push(format!(
-                "{} {} {}",
-                res.lang.t("obj_gold_prefix"),
-                mission.target_rare_metal,
-                res.lang.t("obj_gold")
-            ));
-        }
-        objectives.join("\n")
-    };
-    draw_text_centered(&obj_text, 70.0, 24, WHITE, res);
+    for (row, &objective) in mission.objectives.iter().enumerate() {
+        let label = res.lang.t(objective_label(objective));
+        let text = if objective == MissionObjective::DefeatBoss {
+            label.to_string()
+        } else {
+            format!("{label}  {}", objective.target())
+        };
+        draw_text_centered(&text, 60.0 + row as f32 * 32.0, 24, WHITE, res);
+    }
 
     draw_text_centered(res.lang.t("press_space"), 200.0, 24, GREEN, res);
 }

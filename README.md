@@ -105,7 +105,7 @@ The pre-commit hook automatically runs the same checks as CI before each commit.
 
 ### Publishing a release
 
-Push a version tag such as `v0.1.0-beta.1` from a commit that has passed CI. The release workflow builds and attaches all three archives to the GitHub release. A tag with a prerelease suffix, such as `-beta.1`, is published as a prerelease.
+Push a version tag such as `v0.1.0` from a commit that has passed CI. The release workflow attaches a Linux AppImage, a Linux tarball, and ZIP packages for Intel and Apple Silicon Macs. A tag with a prerelease suffix, such as `-beta.1`, is published as a prerelease.
 
 ## Game Mechanics
 
@@ -201,15 +201,15 @@ Loot items drop from destroyed asteroids and enemies:
 - **Pause System**: Press ESC to pause the game at any time
   - Game state is frozen while paused
   - Press ENTER to resume, or ESC to return to main menu
-- Complete mission objectives to progress (kills, rust piles, and gold)
+- Complete every objective shown in the briefing to advance. Missions combine ship kills, asteroid clearing, survival time, and scrap collection.
 - Destroy asteroids to break them into smaller pieces
 - Rare asteroids (10% spawn chance) have distinct appearance and always drop loot
 - Enemy ships spawn based on mission configuration and difficulty level
 - Enemy health bars show remaining HP above each enemy
 - On Nebula difficulty, an enemy detector shows where enemies come from; enemies do not despawn at the screen edge
 - Regular enemies track your position and shoot; kamikaze enemies rush and explode on contact
-- A boss level offers a special high-stakes encounter
-- Collect rust piles and gold separately - missions require specific amounts of each
+- The Guardian arrives with reinforcements. Destroy the boss and four enemy ships to advance.
+- Collect scrap and gold to buy upgrades between missions.
 - Health packs restore 25 HP (capped at maximum of 150 HP)
 - **Rapid Fire Boost**: Reduces shooting cooldown by 3x for 10 seconds
 - **Big Bullet Boost**: Shoots larger, more powerful bullets (30 damage vs 15) for 15 seconds

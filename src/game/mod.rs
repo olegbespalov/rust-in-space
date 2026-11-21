@@ -89,6 +89,51 @@ pub fn upgrade_cost(id: UpgradeId, next_level: u8) -> UpgradeCost {
     }
 }
 
+#[derive(Default)]
+pub struct MissionProgress {
+    pub enemies_defeated: u32,
+    pub asteroids_destroyed: u32,
+    pub scrap_collected: u32,
+    pub elapsed_seconds: f64,
+    pub boss_defeated: bool,
+    interceptors_defeated: u32,
+    heavy_ships_defeated: u32,
+}
+
+impl MissionProgress {
+    pub fn record_enemy_defeat(&mut self, enemy_type: EnemyType) {
+        self.enemies_defeated += 1;
+        match enemy_type {
+            EnemyType::Interceptor => self.interceptors_defeated += 1,
+            EnemyType::Heavy => self.heavy_ships_defeated += 1,
+            EnemyType::Regular | EnemyType::Kamikaze => {}
+        }
+    }
+
+    pub fn amount(&self, objective: MissionObjective) -> u32 {
+        match objective {
+            MissionObjective::DefeatEnemies(_) => self.enemies_defeated,
+            MissionObjective::DestroyAsteroids(_) => self.asteroids_destroyed,
+            MissionObjective::DefeatInterceptors(_) => self.interceptors_defeated,
+            MissionObjective::DefeatHeavyShips(_) => self.heavy_ships_defeated,
+            MissionObjective::CollectScrap(_) => self.scrap_collected,
+            MissionObjective::Survive(_) => self.elapsed_seconds as u32,
+            MissionObjective::DefeatBoss => u32::from(self.boss_defeated),
+        }
+    }
+
+    pub fn meets(&self, objective: MissionObjective) -> bool {
+        self.amount(objective) >= objective.target()
+    }
+
+    fn completes(&self, mission: &Mission) -> bool {
+        mission
+            .objectives
+            .iter()
+            .all(|&objective| self.meets(objective))
+    }
+}
+
 pub struct Game {
     pub ship: Ship,
     pub bullets: Vec<Bullet>,
@@ -99,10 +144,9 @@ pub struct Game {
     pub score: u32,
     pub current_level_idx: u32,
     pub current_mission: Mission,
-    pub mission_kills: u32,
-    pub mission_scrap_collected: u32,
-    pub mission_rare_metal_collected: u32,
+    pub mission_progress: MissionProgress,
     pub enemy_spawn_timer: f32,
+    enemy_spawn_count: u32,
     pub difficulty: Difficulty,
     pub menu_selection: MenuItem,
     pub pending_enemy_hint: Option<(bool, f32, f64)>,
@@ -124,10 +168,9 @@ impl Game {
             score: 0,
             current_level_idx: 1,
             current_mission: get_mission(1),
-            mission_kills: 0,
-            mission_scrap_collected: 0,
-            mission_rare_metal_collected: 0,
+            mission_progress: MissionProgress::default(),
             enemy_spawn_timer: 0.0,
+            enemy_spawn_count: 0,
             difficulty: Difficulty::Supernova,
             menu_selection: MenuItem::Start,
             pending_enemy_hint: None,
@@ -165,21 +208,18 @@ impl Game {
         self.bullets.clear();
         self.enemy_ships.clear();
         self.loot_items.clear();
-        self.boss = None;
+        self.boss = self
+            .current_mission
+            .objectives
+            .contains(&MissionObjective::DefeatBoss)
+            .then(Boss::new);
+        self.asteroids = (0..self.current_mission.asteroid_count)
+            .map(|_| Asteroid::new_large())
+            .collect();
 
-        if self.current_mission.is_boss_level {
-            self.asteroids = Vec::new();
-            self.boss = Some(Boss::new());
-        } else {
-            self.asteroids = (0..self.current_mission.asteroid_count)
-                .map(|_| Asteroid::new_large())
-                .collect();
-        }
-
-        self.mission_kills = 0;
-        self.mission_scrap_collected = 0;
-        self.mission_rare_metal_collected = 0;
+        self.mission_progress = MissionProgress::default();
         self.enemy_spawn_timer = self.current_mission.enemy_spawn_interval;
+        self.enemy_spawn_count = 0;
         self.pending_enemy_hint = None;
 
         self.ship.pos = vec2(screen_width() / 2.0, screen_height() / 2.0);
@@ -201,13 +241,7 @@ impl Game {
     }
 
     pub fn is_mission_complete(&self) -> bool {
-        if self.current_mission.is_boss_level {
-            self.boss.is_none()
-        } else {
-            self.mission_kills >= self.current_mission.target_kills
-                && self.mission_scrap_collected >= self.current_mission.target_scrap
-                && self.mission_rare_metal_collected >= self.current_mission.target_rare_metal
-        }
+        self.mission_progress.completes(&self.current_mission)
     }
 
     pub fn cycle_difficulty(&mut self) {
@@ -294,5 +328,68 @@ impl Game {
     pub fn loot_magnet_radius(&self) -> f32 {
         BASE_LOOT_MAGNET_RADIUS
             + (self.upgrade_level(UpgradeId::MagnetArray) as f32 * MAGNET_RADIUS_PER_LEVEL)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn asteroid_clearing_requires_both_objectives() {
+        let mission = get_mission(1);
+        let mut progress = MissionProgress {
+            enemies_defeated: 5,
+            asteroids_destroyed: 7,
+            ..Default::default()
+        };
+        assert!(!progress.completes(&mission));
+        progress.asteroids_destroyed += 1;
+        assert!(progress.completes(&mission));
+    }
+
+    #[test]
+    fn patrol_requires_full_survival_time_and_interceptor_kills() {
+        let mission = get_mission(2);
+        let mut progress = MissionProgress {
+            elapsed_seconds: 44.99,
+            ..Default::default()
+        };
+        progress.record_enemy_defeat(EnemyType::Interceptor);
+        progress.record_enemy_defeat(EnemyType::Interceptor);
+        progress.record_enemy_defeat(EnemyType::Regular);
+        progress.record_enemy_defeat(EnemyType::Interceptor);
+        assert!(!progress.completes(&mission));
+
+        progress.elapsed_seconds = 45.0;
+        assert!(progress.completes(&mission));
+        assert!(!MissionProgress {
+            elapsed_seconds: 45.0,
+            enemies_defeated: 12,
+            ..Default::default()
+        }
+        .completes(&mission));
+    }
+
+    #[test]
+    fn guardian_and_salvage_each_require_two_objectives() {
+        let mut progress = MissionProgress {
+            boss_defeated: true,
+            ..Default::default()
+        };
+        assert!(!progress.completes(&get_mission(3)));
+        for _ in 0..4 {
+            progress.record_enemy_defeat(EnemyType::Regular);
+        }
+        assert!(progress.completes(&get_mission(3)));
+
+        let mut progress = MissionProgress {
+            scrap_collected: 24,
+            ..Default::default()
+        };
+        progress.record_enemy_defeat(EnemyType::Heavy);
+        assert!(!progress.completes(&get_mission(4)));
+        progress.record_enemy_defeat(EnemyType::Heavy);
+        assert!(progress.completes(&get_mission(4)));
     }
 }

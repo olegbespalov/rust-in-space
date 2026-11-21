@@ -46,26 +46,26 @@ impl Localization {
         en.insert("objectives", "OBJECTIVES:");
         ru.insert("objectives", "ЦЕЛИ:");
 
-        en.insert("obj_destroy_prefix", "- Destroy");
-        ru.insert("obj_destroy_prefix", "- Уничтожить");
+        en.insert("goal_enemies", "Defeat enemy ships");
+        ru.insert("goal_enemies", "Уничтожить вражеские корабли");
 
-        en.insert("obj_scrap_prefix", "- Collect");
-        ru.insert("obj_scrap_prefix", "- Собрать");
+        en.insert("goal_asteroids", "Shoot down asteroids");
+        ru.insert("goal_asteroids", "Расстрелять астероиды");
 
-        en.insert("obj_gold_prefix", "- Collect");
-        ru.insert("obj_gold_prefix", "- Собрать");
+        en.insert("goal_interceptors", "Defeat interceptors");
+        ru.insert("goal_interceptors", "Уничтожить перехватчики");
 
-        en.insert("obj_enemies", "Enemies");
-        ru.insert("obj_enemies", "Врагов");
+        en.insert("goal_heavy_ships", "Defeat heavy ships");
+        ru.insert("goal_heavy_ships", "Уничтожить тяжёлые корабли");
 
-        en.insert("obj_rust_piles", "Rust Piles");
-        ru.insert("obj_rust_piles", "Куч Лома");
+        en.insert("goal_scrap", "Collect scrap");
+        ru.insert("goal_scrap", "Собрать лом");
 
-        en.insert("obj_gold", "Gold");
-        ru.insert("obj_gold", "Золота");
+        en.insert("goal_survive", "Survive (sec)");
+        ru.insert("goal_survive", "Продержаться (сек)");
 
-        en.insert("obj_destroy_boss", "- Destroy the Boss");
-        ru.insert("obj_destroy_boss", "- Уничтожить босса");
+        en.insert("obj_destroy_boss", "Defeat the Guardian");
+        ru.insert("obj_destroy_boss", "Уничтожить Стража");
 
         en.insert("press_space", "Press [SPACE] to Launch");
         ru.insert("press_space", "Нажми [ПРОБЕЛ] для запуска");
@@ -115,9 +115,6 @@ impl Localization {
         ru.insert("shield", "ЩИТ:");
         en.insert("invisibility", "CLOAK:");
         ru.insert("invisibility", "МАСКИРОВКА:");
-
-        en.insert("defeated", "Defeated:");
-        ru.insert("defeated", "Побеждено:");
 
         en.insert("rust", "Rust:");
         ru.insert("rust", "Лом:");
@@ -236,13 +233,13 @@ impl Localization {
         de.insert("change_lang", "Drücke [L] um Sprache zu ändern");
         de.insert("mission", "MISSION");
         de.insert("objectives", "ZIELE:");
-        de.insert("obj_destroy_prefix", "- Zerstöre");
-        de.insert("obj_scrap_prefix", "- Sammle");
-        de.insert("obj_gold_prefix", "- Sammle");
-        de.insert("obj_enemies", "Feinde");
-        de.insert("obj_rust_piles", "Rosthaufen");
-        de.insert("obj_gold", "Gold");
-        de.insert("obj_destroy_boss", "- Zerstöre den Boss");
+        de.insert("goal_enemies", "Feindschiffe zerstören");
+        de.insert("goal_asteroids", "Asteroiden abschießen");
+        de.insert("goal_interceptors", "Abfangjäger zerstören");
+        de.insert("goal_heavy_ships", "Schwere Schiffe zerstören");
+        de.insert("goal_scrap", "Schrott sammeln");
+        de.insert("goal_survive", "Überleben (Sek.)");
+        de.insert("obj_destroy_boss", "Den Wächter besiegen");
         de.insert("press_space", "Drücke [LEERTASTE] zum Starten");
         de.insert("mission_complete", "MISSION ERFOLGREICH!");
         de.insert("level_cleared_prefix", "Level");
@@ -259,7 +256,6 @@ impl Localization {
         de.insert("hp", "LP:");
         de.insert("shield", "SCHILD:");
         de.insert("invisibility", "TARNUNG:");
-        de.insert("defeated", "Besiegt:");
         de.insert("rust", "Rost:");
         de.insert("gold", "Gold:");
         de.insert("boss_hp", "Boss LP:");

@@ -7,6 +7,7 @@ use macroquad::rand::gen_range;
 use std::collections::HashSet;
 
 pub fn update_timers(game: &mut Game, dt: f32) {
+    game.mission_progress.elapsed_seconds += f64::from(dt);
     game.ship.shoot_timer -= dt;
     game.ship.rapid_fire_timer -= dt;
     game.ship.big_bullet_timer -= dt;
@@ -69,6 +70,24 @@ pub fn update_physics(game: &mut Game, dt: f32) {
         a.pos += a.vel * dt;
         wrap_around(&mut a.pos);
     }
+
+    // Ramming can exhaust the field without earning credit for the objective.
+    if game.asteroids.is_empty()
+        && game.current_mission.objectives.iter().any(|&objective| {
+            matches!(objective, MissionObjective::DestroyAsteroids(_))
+                && !game.mission_progress.meets(objective)
+        })
+    {
+        let mut asteroid = Asteroid::new_large();
+        if game.ship.pos.x < screen_width() / 2.0 {
+            asteroid.pos.x = screen_width();
+            asteroid.vel.x = -asteroid.vel.x.abs();
+        } else {
+            asteroid.pos.x = 0.0;
+            asteroid.vel.x = asteroid.vel.x.abs();
+        }
+        game.asteroids.push(asteroid);
+    }
 }
 
 pub fn update_loot(game: &mut Game, dt: f32) {
@@ -103,12 +122,11 @@ pub fn update_loot(game: &mut Game, dt: f32) {
             match item.item_type {
                 LootType::Scrap(amount) => {
                     game.ship.scrap += amount;
-                    game.mission_scrap_collected += amount;
+                    game.mission_progress.scrap_collected += amount;
                     game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
                 }
                 LootType::RareMetal(amount) => {
                     game.ship.rare_metal += amount;
-                    game.mission_rare_metal_collected += amount;
                     game.audio_cues.push(crate::audio::AudioCue::PickupScrap);
                 }
                 LootType::HealthPack(hp) => {
@@ -217,6 +235,7 @@ fn handle_player_bullet_collisions(game: &mut Game) {
             if (b.pos - game.asteroids[i].pos).length() < game.asteroids[i].radius + b.radius {
                 game.score += 100;
                 let asteroid = game.asteroids.remove(i);
+                game.mission_progress.asteroids_destroyed += 1;
                 game.audio_cues.push(crate::audio::AudioCue::ExplosionSmall);
 
                 let source = if asteroid.is_rare {
@@ -245,7 +264,7 @@ fn handle_player_bullet_collisions(game: &mut Game) {
                     if e.take_damage(b.damage) {
                         game.score += (e.max_health as u32) * SCORE_PER_ENEMY_HP;
                         drop_small_enemy_loot(&mut game.loot_items, e.pos, game.difficulty);
-                        game.mission_kills += 1;
+                        game.mission_progress.record_enemy_defeat(e.enemy_type);
                         game.explosions.push(Explosion::new(e.pos, 0.4));
                         game.audio_cues.push(crate::audio::AudioCue::ExplosionBig);
                         false
@@ -277,6 +296,7 @@ fn handle_player_bullet_collisions(game: &mut Game) {
 
     if let Some((pos, max_health)) = boss_died_at {
         game.boss = None;
+        game.mission_progress.boss_defeated = true;
         game.score += (max_health as u32) * SCORE_PER_ENEMY_HP;
         game.explosions.push(Explosion::new(pos, 0.8));
         game.audio_cues.push(crate::audio::AudioCue::ExplosionBig);
@@ -354,7 +374,7 @@ fn handle_ship_entity_collisions(game: &mut Game) -> bool {
             }
             game.score += (e.max_health as u32) * SCORE_PER_ENEMY_HP;
             drop_small_enemy_loot(&mut game.loot_items, e.pos, game.difficulty);
-            game.mission_kills += 1;
+            game.mission_progress.record_enemy_defeat(e.enemy_type);
             return false;
         }
         true
