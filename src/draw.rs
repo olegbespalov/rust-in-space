@@ -507,25 +507,116 @@ pub fn render_game(game: &Game, resources: &Resources) {
 fn draw_menu_button(bounds: Rect, selected: bool) -> bool {
     let (mouse_x, mouse_y) = mouse_position();
     let hovered = bounds.contains(vec2(mouse_x, mouse_y));
-    let fill = if hovered {
-        Color::from_rgba(82, 66, 27, 255)
+    let rust = if hovered {
+        Color::from_rgba(184, 91, 48, 255)
     } else {
-        Color::from_rgba(17, 24, 40, 255)
+        Color::from_rgba(151, 70, 39, 255)
     };
-    let border = if hovered || selected { YELLOW } else { GRAY };
+    let edge = if hovered || selected {
+        Color::from_rgba(221, 153, 76, 255)
+    } else {
+        Color::from_rgba(106, 73, 54, 255)
+    };
+    let face = if hovered {
+        Color::from_rgba(66, 53, 45, 255)
+    } else {
+        Color::from_rgba(45, 44, 43, 255)
+    };
+    let inset = 7.0_f32.min(bounds.w / 9.0).min(bounds.h / 5.0);
 
-    draw_rectangle(bounds.x, bounds.y, bounds.w, bounds.h, fill);
-    let thickness = if hovered || selected { 4.0 } else { 2.0 };
-    draw_rectangle_lines(bounds.x, bounds.y, bounds.w, bounds.h, thickness, border);
+    draw_rectangle(
+        bounds.x + 3.0,
+        bounds.y + 4.0,
+        bounds.w,
+        bounds.h,
+        Color::from_rgba(8, 10, 13, 190),
+    );
+    draw_rectangle(bounds.x, bounds.y, bounds.w, bounds.h, rust);
+    draw_rectangle(
+        bounds.x + inset,
+        bounds.y + inset,
+        (bounds.w - inset * 2.0).max(0.0),
+        (bounds.h - inset * 2.0).max(0.0),
+        face,
+    );
+    // Uneven rust streaks make the plate read as worn metal instead of a flat panel.
+    let streak_y = bounds.y + inset * 0.48;
+    draw_line(
+        bounds.x + bounds.w * 0.22,
+        streak_y,
+        bounds.x + bounds.w * 0.38,
+        streak_y - 1.0,
+        2.0,
+        Color::from_rgba(222, 136, 73, 190),
+    );
+    draw_line(
+        bounds.x + bounds.w * 0.67,
+        bounds.bottom() - inset * 0.46,
+        bounds.x + bounds.w * 0.82,
+        bounds.bottom() - inset * 0.46 + 1.0,
+        2.0,
+        Color::from_rgba(93, 48, 34, 220),
+    );
+    draw_line(
+        bounds.x + inset + 2.0,
+        bounds.y + inset + 2.0,
+        bounds.right() - inset - 2.0,
+        bounds.y + inset + 2.0,
+        1.0,
+        Color::from_rgba(195, 133, 82, 105),
+    );
+    draw_line(
+        bounds.x + inset + 2.0,
+        bounds.bottom() - inset - 2.0,
+        bounds.right() - inset - 2.0,
+        bounds.bottom() - inset - 2.0,
+        1.0,
+        Color::from_rgba(10, 12, 14, 150),
+    );
+    draw_rectangle_lines(bounds.x, bounds.y, bounds.w, bounds.h, 1.5, edge);
+
+    if bounds.w > 72.0 && bounds.h > 28.0 {
+        let radius = 2.5_f32.min(bounds.h / 10.0);
+        for (x, y) in [
+            (bounds.x + 7.0, bounds.y + 7.0),
+            (bounds.right() - 7.0, bounds.y + 7.0),
+            (bounds.x + 7.0, bounds.bottom() - 7.0),
+            (bounds.right() - 7.0, bounds.bottom() - 7.0),
+        ] {
+            draw_circle(x, y, radius, Color::from_rgba(190, 125, 73, 220));
+            draw_line(
+                x - radius * 0.55,
+                y,
+                x + radius * 0.55,
+                y,
+                0.7,
+                Color::from_rgba(48, 34, 28, 230),
+            );
+        }
+    }
 
     hovered && is_mouse_button_pressed(MouseButton::Left)
 }
 
 fn draw_menu_label(text: &str, bounds: Rect, size: u16, color: Color, res: &Resources) {
+    draw_menu_label_with_scale(text, bounds, size, color, 1.0, res);
+}
+
+fn draw_menu_label_with_scale(
+    text: &str,
+    bounds: Rect,
+    size: u16,
+    color: Color,
+    max_scale: f32,
+    res: &Resources,
+) {
     let font = res.font.as_ref();
     let dims = measure_text(text, font, size, 1.0);
-    let scale = ((bounds.w - 12.0) / dims.width)
-        .min((bounds.h - 4.0) / dims.height)
+    let inner_x = 22.0_f32.min(bounds.w * 0.18);
+    let inner_y = 10.0_f32.min(bounds.h * 0.24);
+    let scale = ((bounds.w - inner_x * 2.0) / dims.width)
+        .min((bounds.h - inner_y * 2.0) / dims.height)
+        .min(max_scale)
         .clamp(0.0, 1.0);
     draw_text_ex(
         text,
@@ -543,18 +634,18 @@ fn draw_menu_label(text: &str, bounds: Rect, size: u16, color: Color, res: &Reso
 
 fn menu_button(text: &str, bounds: Rect, size: u16, selected: bool, res: &Resources) -> bool {
     let clicked = draw_menu_button(bounds, selected);
-    draw_menu_label(text, bounds, size, WHITE, res);
+    draw_menu_label_with_scale(text, bounds, size, WHITE, 0.84, res);
     clicked
 }
 
 fn centered_menu_button(text: &str, y_offset: f32, res: &Resources) -> bool {
     let width =
-        (measure_text(text, res.font.as_ref(), 24, 1.0).width + 32.0).min(screen_width() * 0.94);
+        (measure_text(text, res.font.as_ref(), 24, 1.0).width + 64.0).min(screen_width() * 0.94);
     let bounds = Rect::new(
         (screen_width() - width) / 2.0,
-        screen_height() / 2.0 + y_offset - 20.0,
+        screen_height() / 2.0 + y_offset - 26.0,
         width,
-        40.0,
+        52.0,
     );
     menu_button(text, bounds, 24, false, res)
 }
