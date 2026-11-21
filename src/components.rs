@@ -1,3 +1,4 @@
+use crate::game::constants::{ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS};
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use serde::{Deserialize, Serialize};
@@ -88,8 +89,20 @@ pub enum BulletStyle {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum EnemyType {
-    Regular,  // Can shoot
-    Kamikaze, // Flies to player and explodes
+    Regular,
+    Kamikaze,
+    Interceptor,
+    Heavy,
+}
+
+impl EnemyType {
+    pub fn projectile_hitbox_radius(self) -> f32 {
+        match self {
+            Self::Regular | Self::Kamikaze => ENEMY_SMALL_RADIUS,
+            Self::Interceptor => INTERCEPTOR_RADIUS,
+            Self::Heavy => HEAVY_RADIUS,
+        }
+    }
 }
 
 pub struct Bullet {
@@ -114,9 +127,9 @@ pub struct EnemyShip {
     pub vel: Vec2,
     pub shoot_timer: f32,
     pub rotation: f32,
-    pub health: f32,           // Current health points
-    pub max_health: f32,       // Maximum health points
-    pub enemy_type: EnemyType, // Type of enemy (Regular or Kamikaze)
+    pub health: f32,     // Current health points
+    pub max_health: f32, // Maximum health points
+    pub enemy_type: EnemyType,
 }
 
 pub struct Boss {
@@ -267,60 +280,23 @@ impl Asteroid {
 }
 
 impl EnemyShip {
-    pub fn new() -> Self {
-        let side = gen_range(0, 2);
-        let x = if side == 0 {
-            -30.0
-        } else {
-            screen_width() + 30.0
-        };
-        let y = gen_range(50.0, screen_height() - 50.0);
-
-        // Randomly choose enemy type (70% regular, 30% kamikaze)
-        let enemy_type = if gen_range(0, 100) < 30 {
-            EnemyType::Kamikaze
-        } else {
-            EnemyType::Regular
-        };
-
-        let speed_x = if side == 0 { 120.0 } else { -120.0 };
-        let max_health = match enemy_type {
-            EnemyType::Regular => 24.0,
-            EnemyType::Kamikaze => 18.0, // Slightly less health for kamikaze
-        };
-
-        Self {
-            pos: vec2(x, y),
-            vel: vec2(speed_x, gen_range(-20.0, 20.0)),
-            shoot_timer: 1.5,
-            rotation: 0.0,
-            health: max_health,
-            max_health,
-            enemy_type,
-        }
-    }
-
-    /// Create an enemy at a specific side and Y (for delayed spawn after hint).
-    pub fn new_at_side(from_left: bool, y: f32) -> Self {
+    pub fn new_at_side(from_left: bool, y: f32, enemy_type: EnemyType) -> Self {
         let x = if from_left {
             -30.0
         } else {
             screen_width() + 30.0
         };
-        let enemy_type = if gen_range(0, 100) < 30 {
-            EnemyType::Kamikaze
-        } else {
-            EnemyType::Regular
+        let (max_health, speed, shoot_timer) = match enemy_type {
+            EnemyType::Regular => (24.0, 120.0, 1.5),
+            EnemyType::Kamikaze => (18.0, 120.0, 1.5),
+            EnemyType::Interceptor => (15.0, 210.0, 1.2),
+            EnemyType::Heavy => (60.0, 75.0, 2.2),
         };
-        let speed_x = if from_left { 120.0 } else { -120.0 };
-        let max_health = match enemy_type {
-            EnemyType::Regular => 24.0,
-            EnemyType::Kamikaze => 18.0,
-        };
+        let speed_x = if from_left { speed } else { -speed };
         Self {
             pos: vec2(x, y),
             vel: vec2(speed_x, gen_range(-20.0, 20.0)),
-            shoot_timer: 1.5,
+            shoot_timer,
             rotation: 0.0,
             health: max_health,
             max_health,

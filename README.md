@@ -120,6 +120,8 @@ The game features a mission-based progression system:
 - **Enemies/Boss**: 10 points per HP
   - Regular enemy (24 HP): 240 points
   - Kamikaze enemy (18 HP): 180 points
+  - Interceptor (15 HP): 150 points. It strafes quickly and fires fast aimed shots from mission 2 onward.
+  - Heavy enemy (60 HP): 600 points. It moves slowly and fires three-shot spreads from mission 4 onward.
   - Boss (300 HP): 3000 points
 
 ### Loot System

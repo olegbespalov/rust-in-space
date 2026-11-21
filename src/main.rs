@@ -17,12 +17,19 @@ use game::*;
 use resources::Resources;
 use systems::{load_score, save_audio_settings};
 
+const WINDOW_WIDTH: i32 = 1280;
+const WINDOW_HEIGHT: i32 = 720;
+
 fn window_conf() -> macroquad::conf::Conf {
     let window = Conf {
         window_title: "Rust in Space".to_owned(),
-        window_width: 1280 * 2,
-        window_height: 720 * 2,
+        window_width: WINDOW_WIDTH,
+        window_height: WINDOW_HEIGHT,
         high_dpi: true,
+        platform: macroquad::miniquad::conf::Platform {
+            linux_wm_class: "rust-in-space",
+            ..Default::default()
+        },
         ..Default::default()
     };
     let mut config = macroquad::conf::Conf::from(window);
@@ -41,7 +48,22 @@ async fn main() {
     audio.play_music(&resources.audio, MusicTrack::Menu);
     let mut game = Game::new();
 
+    // XWayland can leave the window at 4×4 after the initial configure.
+    #[cfg(target_os = "linux")]
+    let mut startup_resize_pending = true;
+    #[cfg(target_os = "linux")]
+    let startup_resize_deadline = get_time() + 2.0;
+
     loop {
+        #[cfg(target_os = "linux")]
+        if startup_resize_pending
+            && get_time() < startup_resize_deadline
+            && (screen_width() <= 16.0 || screen_height() <= 16.0)
+        {
+            request_new_screen_size(WINDOW_WIDTH as f32, WINDOW_HEIGHT as f32);
+            startup_resize_pending = false;
+        }
+
         let frame_dt = get_frame_time();
         if audio_settings_save_timer > 0.0 {
             audio_settings_save_timer -= frame_dt;

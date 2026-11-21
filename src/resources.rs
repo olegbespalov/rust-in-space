@@ -16,6 +16,8 @@ pub struct Resources {
     pub ship_flame: Texture2D,
     pub enemy_small: Texture2D,
     pub enemy_kamikaze: Texture2D,
+    pub enemy_interceptor_model: Option<ModelSprite>,
+    pub enemy_heavy_model: Option<ModelSprite>,
     pub bullet: Texture2D,
     pub enemy_bullet: Texture2D,
     pub loot_scrap: Texture2D,
@@ -88,6 +90,12 @@ impl Resources {
 
         let enemy_kamikaze = load_texture("assets/enemy_kamikaze.png").await.unwrap();
         enemy_kamikaze.set_filter(FilterMode::Nearest);
+
+        let enemy_interceptor_model =
+            ModelSprite::load("assets/models/enemy_interceptor.glb", vec3(0.0, 0.55, 2.0)).await;
+        // Tilt the heavy ship's view enough to show its recessed eye and three gun pods.
+        let enemy_heavy_model =
+            ModelSprite::load("assets/models/enemy_heavy.glb", vec3(0.0, 1.15, 2.0)).await;
 
         let loot_scrap = load_texture("assets/loot/resources/rust_pile.png")
             .await
@@ -177,6 +185,8 @@ impl Resources {
             ship_flame,
             enemy_small,
             enemy_kamikaze,
+            enemy_interceptor_model,
+            enemy_heavy_model,
             bullet,
             enemy_bullet,
             loot_scrap,

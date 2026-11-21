@@ -19,6 +19,8 @@ mod tests {
             include_bytes!("../assets/models/asteroid.glb").as_slice(),
             include_bytes!("../assets/models/rare_asteroid.glb").as_slice(),
             include_bytes!("../assets/models/invisibility.glb").as_slice(),
+            include_bytes!("../assets/models/enemy_interceptor.glb").as_slice(),
+            include_bytes!("../assets/models/enemy_heavy.glb").as_slice(),
         ] {
             let glb = Gltf::from_slice(bytes).unwrap();
             let blob = glb.blob.as_deref().unwrap();

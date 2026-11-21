@@ -8,6 +8,7 @@ pub const PLAYER_BULLET_RADIUS: f32 = 6.0;
 pub const BIG_BULLET_DAMAGE: f32 = 30.0;
 pub const BIG_BULLET_RADIUS: f32 = 12.0;
 pub const ENEMY_BULLET_DAMAGE: f32 = 15.0;
+pub const HEAVY_VOLLEY_HALF_ANGLE: f32 = 0.22;
 pub const BASE_ASTEROID_DAMAGE: f32 = 5.0;
 pub const BASE_KAMIKAZE_DAMAGE: f32 = 30.0;
 pub const SCORE_PER_ENEMY_HP: u32 = 10;
@@ -41,6 +42,8 @@ pub const BOSS_VOLLEY_DIRS: [(f32, f32); 4] = [
 pub const SHIP_RADIUS: f32 = 20.0;
 pub const ENEMY_SMALL_RADIUS: f32 = 30.0;
 pub const KAMIKAZE_RADIUS: f32 = 22.5;
+pub const INTERCEPTOR_RADIUS: f32 = 24.0;
+pub const HEAVY_RADIUS: f32 = 36.0;
 pub const LARGE_ASTEROID_RADIUS: f32 = 40.0;
 pub const MIN_ASTEROID_FOR_FRAGMENTATION: f32 = 15.0;
 

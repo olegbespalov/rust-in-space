@@ -2,6 +2,9 @@ use crate::components::{
     Asteroid, Boss, BulletStyle, Difficulty, EnemyShip, EnemyType, Engine, Explosion, LootItem,
     LootType, MenuItem, Mission, Ship,
 };
+use crate::game::constants::{
+    ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, KAMIKAZE_RADIUS,
+};
 use crate::game::{upgrade_definition, Game, UPGRADABLE_IDS};
 use crate::resources::Resources;
 use crate::systems::load_score;
@@ -158,45 +161,52 @@ const ENEMY_HP_BAR_GAP: f32 = 5.0;
 const ENEMY_HP_BAR_BG_COLOR: Color = Color::new(0.25, 0.0, 0.0, 0.9);
 
 pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
-    let size = match enemy.enemy_type {
-        EnemyType::Regular => vec2(60.0, 60.0),
-        EnemyType::Kamikaze => vec2(45.0, 45.0),
+    let (radius, model, fallback) = match enemy.enemy_type {
+        EnemyType::Regular => (ENEMY_SMALL_RADIUS, None, &res.enemy_small),
+        EnemyType::Kamikaze => (KAMIKAZE_RADIUS, None, &res.enemy_kamikaze),
+        EnemyType::Interceptor => (
+            INTERCEPTOR_RADIUS,
+            res.enemy_interceptor_model.as_ref(),
+            &res.enemy_small,
+        ),
+        EnemyType::Heavy => (HEAVY_RADIUS, res.enemy_heavy_model.as_ref(), &res.boss_1),
     };
-    let texture = match enemy.enemy_type {
-        EnemyType::Regular => &res.enemy_small,
-        EnemyType::Kamikaze => &res.enemy_kamikaze,
-    };
+    let size = radius * 2.0;
 
-    let bar_width = size.x;
-    let bar_left = enemy.pos.x - bar_width / 2.0;
-    let bar_top = enemy.pos.y - size.y / 2.0 - ENEMY_HP_BAR_GAP - ENEMY_HP_BAR_HEIGHT;
+    let bar_left = enemy.pos.x - radius;
+    let bar_top = enemy.pos.y - radius - ENEMY_HP_BAR_GAP - ENEMY_HP_BAR_HEIGHT;
 
     draw_rectangle(
         bar_left,
         bar_top,
-        bar_width,
+        size,
         ENEMY_HP_BAR_HEIGHT,
         ENEMY_HP_BAR_BG_COLOR,
     );
 
     let ratio = (enemy.health / enemy.max_health).clamp(0.0, 1.0);
-    let fill_width = bar_width * ratio;
+    let fill_width = size * ratio;
     if fill_width > 0.0 {
         let hp_color = Color::new(1.0 - ratio, ratio, 0.0, 1.0);
         draw_rectangle(bar_left, bar_top, fill_width, ENEMY_HP_BAR_HEIGHT, hp_color);
     }
 
-    draw_texture_ex(
-        texture,
-        enemy.pos.x - size.x / 2.0,
-        enemy.pos.y - size.y / 2.0,
-        WHITE,
-        DrawTextureParams {
-            dest_size: Some(size),
-            rotation: enemy.rotation + std::f32::consts::FRAC_PI_2,
-            ..Default::default()
-        },
-    );
+    let rotation = enemy.rotation + std::f32::consts::FRAC_PI_2;
+    if let Some(model) = model {
+        model.draw(enemy.pos, size, rotation);
+    } else {
+        draw_texture_ex(
+            fallback,
+            enemy.pos.x - radius,
+            enemy.pos.y - radius,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(Vec2::splat(size)),
+                rotation,
+                ..Default::default()
+            },
+        );
+    }
 }
 
 const BOSS_SIZE: f32 = 120.0;

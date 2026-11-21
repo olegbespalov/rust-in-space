@@ -16,13 +16,12 @@ Use the purchased upgrade level to select each part or effect. Author one hull a
 
 ## Enemy variants
 
-Regular shooters and kamikazes have different flight behavior today. Keep that distinction in their silhouettes and introduce upgraded variants one at a time.
+The regular shooter, kamikaze, Guardian, interceptor, and heavy gunship belong to the same civilization in the first world. Their ships share segmented green armor, violet chitin spikes, and red eye-like sensors. Distinguish combat roles by silhouette and proportions. Give the second world's civilization its own hull shapes, materials, and palette so players can recognize the change in faction at a glance.
 
-1. **Regular shooter (60 px)**. Start with the existing shooter silhouette. Prototype an armored variant with conspicuous side plates and one gameplay change, such as more health.
-2. **Kamikaze (45 px)**. Keep a narrow, forward-pointing profile. Prototype an interceptor variant with a heavier rear engine and a distinct charge cue tied to its movement.
-3. **Boss (120 px)**. Keep a silhouette that remains distinct from both normal enemies. Author any future phase cues around visible geometry, such as opening armor panels.
+1. **Interceptor (48 px)**. An elongated fighter with a forked nose and swept-back violet spines, derived from the [regular shooter sprite](assets/enemy.png). [Meshy GLB](assets/models/enemy_interceptor.glb), task `01a1fef7-fbff-76d4-a1fe-12f2b74d0a8a`.
+2. **Heavy enemy (72 px)**. A wide gunship with green armor, red seams, and a single eye above three gun pods, derived from the [Guardian sprite](assets/boss_1.png). [Meshy GLB](assets/models/enemy_heavy.glb), task `01a1fef8-18a1-7399-88bd-6eb5033417be`.
 
-Introduce the baseline enemy before its variant. Check each variant's intended threat, visual cue, and mission placement before tuning numbers or spawn rates.
+Both meshes are oriented with the nose at +Y and the top at +Z. The embedded 512-pixel PNG textures were brightened for the dark space background. The heavy gunship's textured eye was fitted into the forward recess to keep it visible at gameplay scale. Macroquad renders the meshes once at startup and rotates their baked textures during play. Meshy did not return license metadata for either task.
 
 ## Meshy production workflow
 
@@ -32,7 +31,7 @@ Introduce the baseline enemy before its variant. Check each variant's intended t
 4. Review the model against the space background while idle, turning, and thrusting. Check the flame and shield alignment on the player and the health bar placement on enemies. Test with multiple enemies on screen before choosing how to render the whole fleet.
 5. Record the source artwork, Meshy task ID, and asset license with each accepted export. The first player model is Meshy task `01a1dfac-c700-718d-89a3-36263032c0fc`.
 
-The visual upgrades, enemy variants, and Upgrade Bay model preview are proposed work. The base player hull is the first integration.
+The visual upgrades and Upgrade Bay model preview are proposed work.
 
 ## Asteroids
 

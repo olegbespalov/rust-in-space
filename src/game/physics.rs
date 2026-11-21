@@ -240,7 +240,7 @@ fn handle_player_bullet_collisions(game: &mut Game) {
         // Enemy ships
         if !hit {
             game.enemy_ships.retain_mut(|e| {
-                if (b.pos - e.pos).length() < ENEMY_SMALL_RADIUS + b.radius {
+                if (b.pos - e.pos).length() < e.enemy_type.projectile_hitbox_radius() + b.radius {
                     hit = true;
                     if e.take_damage(b.damage) {
                         game.score += (e.max_health as u32) * SCORE_PER_ENEMY_HP;

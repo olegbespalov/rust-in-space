@@ -10,27 +10,22 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
         return;
     }
 
-    // On Easy: show hint first, then spawn ship after ENEMY_HINT_DELAY
+    // On Nebula, show the hint before spawning the ship.
     if let Some((from_left, spawn_y, hint_at)) = game.pending_enemy_hint {
         if get_time() - hint_at >= ENEMY_HINT_DELAY {
-            game.enemy_ships
-                .push(EnemyShip::new_at_side(from_left, spawn_y));
+            spawn_enemy(game, from_left, spawn_y);
             game.pending_enemy_hint = None;
-            let base_interval = game.current_mission.enemy_spawn_interval;
-            game.enemy_spawn_timer = base_interval / game.difficulty.spawn_rate_mult();
         }
         // While pending, don't decrement timer or start a new spawn
     } else {
         game.enemy_spawn_timer -= dt;
         if game.enemy_spawn_timer <= 0.0 {
+            let from_left = gen_range(0, 2) == 0;
+            let y = gen_range(50.0, screen_height() - 50.0);
             if game.difficulty == Difficulty::Nebula {
-                let from_left = gen_range(0, 2) == 0;
-                let y = gen_range(50.0, screen_height() - 50.0);
                 game.pending_enemy_hint = Some((from_left, y, get_time()));
             } else {
-                game.enemy_ships.push(EnemyShip::new());
-                let base_interval = game.current_mission.enemy_spawn_interval;
-                game.enemy_spawn_timer = base_interval / game.difficulty.spawn_rate_mult();
+                spawn_enemy(game, from_left, y);
             }
         }
     }
@@ -46,34 +41,28 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
         let diff = game.ship.pos - e.pos;
         e.rotation = diff.y.atan2(diff.x);
 
-        match e.enemy_type {
-            EnemyType::Regular => {
-                // Regular enemy: move horizontally and shoot
-                e.pos += e.vel * dt;
-                e.shoot_timer -= dt;
+        if e.enemy_type == EnemyType::Kamikaze {
+            e.vel = diff.normalize_or_zero() * 180.0;
+        }
+        e.pos += e.vel * dt;
 
-                if e.shoot_timer <= 0.0 {
-                    let bullet_vel = vec2(e.rotation.cos(), e.rotation.sin()) * 250.0;
-
+        if let Some((interval, speed, angles)) = enemy_volley(e.enemy_type) {
+            e.shoot_timer -= dt;
+            if e.shoot_timer <= 0.0 {
+                for &offset in angles {
+                    let angle = e.rotation + offset;
                     game.bullets.push(Bullet {
                         pos: e.pos,
-                        vel: bullet_vel,
+                        vel: vec2(angle.cos(), angle.sin()) * speed,
                         life_time: 4.0,
                         style: BulletStyle::Enemy,
                         homing: false,
                         damage: ENEMY_BULLET_DAMAGE,
                         radius: 9.0,
                     });
-                    e.shoot_timer = 2.0;
-                    game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
                 }
-            }
-            EnemyType::Kamikaze => {
-                // Kamikaze enemy: fly directly toward player
-                let dir = diff.normalize();
-                let kamikaze_speed = 180.0; // Speed toward player
-                e.vel = dir * kamikaze_speed;
-                e.pos += e.vel * dt;
+                e.shoot_timer = interval;
+                game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
             }
         }
 
@@ -81,6 +70,62 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
     }
     game.enemy_ships
         .retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
+}
+
+fn spawn_enemy(game: &mut Game, from_left: bool, y: f32) {
+    let mission = &game.current_mission;
+    let enemy_type = enemy_type_for_roll(mission.level_id, macroquad::rand::gen_range(0, 100));
+    game.enemy_ships
+        .push(EnemyShip::new_at_side(from_left, y, enemy_type));
+    game.enemy_spawn_timer = mission.enemy_spawn_interval / game.difficulty.spawn_rate_mult();
+}
+
+fn enemy_type_for_roll(level: u32, roll: i32) -> EnemyType {
+    match roll {
+        0..=29 => EnemyType::Kamikaze,
+        30..=49 if level >= 2 => EnemyType::Interceptor,
+        50..=64 if level >= 4 => EnemyType::Heavy,
+        _ => EnemyType::Regular,
+    }
+}
+
+fn enemy_volley(enemy_type: EnemyType) -> Option<(f32, f32, &'static [f32])> {
+    match enemy_type {
+        EnemyType::Regular => Some((2.0, 250.0, &[0.0])),
+        EnemyType::Interceptor => Some((2.4, 320.0, &[0.0])),
+        EnemyType::Heavy => Some((
+            3.2,
+            250.0,
+            &[-HEAVY_VOLLEY_HALF_ANGLE, 0.0, HEAVY_VOLLEY_HALF_ANGLE],
+        )),
+        EnemyType::Kamikaze => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enemy_variants_unlock_without_changing_kamikaze_frequency() {
+        for (level, expected) in [
+            (1, [70, 30, 0, 0]),
+            (2, [50, 30, 20, 0]),
+            (4, [35, 30, 20, 15]),
+        ] {
+            let mut counts = [0; 4];
+            for roll in 0..100 {
+                let index = match enemy_type_for_roll(level, roll) {
+                    EnemyType::Regular => 0,
+                    EnemyType::Kamikaze => 1,
+                    EnemyType::Interceptor => 2,
+                    EnemyType::Heavy => 3,
+                };
+                counts[index] += 1;
+            }
+            assert_eq!(counts, expected, "mission {level}");
+        }
+    }
 }
 
 fn keep_enemy_in_bounds(e: &mut EnemyShip) {
