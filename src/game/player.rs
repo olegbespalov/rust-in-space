@@ -47,25 +47,31 @@ pub fn create_ship(kind: ShipKind, pos: Vec2) -> Ship {
     }
 }
 
-fn update_ship_movement(pilot: &mut Pilot, input: PilotInput, bounds: Vec2, dt: f32) {
+pub(crate) fn advance_ship_movement(
+    ship: &mut Ship,
+    acceleration: f32,
+    input: PilotInput,
+    bounds: Vec2,
+    dt: f32,
+) {
     if input.left {
-        pilot.ship.rotation -= ROTATION_SPEED * dt;
+        ship.rotation -= ROTATION_SPEED * dt;
     }
     if input.right {
-        pilot.ship.rotation += ROTATION_SPEED * dt;
+        ship.rotation += ROTATION_SPEED * dt;
     }
 
-    let rotation_rad = pilot.ship.rotation.to_radians();
+    let rotation_rad = ship.rotation.to_radians();
     let ship_dir = vec2(rotation_rad.cos(), rotation_rad.sin());
 
-    pilot.ship.engine.update(dt, input.thrust);
-    if pilot.ship.engine.current_thrust > 0.0 {
-        let thrust_force = pilot.ship.engine.current_thrust * pilot.acceleration();
-        pilot.ship.vel += ship_dir * thrust_force * dt;
+    ship.engine.update(dt, input.thrust);
+    if ship.engine.current_thrust > 0.0 {
+        let thrust_force = ship.engine.current_thrust * acceleration;
+        ship.vel += ship_dir * thrust_force * dt;
     }
 
-    pilot.ship.pos += pilot.ship.vel * dt;
-    wrap_around(&mut pilot.ship.pos, bounds);
+    ship.pos += ship.vel * dt;
+    wrap_around(&mut ship.pos, bounds);
 }
 
 fn player_shot(pilot: &mut Pilot, slot: usize, input: PilotInput) -> Option<Bullet> {
@@ -104,7 +110,8 @@ fn player_shot(pilot: &mut Pilot, slot: usize, input: PilotInput) -> Option<Bull
 pub(super) fn update_pilots(game: &mut super::Game, inputs: [PilotInput; MAX_PILOTS], dt: f32) {
     for (slot, (pilot, input)) in game.pilots.iter_mut().zip(inputs).enumerate() {
         if let Some(pilot) = pilot.as_mut().filter(|pilot| pilot.is_alive()) {
-            update_ship_movement(pilot, input, game.bounds, dt);
+            let acceleration = pilot.acceleration();
+            advance_ship_movement(&mut pilot.ship, acceleration, input, game.bounds, dt);
             if let Some(bullet) = player_shot(pilot, slot, input) {
                 game.bullets.push(bullet);
                 game.audio_cues.push(AudioCue::PlayerShot);

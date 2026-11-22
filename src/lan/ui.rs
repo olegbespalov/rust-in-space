@@ -1,7 +1,9 @@
 use super::net;
+use super::prediction::Prediction;
 use super::session::{Action, Host, Phase, SnapshotView, Status, HOST};
 use super::Browser;
 use crate::audio::{AudioState, MusicTrack};
+use crate::components::Ship;
 use crate::draw::*;
 use crate::game::{Game, PilotInput, UpgradeSelection, MAX_PILOTS};
 use crate::resources::Resources;
@@ -194,6 +196,7 @@ impl SessionUi {
         state: &SnapshotView<'_>,
         slot: usize,
         host: Option<&Host>,
+        prediction: Option<(&mut Prediction, f32)>,
         res: &Resources,
         audio: &mut AudioState,
     ) -> Controls {
@@ -261,10 +264,13 @@ impl SessionUi {
                 render_launch_cutscene(&ships, (get_time() - self.phase_started_at) as f32, res);
             }
             Phase::Playing => {
-                self.battle(state, slot, res);
                 if !self.menu && pilot.is_alive() {
                     controls.input = PilotInput::keyboard();
                 }
+                let local_ship = prediction.and_then(|(prediction, dt)| {
+                    prediction.advance(state.revision, pilot, state.game.bounds, controls.input, dt)
+                });
+                self.battle(state, slot, local_ship.as_ref(), res);
             }
             Phase::Success => {
                 let progress = ((get_time() - self.phase_started_at) / VICTORY_DURATION)
@@ -419,7 +425,13 @@ impl SessionUi {
         controls
     }
 
-    fn battle(&mut self, state: &SnapshotView<'_>, slot: usize, res: &Resources) {
+    fn battle(
+        &mut self,
+        state: &SnapshotView<'_>,
+        slot: usize,
+        ship: Option<&Ship>,
+        res: &Resources,
+    ) {
         let game = state.game;
         let view_size = view_size(game.bounds);
         let switch = !self.menu && is_key_pressed(KeyCode::Tab);
@@ -428,8 +440,9 @@ impl SessionUi {
         let view = LanView {
             slot,
             focus,
-            area: battle_area(game, focus, view_size),
+            area: battle_area(game, focus, view_size, ship.filter(|_| focus == slot)),
             names: std::array::from_fn(|index| state.player_name(index)),
+            local_ship: ship,
         };
         let target = self
             .field
@@ -494,10 +507,10 @@ fn battle_focus(game: &Game, local: usize, followed: Option<usize>, switch: bool
     current
 }
 
-fn battle_area(game: &Game, slot: usize, view_size: Vec2) -> Rect {
-    let focus = game.pilots[slot]
-        .as_ref()
-        .map_or(game.bounds / 2.0, |pilot| pilot.ship.pos);
+fn battle_area(game: &Game, slot: usize, view_size: Vec2, ship: Option<&Ship>) -> Rect {
+    let focus = ship
+        .or_else(|| game.pilots[slot].as_ref().map(|pilot| &pilot.ship))
+        .map_or(game.bounds / 2.0, |ship| ship.pos);
     let origin = (focus - view_size / 2.0).clamp(Vec2::ZERO, game.bounds - view_size);
     Rect::new(origin.x, origin.y, view_size.x, view_size.y)
 }
@@ -713,13 +726,25 @@ mod tests {
         local.ship.pos = FIELD;
         assert_eq!(battle_focus(&game, slot, Some(HOST), true), slot);
         let viewport = vec2(1280.0, 720.0);
-        assert_eq!(battle_area(&game, slot, viewport).point(), FIELD - viewport);
+        assert_eq!(
+            battle_area(&game, slot, viewport, None).point(),
+            FIELD - viewport
+        );
+        let mut predicted = game.pilots[slot].as_ref().unwrap().ship.clone();
+        predicted.pos = FIELD / 2.0;
+        assert_eq!(
+            battle_area(&game, slot, viewport, Some(&predicted)).point(),
+            (FIELD - viewport) / 2.0
+        );
 
         game.pilots[slot].as_mut().unwrap().ship.health = 0.0;
         game.solo_pilot_mut().ship.pos = Vec2::ZERO;
         let focus = battle_focus(&game, slot, Some(slot), false);
         assert_eq!(focus, HOST);
-        assert_eq!(battle_area(&game, focus, viewport).point(), Vec2::ZERO);
+        assert_eq!(
+            battle_area(&game, focus, viewport, None).point(),
+            Vec2::ZERO
+        );
     }
 
     #[test]

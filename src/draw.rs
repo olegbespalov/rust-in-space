@@ -562,9 +562,10 @@ pub struct LanView<'a> {
     pub focus: usize,
     pub area: Rect,
     pub names: [&'a str; MAX_PILOTS],
+    pub local_ship: Option<&'a Ship>,
 }
 
-impl LanView<'_> {
+impl<'a> LanView<'a> {
     fn pilot_color(self, slot: usize) -> Color {
         if slot == self.slot {
             SKYBLUE
@@ -573,6 +574,10 @@ impl LanView<'_> {
         } else {
             GOLD
         }
+    }
+
+    fn pilot_ship(self, slot: usize) -> Option<&'a Ship> {
+        self.local_ship.filter(|_| self.slot == slot)
     }
 }
 
@@ -682,12 +687,15 @@ pub fn render_battle_world(game: &Game, lan: Option<LanView<'_>>, resources: &Re
     }
 
     for (slot, pilot) in game.pilots.iter().enumerate() {
-        if let Some(pilot) = pilot
-            .as_ref()
-            .filter(|pilot| pilot.is_alive() && visible(pilot.ship.pos, 100.0))
-        {
-            draw_ship(&pilot.ship, resources);
-            let pos = pilot.ship.pos;
+        if let Some(pilot) = pilot.as_ref().filter(|pilot| pilot.is_alive()) {
+            let ship = lan
+                .and_then(|view| view.pilot_ship(slot))
+                .unwrap_or(&pilot.ship);
+            let pos = ship.pos;
+            if !visible(pos, 100.0) {
+                continue;
+            }
+            draw_ship(ship, resources);
             if let Some(view) = lan.filter(|view| view.area.contains(pos)) {
                 let label = format!("{} · {}", slot + 1, view.names[slot]);
                 let x = (pos.x - 110.0).clamp(view.area.left(), view.area.right() - 220.0);
@@ -885,7 +893,8 @@ fn draw_lan_minimap(game: &Game, view: LanView<'_>, res: &Resources) {
         if let Some(pilot) = pilot {
             let color = if pilot.is_alive() {
                 let color = view.pilot_color(slot);
-                let pos = origin + pilot.ship.pos.clamp(Vec2::ZERO, game.bounds) * scale;
+                let ship = view.pilot_ship(slot).unwrap_or(&pilot.ship);
+                let pos = origin + ship.pos.clamp(Vec2::ZERO, game.bounds) * scale;
                 draw_circle(pos.x, pos.y, 8.0, color);
                 draw_menu_label(
                     &(slot + 1).to_string(),

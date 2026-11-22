@@ -422,6 +422,7 @@ mod tests {
             game: &game,
             phase: Phase::Playing,
             revision: 2,
+            input_ack: Default::default(),
             ready: [false; MAX_PILOTS],
             names: [
                 Some("Host".to_owned()),

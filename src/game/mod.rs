@@ -11,6 +11,7 @@ use macroquad::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
+pub(crate) use player::advance_ship_movement;
 use player::create_ship;
 pub use player::PilotInput;
 
@@ -497,7 +498,7 @@ impl Pilot {
         1.0 + (self.upgrade_level(UpgradeId::WeaponTuning) as f32 * WEAPON_DAMAGE_BONUS_PER_LEVEL)
     }
 
-    fn acceleration(&self) -> f32 {
+    pub(crate) fn acceleration(&self) -> f32 {
         let mult = 1.0
             + (self.upgrade_level(UpgradeId::EngineOverdrive) as f32
                 * ENGINE_ACCEL_BONUS_PER_LEVEL);

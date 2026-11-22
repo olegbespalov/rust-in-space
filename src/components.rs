@@ -388,11 +388,10 @@ impl ShipKind {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Ship {
     pub kind: ShipKind,
     pub pos: Vec2,
-    #[serde(skip)]
     pub vel: Vec2,
     pub rotation: f32,
     pub health: f32,     // Current health points
@@ -421,13 +420,11 @@ pub struct Ship {
     pub big_bullet_timer: f32, // Time remaining for big bullet boost (0 if inactive)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Engine {
     pub current_thrust: f32, // Current thrust (0.0 - 1.0)
-    #[serde(skip)]
-    pub ramp_up: f32, // Speed of thrust increase
-    #[serde(skip)]
-    pub decay: f32, // Speed of decay
+    pub ramp_up: f32,        // Speed of thrust increase
+    pub decay: f32,          // Speed of decay
     pub offset: f32,         // Offset of the nozzles relative to the center of the ship
 }
 

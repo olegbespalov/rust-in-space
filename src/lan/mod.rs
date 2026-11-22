@@ -1,4 +1,5 @@
 mod net;
+mod prediction;
 mod session;
 mod ui;
 
@@ -101,7 +102,7 @@ pub fn frame(
             host.poll(now);
             let state = host.snapshot();
             let revision = state.revision;
-            let controls = mode.ui.session(&state, HOST, Some(host), res, audio);
+            let controls = mode.ui.session(&state, HOST, Some(host), None, res, audio);
             if controls.leave {
                 leave = Some(Status::Left);
             } else {
@@ -122,7 +123,14 @@ pub fn frame(
                     audio.play_sfx(&res.audio, cue);
                 }
                 if let (Some(state), Some(slot)) = (&guest.state, guest.slot) {
-                    let controls = mode.ui.session(&state.view(), slot, None, res, audio);
+                    let controls = mode.ui.session(
+                        &state.view(),
+                        slot,
+                        None,
+                        Some((&mut guest.prediction, dt)),
+                        res,
+                        audio,
+                    );
                     if controls.leave {
                         leave = Some(Status::Left);
                     } else {

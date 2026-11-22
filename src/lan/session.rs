@@ -1,4 +1,5 @@
 use super::net::{self, Advertiser, Connection, Frame, COMMAND_LIMIT, SNAPSHOT_LIMIT};
+use super::prediction::{InputProgress, Prediction};
 use crate::audio::AudioCue;
 use crate::components::{Difficulty, ShipKind, UpgradeId, DEFAULT_PLAYER_NAME};
 use crate::game::{BattleOutcome, Game, PilotInput, MAX_PILOTS};
@@ -12,9 +13,9 @@ use std::time::{Duration, Instant};
 
 pub(super) const FIELD: Vec2 = vec2(1920.0, 1080.0);
 pub(super) const HOST: usize = 0;
-const VERSION: u16 = 10;
+const VERSION: u16 = 11;
 const MAX_NAME_CHARS: usize = 24;
-const STEP: f64 = 1.0 / 60.0;
+pub(super) const STEP: f64 = 1.0 / 60.0;
 const INPUT_PERIOD: Duration = Duration::from_nanos(33_333_334);
 const HEARTBEAT_PERIOD: Duration = Duration::from_secs(1);
 const INPUT_MAX_AGE: Duration = Duration::from_millis(300);
@@ -77,6 +78,7 @@ pub(super) struct Snapshot<G, N = PlayerNames> {
     pub game: G,
     pub phase: Phase,
     pub revision: u64,
+    pub input_ack: [InputProgress; MAX_PILOTS],
     pub ready: [bool; MAX_PILOTS],
     pub names: N,
     pub mvp: Option<MatchMvp>,
@@ -98,6 +100,7 @@ impl Snapshot<Game> {
             game: &self.game,
             phase: self.phase,
             revision: self.revision,
+            input_ack: self.input_ack,
             ready: self.ready,
             names: &self.names,
             mvp: self.mvp.clone(),
@@ -127,9 +130,19 @@ impl SnapshotView<'_> {
 enum FromClient {
     // Recognize old handshakes so older clients get a version mismatch.
     Hello(u16),
-    Input { revision: u64, keys: PilotInput },
-    Command { revision: u64, action: Action },
-    Join { version: u16, name: String },
+    Input {
+        revision: u64,
+        sequence: u64,
+        keys: PilotInput,
+    },
+    Command {
+        revision: u64,
+        action: Action,
+    },
+    Join {
+        version: u16,
+        name: String,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -176,6 +189,7 @@ impl Campaign {
             game: &self.game,
             phase: self.phase,
             revision: self.revision,
+            input_ack: Default::default(),
             ready: self.ready,
             names: &self.names,
             mvp: self.mvp.clone(),
@@ -355,11 +369,16 @@ struct GuestPeer {
     input: PilotInput,
     pressed: PilotInput,
     input_revision: u64,
+    input_sequence: u64,
+    applied_input: InputProgress,
     input_at: Instant,
 }
 
 impl GuestPeer {
-    fn record_input(&mut self, revision: u64, keys: PilotInput, now: Instant) {
+    fn record_input(&mut self, revision: u64, sequence: u64, keys: PilotInput, now: Instant) {
+        if revision != self.input_revision {
+            self.applied_input = InputProgress::default();
+        }
         if revision != self.input_revision || now.duration_since(self.input_at) >= INPUT_MAX_AGE {
             self.input = PilotInput::default();
             self.pressed = PilotInput::default();
@@ -370,10 +389,18 @@ impl GuestPeer {
         self.pressed.fire |= keys.fire && !self.input.fire;
         self.input = keys;
         self.input_revision = revision;
+        self.input_sequence = sequence;
         self.input_at = now;
     }
 
     fn input_for_step(&mut self) -> PilotInput {
+        if self.applied_input.sequence != self.input_sequence {
+            self.applied_input = InputProgress {
+                sequence: self.input_sequence,
+                steps: 0,
+            };
+        }
+        self.applied_input.steps += 1;
         let pressed = std::mem::take(&mut self.pressed);
         PilotInput {
             left: self.input.left || pressed.left,
@@ -476,6 +503,7 @@ impl Host {
             for (input, guest) in inputs.iter_mut().zip(guests.iter_mut()).skip(1) {
                 if let Some(guest) = guest.as_mut().filter(|guest| {
                     guest.input_revision == revision
+                        && guest.input_sequence != 0
                         && now.duration_since(guest.input_at) < INPUT_MAX_AGE
                 }) {
                     *input = guest.input_for_step();
@@ -506,11 +534,14 @@ impl Host {
         };
         for message in guest.peer.receive::<FromClient>(now)? {
             match message {
-                FromClient::Input { revision, keys }
-                    if self.campaign.phase == Phase::Playing
-                        && revision == self.campaign.revision =>
+                FromClient::Input {
+                    revision,
+                    sequence,
+                    keys,
+                } if self.campaign.phase == Phase::Playing
+                    && revision == self.campaign.revision =>
                 {
-                    guest.record_input(revision, keys, now);
+                    guest.record_input(revision, sequence, keys, now);
                 }
                 FromClient::Input { .. } => {}
                 FromClient::Command { revision, action } => {
@@ -537,8 +568,16 @@ impl Host {
             )?)
         };
         let snapshot = if self.campaign.needs_snapshot || now >= self.next_heartbeat {
-            let state = FromHost::State(Box::new(self.campaign.snapshot()));
-            let frame = Frame::compact(&state, SNAPSHOT_LIMIT)?;
+            let mut state = self.campaign.snapshot();
+            if state.phase == Phase::Playing {
+                state.input_ack = self.guests.each_ref().map(|guest| {
+                    guest
+                        .as_ref()
+                        .filter(|guest| guest.input_revision == state.revision)
+                        .map_or(InputProgress::default(), |guest| guest.applied_input)
+                });
+            }
+            let frame = Frame::compact(&FromHost::State(Box::new(state)), SNAPSHOT_LIMIT)?;
             self.campaign.needs_snapshot = false;
             self.next_heartbeat = now + HEARTBEAT_PERIOD;
             Some(frame)
@@ -647,6 +686,8 @@ impl Host {
                     input: PilotInput::default(),
                     pressed: PilotInput::default(),
                     input_revision: self.campaign.revision,
+                    input_sequence: 0,
+                    applied_input: InputProgress::default(),
                     input_at: now,
                 });
             }
@@ -663,9 +704,9 @@ pub(super) struct Guest {
     connection: GuestConnection,
     pub slot: Option<usize>,
     pub state: Option<Snapshot<Game>>,
+    pub prediction: Prediction,
     next_input: Instant,
-    last_input: PilotInput,
-    last_revision: u64,
+    last_sent_sequence: u64,
 }
 
 impl Guest {
@@ -675,9 +716,9 @@ impl Guest {
             connection: GuestConnection::Connecting(receiver, lan_name(name)),
             slot: None,
             state: None,
+            prediction: Prediction::default(),
             next_input: now,
-            last_input: PilotInput::default(),
-            last_revision: 0,
+            last_sent_sequence: 0,
         })
     }
 
@@ -700,6 +741,7 @@ impl Guest {
         }
 
         let mut cues = Vec::new();
+        let mut newest = None;
         if let GuestConnection::Peer(peer) = &mut self.connection {
             let error = if self.slot.is_some() {
                 Status::HostLost
@@ -723,13 +765,17 @@ impl Guest {
                             && state.game.bounds == FIELD
                             && state.game.pilots[HOST].is_some() =>
                     {
-                        self.state = Some(*state);
+                        newest = Some(*state);
                     }
                     FromHost::Audio(mut audio) if self.slot.is_some() => cues.append(&mut audio),
                     _ => return Err(error),
                 }
             }
             peer.flush(now).map_err(|_| error)?;
+        }
+        if let (Some(state), Some(slot)) = (newest, self.slot) {
+            self.prediction.reconcile(self.state.as_ref(), &state, slot);
+            self.state = Some(state);
         }
         Ok(cues)
     }
@@ -753,11 +799,13 @@ impl Guest {
             )
             .map_err(|_| Status::HostLost)?;
         }
-        let input_changed = input != self.last_input || revision != self.last_revision;
+        let sequence = self.prediction.set_input(revision, input);
+        let input_changed = sequence != self.last_sent_sequence;
         if now >= self.next_input || input_changed {
             peer.queue(
                 &FromClient::Input {
                     revision,
+                    sequence,
                     keys: input,
                 },
                 COMMAND_LIMIT,
@@ -765,8 +813,7 @@ impl Guest {
                 now,
             )
             .map_err(|_| Status::HostLost)?;
-            self.last_input = input;
-            self.last_revision = revision;
+            self.last_sent_sequence = sequence;
             self.next_input = now
                 + if state.phase == Phase::Playing {
                     INPUT_PERIOD
@@ -996,9 +1043,16 @@ mod tests {
         assert!(!host
             .update(half_step, PilotInput::default(), Instant::now())
             .contains(&AudioCue::PlayerShot));
+        assert_eq!(
+            host.guests[GUEST].as_ref().unwrap().applied_input,
+            InputProgress::default()
+        );
         assert!(host
             .update(half_step, PilotInput::default(), Instant::now())
             .contains(&AudioCue::PlayerShot));
+        let remote = host.guests[GUEST].as_ref().unwrap();
+        assert_eq!(remote.applied_input.sequence, remote.input_sequence);
+        assert_eq!(remote.applied_input.steps, 1);
 
         host.campaign.game.pilots[GUEST]
             .as_mut()
@@ -1008,6 +1062,84 @@ mod tests {
         assert!(!host
             .update(STEP as f32, PilotInput::default(), Instant::now())
             .contains(&AudioCue::PlayerShot));
+    }
+
+    #[test]
+    fn guest_moves_before_host_response_and_replays_only_unconfirmed_steps() {
+        let mut host = create_host();
+        let mut guest = connect(&mut host);
+        guest_command(&mut guest, Action::Ready);
+        wait_for(&mut host, &mut guest, |host, _| host.campaign.ready[GUEST]);
+        host_command(&mut host, Action::Advance);
+        host_command(&mut host, Action::Advance);
+        wait_for_phase(&mut host, &mut guest, Phase::Playing);
+        host.campaign.pending_time = 0.0;
+        host.campaign.game.asteroids.clear();
+
+        let state = guest.state.as_ref().unwrap();
+        let pilot = state.game.pilots[GUEST].as_ref().unwrap();
+        let start = pilot.ship.pos;
+        let input = PilotInput {
+            right: true,
+            thrust: true,
+            ..PilotInput::default()
+        };
+        let half_step = (STEP / 2.0) as f32;
+        let early = guest
+            .prediction
+            .advance(state.revision, pilot, FIELD, input, half_step)
+            .unwrap();
+        assert!(early.rotation > pilot.ship.rotation);
+        assert!(early.pos.x > start.x);
+        assert_eq!(
+            host.campaign.game.pilots[GUEST].as_ref().unwrap().ship.pos,
+            start
+        );
+
+        let two_steps = guest
+            .prediction
+            .advance(state.revision, pilot, FIELD, input, half_step * 3.0)
+            .unwrap();
+        let now = Instant::now();
+        guest.send(None, input, now).unwrap();
+        for _ in 0..100 {
+            host.poll(Instant::now());
+            if host.guests[GUEST].as_ref().unwrap().input == input {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let now = Instant::now();
+        host.update(STEP as f32, PilotInput::default(), now);
+        for _ in 0..100 {
+            guest.poll(Instant::now()).unwrap();
+            if guest.state.as_ref().unwrap().input_ack[GUEST].steps > 0 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+
+        let state = guest.state.as_ref().unwrap();
+        let pilot = state.game.pilots[GUEST].as_ref().unwrap();
+        assert_eq!(state.input_ack[GUEST].steps, 1);
+        assert!(pilot.ship.pos.x > start.x && pilot.ship.pos.x < two_steps.pos.x);
+        assert!(pilot.ship.vel.x > 0.0);
+        assert_eq!(
+            pilot.ship.engine.ramp_up,
+            host.campaign.game.pilots[GUEST]
+                .as_ref()
+                .unwrap()
+                .ship
+                .engine
+                .ramp_up
+        );
+        let replayed = guest
+            .prediction
+            .advance(state.revision, pilot, FIELD, input, 0.0)
+            .unwrap();
+        assert_eq!(replayed.pos, two_steps.pos);
+        assert!((replayed.rotation - two_steps.rotation).abs() < 0.001);
+        assert_eq!(replayed.vel, two_steps.vel);
     }
 
     #[test]
