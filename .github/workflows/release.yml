@@ -27,7 +27,7 @@ jobs:
       PACKAGE: rust-in-space-${{ github.ref_name }}-${{ matrix.target }}
       TAG: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Linux build and packaging tools
         if: runner.os == 'Linux'
@@ -66,7 +66,7 @@ jobs:
             tar -czf "dist/$PACKAGE.tar.gz" -C dist "$PACKAGE"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.target }}
           path: dist/${{ env.PACKAGE }}.*
@@ -79,7 +79,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
