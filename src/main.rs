@@ -382,7 +382,13 @@ async fn main() {
                     if matches!(outcome, BattleOutcome::Defeat) {
                         audio.set_engine_active(&resources.audio, false, 0.0);
                         audio.play_sfx(&resources.audio, audio::AudioCue::GameOver);
-                        state = GameState::GameOver(game.score);
+                        state = GameState::GameOver {
+                            score: game.score,
+                            ship: game.solo_pilot().ship.kind,
+                            ship_pos: game.solo_pilot().ship.pos,
+                            ship_rotation: game.solo_pilot().ship.rotation,
+                            elapsed: 0.0,
+                        };
                     } else if matches!(outcome, BattleOutcome::Success) {
                         audio.set_engine_active(&resources.audio, false, 0.0);
                         audio.play_sfx(&resources.audio, audio::AudioCue::MissionSuccess);
@@ -469,10 +475,26 @@ async fn main() {
                 }
             }
 
-            GameState::GameOver(score) => {
+            GameState::GameOver {
+                score,
+                ship,
+                ship_pos,
+                ship_rotation,
+                mut elapsed,
+            } => {
+                elapsed += frame_dt;
                 audio.set_paused(&resources.audio, false);
                 audio.play_music(&resources.audio, MusicTrack::Menu);
-                let main_menu = render_game_over(score, saved.high_score, &resources);
+                render_game(&game, &resources);
+                let main_menu = render_game_over(
+                    score,
+                    saved.high_score,
+                    ship,
+                    ship_pos,
+                    ship_rotation,
+                    elapsed,
+                    &resources,
+                );
 
                 if main_menu || is_key_pressed(KeyCode::Enter) {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
@@ -483,6 +505,14 @@ async fn main() {
                         }
                     } else {
                         GameState::Menu
+                    };
+                } else {
+                    state = GameState::GameOver {
+                        score,
+                        ship,
+                        ship_pos,
+                        ship_rotation,
+                        elapsed,
                     };
                 }
             }

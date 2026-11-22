@@ -1940,23 +1940,81 @@ pub fn render_upgrade_bay(
     clicked
 }
 
-pub fn render_game_over(score: u32, high_score: u32, res: &Resources) -> bool {
-    draw_text_centered(res.lang.t("game_over"), -40.0, 48, RED, res);
-    draw_text_centered(
+pub fn render_game_over(
+    score: u32,
+    high_score: u32,
+    ship: ShipKind,
+    ship_pos: Vec2,
+    ship_rotation: f32,
+    elapsed: f32,
+    res: &Resources,
+) -> bool {
+    let window = vec2(screen_width(), screen_height());
+    let center = ship_pos;
+    let scale = (window / vec2(960.0, 620.0)).min_element().min(1.2);
+    let fade = ((elapsed - 0.85) / 0.65).clamp(0.0, 1.0);
+
+    draw_rectangle(
+        0.0,
+        0.0,
+        window.x,
+        window.y,
+        Color::new(0.0, 0.015, 0.035, 0.68),
+    );
+
+    if elapsed < 0.3 {
+        draw_ship_hull(
+            ship,
+            center,
+            90.0,
+            ship_rotation.to_radians() + std::f32::consts::FRAC_PI_2,
+            0.0,
+            WHITE,
+            res,
+        );
+    }
+    let explosion_elapsed = elapsed - 0.22;
+    if (0.0..0.4).contains(&explosion_elapsed) {
+        let mut explosion = Explosion::new(center, 1.8 * scale);
+        explosion.frame = (explosion_elapsed / explosion.frame_time) as usize;
+        draw_explosion(&explosion, res);
+    }
+    let title_alpha = fade;
+    draw_menu_label(
+        res.lang.t("game_over"),
+        Rect::new(0.0, window.y * 0.13, window.x, window.y * 0.1),
+        48,
+        Color {
+            a: title_alpha,
+            ..RED
+        },
+        res,
+    );
+    draw_menu_label(
         &format!("{} {}", res.lang.t("final_score_prefix"), score),
-        10.0,
+        Rect::new(0.0, window.y * 0.25, window.x, window.y * 0.07),
         32,
-        WHITE,
+        Color {
+            a: title_alpha,
+            ..WHITE
+        },
         res,
     );
-    draw_text_centered(
+    draw_menu_label(
         &format!("{} {}", res.lang.t("high_score"), high_score),
-        60.0,
+        Rect::new(0.0, window.y * 0.32, window.x, window.y * 0.06),
         24,
-        YELLOW,
+        Color {
+            a: title_alpha,
+            ..YELLOW
+        },
         res,
     );
-    centered_menu_button(res.lang.t("return_to_menu"), 115.0, res)
+    if fade >= 1.0 {
+        centered_menu_button(res.lang.t("return_to_menu"), 115.0, res)
+    } else {
+        false
+    }
 }
 
 pub fn render_pause(res: &Resources) -> (bool, bool) {

@@ -57,7 +57,10 @@ impl MissionObjective {
 pub enum GameState {
     PlayerName(String),
     Menu,
-    DevMenu { selection: usize, level: u32 },
+    DevMenu {
+        selection: usize,
+        level: u32,
+    },
     EnemyCodex(usize),
     Lan(Box<crate::lan::LanMode>),
     ShipSelection(ShipKind),
@@ -67,7 +70,13 @@ pub enum GameState {
     Paused,         // game is paused
     MissionSuccess, // level completed
     UpgradeBay,     // intermission upgrades screen
-    GameOver(u32),
+    GameOver {
+        score: u32,
+        ship: ShipKind,
+        ship_pos: Vec2,
+        ship_rotation: f32,
+        elapsed: f32,
+    },
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]

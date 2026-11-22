@@ -25,6 +25,7 @@ This file defines project-specific guidance for coding agents working in this re
 ## Working Rules
 
 - Keep changes minimal and focused on the requested behavior.
+- Git metadata is read-only in the default sandbox; run Git write commands with escalation from the first attempt. The commit hook reads `/dev/tty`, so run commits in a TTY.
 - Prefer extending existing systems/functions over adding new architecture.
 - Do not silently change gameplay balance unless explicitly requested.
 - Preserve existing keyboard controls and game state flow unless task requires changes.
