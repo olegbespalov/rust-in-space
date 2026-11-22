@@ -198,6 +198,37 @@ fn draw_engine(engine: &Engine, ship_pos: Vec2, ship_rotation_rad: f32, texture:
     );
 }
 
+fn draw_launch_engine(
+    position: Vec2,
+    hull_rotation: f32,
+    hull_size: f32,
+    thrust: f32,
+    alpha: f32,
+    texture: &Texture2D,
+) {
+    if thrust <= 0.05 {
+        return;
+    }
+    let scale = hull_size / 72.0;
+    let engine_direction = hull_rotation - std::f32::consts::FRAC_PI_2;
+    let direction = vec2(engine_direction.cos(), engine_direction.sin());
+    let width = 22.0 * scale * thrust;
+    let flicker = gen_range(-3.0, 3.0) * scale * thrust;
+    let height = 52.0 * scale * thrust + flicker;
+    let flame_pos = position - direction * (hull_size * 0.58);
+    draw_texture_ex(
+        texture,
+        flame_pos.x - width / 2.0,
+        flame_pos.y - height / 2.0,
+        Color { a: alpha, ..WHITE },
+        DrawTextureParams {
+            dest_size: Some(vec2(width, height)),
+            rotation: hull_rotation,
+            ..Default::default()
+        },
+    );
+}
+
 const ENEMY_HP_BAR_HEIGHT: f32 = 5.0;
 const ENEMY_HP_BAR_GAP: f32 = 5.0;
 const ENEMY_HP_BAR_BG_COLOR: Color = Color::new(0.25, 0.0, 0.0, 0.9);
@@ -1422,7 +1453,7 @@ pub fn draw_briefing_fleet(ships: &[Option<ShipKind>], elapsed: f32, launch: f32
     if count == 0 {
         return;
     }
-    let center = vec2(screen_width() * 0.5, screen_height() * 0.78);
+    let center = vec2(screen_width() * 0.72, screen_height() * 0.84);
     let spacing = 92.0_f32.min(screen_width() * 0.72 / count as f32);
     let left = center.x - spacing * (count.saturating_sub(1) as f32) * 0.5;
     let progress = launch.clamp(0.0, 1.0);
@@ -1434,17 +1465,113 @@ pub fn draw_briefing_fleet(ships: &[Option<ShipKind>], elapsed: f32, launch: f32
         1.0
     };
     for (index, kind) in ships.iter().flatten().enumerate() {
-        let bob = (elapsed * 2.3 + index as f32 * 1.1).sin() * 5.0 * (1.0 - progress);
-        let pos = vec2(left + spacing * index as f32 - travel, center.y + bob);
+        let phase = elapsed * 1.4 + index as f32 * 1.1;
+        let drift = phase.sin() * 18.0 * (1.0 - progress);
+        let bob = (phase * 1.7).cos() * 8.0 * (1.0 - progress);
+        let pos = vec2(
+            left + spacing * index as f32 + drift - travel,
+            center.y + bob,
+        );
         draw_ship_hull(
             *kind,
             pos,
             58.0,
-            -std::f32::consts::FRAC_PI_2,
-            thrust,
+            -std::f32::consts::FRAC_PI_2 + phase.sin() * 0.04,
+            (0.18 + phase.sin().abs() * 0.12).max(thrust),
             Color::new(1.0, 1.0, 1.0, alpha),
             res,
         );
+    }
+}
+
+pub fn render_launch_cutscene(ships: &[Option<ShipKind>], elapsed: f32, res: &Resources) {
+    let window = vec2(screen_width(), screen_height());
+    let scale = (window / vec2(960.0, 620.0)).min_element().min(1.2);
+    let center = vec2(window.x * 0.5, window.y * 0.49);
+    let flight = (elapsed / 1.5).clamp(0.0, 1.0);
+    let approach = (1.0 - flight).powi(3);
+    let reveal = ((elapsed - 0.65) / 0.85).clamp(0.0, 1.0);
+    let takeoff = ((elapsed - 3.5) / 1.0).clamp(0.0, 1.0);
+    let takeoff_ease = takeoff * takeoff;
+    draw_rectangle(
+        0.0,
+        0.0,
+        window.x,
+        window.y,
+        Color::new(0.0, 0.03, 0.08, 0.86),
+    );
+    for i in 0..24 {
+        let angle = i as f32 * std::f32::consts::TAU / 24.0;
+        let direction = vec2(angle.cos(), angle.sin());
+        let distance = (i as f32 * 0.37 + elapsed * 1.6).fract();
+        let start = center + direction * (80.0 + 240.0 * distance) * scale;
+        let end = start + direction * (8.0 + 26.0 * distance) * scale;
+        draw_line(
+            start.x,
+            start.y,
+            end.x,
+            end.y,
+            2.0 * scale,
+            Color {
+                a: (1.0 - distance) * 0.7,
+                ..SKYBLUE
+            },
+        );
+    }
+    let ring_radius = (84.0 + 38.0 * reveal) * scale;
+    draw_circle(
+        center.x,
+        center.y,
+        ring_radius,
+        Color::new(0.06, 0.14, 0.25, 0.8 * reveal),
+    );
+    draw_circle_lines(
+        center.x,
+        center.y,
+        ring_radius,
+        2.0 * scale,
+        Color {
+            a: 0.65 * reveal,
+            ..GOLD
+        },
+    );
+
+    let kinds: Vec<_> = ships.iter().flatten().copied().collect();
+    let spacing = 84.0_f32.min(240.0 / kinds.len().max(1) as f32) * scale;
+    for (index, kind) in kinds.iter().enumerate() {
+        let offset_x = (index as f32 - (kinds.len().saturating_sub(1) as f32 * 0.5)) * spacing;
+        let formation = center + vec2(offset_x, 24.0 * scale);
+        let start = center + vec2(-0.85 * window.x, 0.42 * window.y);
+        let position =
+            formation + (start - formation) * approach - vec2(0.0, window.y * 0.95 * takeoff_ease);
+        let alpha = (1.0 - ((takeoff - 0.62) / 0.38).clamp(0.0, 1.0)).clamp(0.0, 1.0);
+        let size = (178.0 - 35.0 * approach) * scale;
+        let hull_rotation = 0.54 * approach;
+        draw_launch_engine(
+            position,
+            hull_rotation,
+            size,
+            approach.max(takeoff),
+            alpha,
+            &res.ship_flame,
+        );
+        draw_ship_hull(
+            *kind,
+            position,
+            size,
+            hull_rotation,
+            approach.max(takeoff),
+            Color { a: alpha, ..WHITE },
+            res,
+        );
+    }
+
+    if elapsed >= 1.5 {
+        let count = (3.0 - (elapsed - 1.5).floor()).clamp(1.0, 3.0) as u32;
+        let pulse = 1.0 + ((elapsed - 1.5) * 5.0).sin().abs() * 0.08;
+        let text = count.to_string();
+        let size = (104.0 * scale * pulse) as u16;
+        draw_text_centered(&text, 0.0, size, GOLD, res);
     }
 }
 

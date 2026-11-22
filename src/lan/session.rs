@@ -24,6 +24,7 @@ const MAX_HANDSHAKES: usize = 4;
 pub(super) enum Phase {
     Lobby,
     Briefing,
+    Launching,
     Playing,
     Success,
     UpgradeBay,
@@ -270,8 +271,7 @@ impl Campaign {
             }
             (Phase::Briefing, Action::Advance) if slot == HOST => {
                 self.game.prepare_lan_mission();
-                self.game.start_mission();
-                self.transition(Phase::Playing);
+                self.transition(Phase::Launching);
             }
             (Phase::Success, Action::Advance) if slot == HOST => self.transition(Phase::UpgradeBay),
             (Phase::UpgradeBay, Action::Buy(id)) if slot == HOST || !self.ready[slot] => {
@@ -299,6 +299,14 @@ impl Campaign {
     }
 
     fn simulate(&mut self, dt: f32, mut inputs: impl FnMut() -> [PilotInput; MAX_PILOTS]) {
+        if self.phase == Phase::Launching {
+            self.pending_time += f64::from(dt.clamp(0.0, 0.25));
+            if self.pending_time >= 4.5 {
+                self.game.start_mission();
+                self.transition(Phase::Playing);
+            }
+            return;
+        }
         if self.phase != Phase::Playing {
             return;
         }
@@ -1115,12 +1123,18 @@ mod tests {
             2
         );
         host_command(&mut host, Action::Advance);
+        wait_for_phase(&mut host, &mut guest, Phase::Playing);
         host.campaign.game.pilots[HOST]
             .as_mut()
             .unwrap()
             .ship
             .health = 0.0;
-        wait_for_phase(&mut host, &mut guest, Phase::Playing);
+        wait_for(&mut host, &mut guest, |_, guest| {
+            guest
+                .state
+                .as_ref()
+                .is_some_and(|state| !state.game.solo_pilot().is_alive())
+        });
         let game = &guest.state.as_ref().unwrap().game;
         assert!(!game.solo_pilot().is_alive());
         assert!(game.pilots[GUEST].as_ref().unwrap().is_alive());
@@ -1350,6 +1364,9 @@ mod tests {
         campaign.command(GUEST, campaign.revision, Action::Ready);
         campaign.command(HOST, campaign.revision, Action::Advance);
         campaign.command(HOST, campaign.revision, Action::Advance);
+        for _ in 0..18 {
+            campaign.simulate(0.25, || [PilotInput::default(); MAX_PILOTS]);
+        }
         let pilot = campaign.game.solo_pilot();
         assert!(pilot.is_alive());
         assert_eq!(pilot.ship.health, pilot.ship.max_health);
