@@ -1829,8 +1829,10 @@ pub fn render_upgrade_bay(
 
     // The preview uses the same ship model as gameplay. Upgrade locations are
     // marked relative to the model so the preview remains useful across ships.
-    let ship_size = (screen_height() * 0.48).clamp(220.0, 380.0);
-    let ship_pos = vec2(screen_width() * 0.66, screen_height() * 0.43);
+    let ship_size = (screen_height() * 0.30).clamp(220.0, 340.0);
+    // The resources line is centered at screen center - 175. Keep the preview
+    // directly below it, using that same center-based layout at every size.
+    let ship_pos = vec2(screen_width() / 2.0, screen_height() / 2.0 + 25.0);
     draw_ship_hull(pilot.ship.kind, ship_pos, ship_size, 0.0, 0.0, WHITE, res);
     let (marker_offset, marker_color) = match UPGRADABLE_IDS.get(active_upgrade) {
         Some(crate::components::UpgradeId::WeaponTuning) => (vec2(0.0, -0.30), ORANGE),
@@ -1936,7 +1938,19 @@ pub fn render_upgrade_bay(
         clicked = Some(continue_idx);
     }
 
-    draw_text_centered(res.lang.t("upgrade_controls"), 205.0, 16, GRAY, res);
+    let controls = res.lang.t("upgrade_controls");
+    let controls_width = measure_text(controls, res.font.as_ref(), 16, 1.0).width;
+    draw_text_ex(
+        controls,
+        row_x + (row_width - controls_width) / 2.0,
+        start_y + line_height * (continue_idx + 1) as f32 + 18.0,
+        TextParams {
+            font: res.font.as_ref(),
+            font_size: 16,
+            color: GRAY,
+            ..Default::default()
+        },
+    );
     clicked
 }
 
