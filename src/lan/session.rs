@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 pub(super) const FIELD: Vec2 = vec2(1920.0, 1080.0);
 pub(super) const HOST: usize = 0;
-const VERSION: u16 = 8;
+const VERSION: u16 = 9;
 const MAX_NAME_CHARS: usize = 24;
 const STEP: f64 = 1.0 / 60.0;
 const INPUT_PERIOD: Duration = Duration::from_nanos(33_333_334);
@@ -841,10 +841,10 @@ mod tests {
     #[test]
     fn lobby_keeps_names_and_selected_ships_in_their_slots() {
         let mut host = create_host();
-        host_command(&mut host, Action::SelectShip(ShipKind::Delta));
+        host_command(&mut host, Action::SelectShip(ShipKind::Vector));
         let mut first = connect_as(&mut host, "Ирина");
         let mut second = connect_as(&mut host, "Sam");
-        guest_command(&mut first, Action::SelectShip(ShipKind::Delta));
+        guest_command(&mut first, Action::SelectShip(ShipKind::Specter));
         guest_command(&mut first, Action::Ready);
         wait_for(&mut host, &mut second, |_, guest| {
             guest.state.as_ref().unwrap().ready[1]
@@ -856,10 +856,10 @@ mod tests {
             state.names.each_ref().map(Option::as_deref),
             [Some("Host"), Some("Ирина"), Some("Sam"), None]
         );
-        assert_eq!(state.game.solo_pilot().ship.kind, ShipKind::Delta);
+        assert_eq!(state.game.solo_pilot().ship.kind, ShipKind::Vector);
         assert_eq!(
             state.game.pilots[1].as_ref().unwrap().ship.kind,
-            ShipKind::Delta
+            ShipKind::Specter
         );
         assert!(!state.ready[2]);
 
@@ -880,7 +880,7 @@ mod tests {
         );
 
         guest_command(&mut replacement, Action::Ready);
-        guest_command(&mut second, Action::SelectShip(ShipKind::Delta));
+        guest_command(&mut second, Action::SelectShip(ShipKind::Specter));
         guest_command(&mut second, Action::Ready);
         wait_for(&mut host, &mut second, |host, _| {
             host.snapshot().guests_ready()
@@ -888,10 +888,10 @@ mod tests {
         host_command(&mut host, Action::Advance);
         wait_for_phase(&mut host, &mut second, Phase::Briefing);
         let state = second.state.as_ref().unwrap();
-        assert_eq!(state.game.solo_pilot().ship.kind, ShipKind::Delta);
+        assert_eq!(state.game.solo_pilot().ship.kind, ShipKind::Vector);
         assert_eq!(
             state.game.pilots[2].as_ref().unwrap().ship.kind,
-            ShipKind::Delta
+            ShipKind::Specter
         );
         assert_eq!(state.names[2].as_deref(), Some("Sam"));
     }

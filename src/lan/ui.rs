@@ -2,7 +2,6 @@ use super::net;
 use super::session::{Action, Host, Phase, SnapshotView, Status, HOST};
 use super::Browser;
 use crate::audio::{AudioState, MusicTrack};
-use crate::components::ShipKind;
 use crate::draw::*;
 use crate::game::{Game, PilotInput, UpgradeSelection, MAX_PILOTS};
 use crate::resources::Resources;
@@ -572,7 +571,6 @@ fn lobby(
 
     let pilot = state.game.pilots[slot].as_ref()?;
     let active_kind = pilot.ship.kind;
-    let can_choose_delta = res.ship_model(ShipKind::Delta).is_some();
     let card_height = lobby_offset(SHIP_CARD_HEIGHT);
     let ship_clicked = render_ship_cards(
         active_kind,
@@ -621,14 +619,9 @@ fn lobby(
         lobby_button(res.lang.t(key), 251.0, res) || enter
     };
 
-    if let Some(kind) = ship_clicked.filter(|kind| *kind != active_kind) {
+    let kind = ship_clicked.unwrap_or_else(|| keyboard_ship_selection(active_kind, res));
+    if kind != active_kind {
         return Some(Action::SelectShip(kind));
-    }
-    if is_key_pressed(KeyCode::Left) && active_kind != ShipKind::Alpha {
-        return Some(Action::SelectShip(ShipKind::Alpha));
-    }
-    if can_choose_delta && is_key_pressed(KeyCode::Right) && active_kind != ShipKind::Delta {
-        return Some(Action::SelectShip(ShipKind::Delta));
     }
     if is_host
         && (difficulty_clicked || is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::Down))
@@ -645,6 +638,7 @@ fn lobby(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::components::ShipKind;
     use crate::lan::session::FIELD;
 
     #[test]

@@ -226,6 +226,10 @@ impl Localization {
         ru.insert("ship_alpha", "Alpha");
         en.insert("ship_delta", "Delta");
         ru.insert("ship_delta", "Дельта");
+        en.insert("ship_specter", "Specter");
+        ru.insert("ship_specter", "Спектр");
+        en.insert("ship_vector", "Vector");
+        ru.insert("ship_vector", "Вектор");
         en.insert("ship_confirm", "Continue [Enter]");
         ru.insert("ship_confirm", "Далее [Enter]");
         en.insert("ship_back", "Back [Esc]");
@@ -339,6 +343,8 @@ impl Localization {
         de.insert("ship_selection", "Raumschiff wählen");
         de.insert("ship_alpha", "Alpha");
         de.insert("ship_delta", "Delta");
+        de.insert("ship_specter", "Specter");
+        de.insert("ship_vector", "Vector");
         de.insert("ship_confirm", "Weiter [Enter]");
         de.insert("ship_back", "Zurück [Esc]");
         de.insert("menu_difficulty", "Schwierigkeit");

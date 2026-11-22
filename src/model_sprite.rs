@@ -17,6 +17,8 @@ mod tests {
         for bytes in [
             include_bytes!("../assets/models/player_ship.glb").as_slice(),
             include_bytes!("../assets/models/player_delta.glb").as_slice(),
+            include_bytes!("../assets/models/player_specter.glb").as_slice(),
+            include_bytes!("../assets/models/player_vector.glb").as_slice(),
             include_bytes!("../assets/models/asteroid.glb").as_slice(),
             include_bytes!("../assets/models/rare_asteroid.glb").as_slice(),
             include_bytes!("../assets/models/invisibility.glb").as_slice(),

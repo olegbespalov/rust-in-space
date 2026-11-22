@@ -1,9 +1,13 @@
 # Ship models and upgrades
 
-The player chooses a ship before the first mission briefing. Both ships share the same flight and combat stats. Macroquad renders the selected mesh from a shallow overhead angle in a 90-pixel drawing area. Thrust tips the hull to expose more of its rear profile.
+The player chooses a ship before the first mission briefing. All four ships share the same flight and combat stats. Macroquad renders the selected mesh from a shallow overhead angle in a 90-pixel drawing area. Thrust tips the hull to expose more of its rear profile.
 
 - **Alpha** is the weathered white-and-blue fighter with an orange cockpit. Its [textured Meshy GLB](assets/models/player_ship.glb) was generated from [the original sprite](assets/ship_body.png), which also serves as the fallback.
 - **Delta** is the copper-red fighter with ivory wing panels and a pale cyan cockpit. Its [textured Meshy GLB](assets/models/player_delta.glb) was generated from a text prompt, with 3,682 triangles and an embedded 512-pixel base-color texture. The textured Meshy task is `01a1ffd1-213f-767c-bc8e-dbd9c79e3f03`. Meshy returned no license metadata.
+- **Specter** is the violet interceptor with swept wings and an amber cockpit. Its [textured Meshy GLB](assets/models/player_specter.glb) has 3,355 triangles. The textured Meshy task is `01a203e1-ca42-7782-afb1-bff1dec1bb71`.
+- **Vector** is the olive-and-cream fighter with outboard engine nacelles and a teal cockpit. Its [textured Meshy GLB](assets/models/player_vector.glb) has 3,316 triangles. The textured Meshy task is `01a203e1-b8b3-7243-a91b-95776ceba432`.
+
+Specter and Vector were generated from text prompts and use embedded 512-pixel base-color textures. Meshy returned no license metadata for either task.
 
 ## Player upgrades
 

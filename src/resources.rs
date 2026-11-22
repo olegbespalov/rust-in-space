@@ -26,8 +26,7 @@ pub struct Resources {
     pub audio: AudioAssets,
 
     pub ship_body: Texture2D,
-    ship_model: Option<ShipModel>,
-    delta_model: Option<ShipModel>,
+    ship_models: [Option<ShipModel>; ShipKind::ALL.len()],
     pub ship_flame: Texture2D,
     pub enemy_small: ModelSprite,
     pub enemy_kamikaze: ModelSprite,
@@ -74,10 +73,13 @@ pub struct AudioAssets {
 
 impl Resources {
     pub fn ship_model(&self, kind: ShipKind) -> Option<&ShipModel> {
-        match kind {
-            ShipKind::Alpha => self.ship_model.as_ref(),
-            ShipKind::Delta => self.delta_model.as_ref(),
-        }
+        self.ship_models[kind as usize].as_ref()
+    }
+
+    pub fn selectable_ships(&self) -> impl Iterator<Item = ShipKind> + '_ {
+        ShipKind::ALL
+            .into_iter()
+            .filter(|&kind| kind == ShipKind::Alpha || self.ship_model(kind).is_some())
     }
 
     // Async constructor that will load everything at once
@@ -112,8 +114,16 @@ impl Resources {
 
         let ship_body = load_texture("assets/ship_body.png").await.unwrap();
         ship_body.set_filter(FilterMode::Nearest);
-        let ship_model = ShipModel::load("assets/models/player_ship.glb").await;
-        let delta_model = ShipModel::load("assets/models/player_delta.glb").await;
+        let mut ship_models = [const { None }; ShipKind::ALL.len()];
+        for kind in ShipKind::ALL {
+            let path = match kind {
+                ShipKind::Alpha => "assets/models/player_ship.glb",
+                ShipKind::Delta => "assets/models/player_delta.glb",
+                ShipKind::Specter => "assets/models/player_specter.glb",
+                ShipKind::Vector => "assets/models/player_vector.glb",
+            };
+            ship_models[kind as usize] = ShipModel::load(path).await;
+        }
 
         let ship_flame = load_texture("assets/ship_flame.png").await.unwrap();
         ship_flame.set_filter(FilterMode::Nearest);
@@ -298,8 +308,7 @@ impl Resources {
             lang: Localization::new(),
             audio,
             ship_body,
-            ship_model,
-            delta_model,
+            ship_models,
             ship_flame,
             enemy_small,
             enemy_kamikaze,

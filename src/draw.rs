@@ -1274,6 +1274,23 @@ pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<Ship
     click.map(ShipSelectionClick::Select)
 }
 
+pub fn keyboard_ship_selection(selected: ShipKind, res: &Resources) -> ShipKind {
+    let direction = match (
+        is_key_pressed(KeyCode::Left),
+        is_key_pressed(KeyCode::Right),
+    ) {
+        (true, false) => -1,
+        (false, true) => 1,
+        _ => return selected,
+    };
+    let ships: Vec<_> = res.selectable_ships().collect();
+    let Some(index) = ships.iter().position(|&kind| kind == selected) else {
+        return ShipKind::Alpha;
+    };
+    let next = (index as isize + direction).rem_euclid(ships.len() as isize);
+    ships[next as usize]
+}
+
 pub fn ship_card_row(count: usize, y: f32, height: f32) -> impl Iterator<Item = Rect> {
     let screen_w = screen_width();
     let gap = (screen_w * 0.022).min(28.0);
@@ -1289,25 +1306,21 @@ pub fn render_ship_cards(
     card_height: f32,
     res: &Resources,
 ) -> Option<ShipKind> {
-    let has_delta = res.ship_model(ShipKind::Delta).is_some();
-    let count = if has_delta { 2 } else { 1 };
-    let ships = [
-        (ShipKind::Alpha, "ship_alpha", "←"),
-        (ShipKind::Delta, "ship_delta", "→"),
-    ];
-
+    let ships: Vec<_> = res.selectable_ships().collect();
+    let count = ships.len();
     let mut click = None;
-    for ((kind, label, shortcut), card) in
-        ships.into_iter().zip(ship_card_row(count, y, card_height))
-    {
+    for (kind, card) in ships.into_iter().zip(ship_card_row(count, y, card_height)) {
         let x = card.x;
         let card_width = card.w;
         if draw_menu_button(card, kind == selected) {
             click = Some(kind);
         }
-        if has_delta {
-            let key_bounds = Rect::new(x + 8.0, y + 8.0, 30.0, 24.0);
-            draw_menu_label(shortcut, key_bounds, 16, LIGHTGRAY, res);
+        if count > 1 && kind == selected {
+            let key_width = (card_width * 0.23).min(34.0);
+            let left_key = Rect::new(x + 5.0, y + 4.0, key_width, 22.0);
+            let right_key = Rect::new(x + card_width - key_width - 5.0, y + 4.0, key_width, 22.0);
+            draw_menu_label("←", left_key, 16, LIGHTGRAY, res);
+            draw_menu_label("→", right_key, 16, LIGHTGRAY, res);
         }
         draw_ship_hull(
             kind,
@@ -1319,7 +1332,7 @@ pub fn render_ship_cards(
             res,
         );
         let label_bounds = Rect::new(x, y + card_height * 0.76, card_width, card_height * 0.2);
-        draw_menu_label(res.lang.t(label), label_bounds, 20, WHITE, res);
+        draw_menu_label(res.lang.t(kind.label()), label_bounds, 20, WHITE, res);
     }
     click
 }

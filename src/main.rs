@@ -212,14 +212,7 @@ async fn main() {
             }
 
             GameState::ShipSelection(previous) => {
-                let mut selected_ship = previous;
-                if is_key_pressed(KeyCode::Left) {
-                    selected_ship = ShipKind::Alpha;
-                } else if is_key_pressed(KeyCode::Right)
-                    && resources.ship_model(ShipKind::Delta).is_some()
-                {
-                    selected_ship = ShipKind::Delta;
-                }
+                let mut selected_ship = keyboard_ship_selection(previous, &resources);
                 let click = render_ship_selection(selected_ship, &resources);
                 if let Some(ShipSelectionClick::Select(kind)) = click {
                     selected_ship = kind;

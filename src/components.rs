@@ -353,13 +353,19 @@ impl EnemyPowerUps {
 pub enum ShipKind {
     Alpha,
     Delta,
+    Specter,
+    Vector,
 }
 
 impl ShipKind {
+    pub const ALL: [Self; 4] = [Self::Alpha, Self::Delta, Self::Specter, Self::Vector];
+
     pub fn label(self) -> &'static str {
         match self {
             Self::Alpha => "ship_alpha",
             Self::Delta => "ship_delta",
+            Self::Specter => "ship_specter",
+            Self::Vector => "ship_vector",
         }
     }
 }
