@@ -32,7 +32,7 @@ Push a version tag such as `v0.1.0` from a commit that has passed CI. The releas
 - `src/draw.rs` renders the game and UI. `src/resources.rs`, `src/ship_model.rs`, and `src/model_sprite.rs` handle game assets and models.
 - `src/systems.rs` handles saves, mission definitions, loot generation, and screen wrapping.
 - `src/localization.rs` provides translations. `src/audio.rs` handles audio playback and settings.
-- `assets/` contains game assets. See the [ship art guide](../SHIP_ART_GUIDE.md) and [audio guide](../scripts/audio/README.md).
+- `assets/` contains game assets. See the [audio guide](../scripts/audio/README.md).
 - `Makefile` provides development commands, and `scripts/pre-commit` runs checks before commits.
 - `rustfmt.toml` and `clippy.toml` configure formatting and linting.
 

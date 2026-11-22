@@ -27,28 +27,8 @@ See [Installation](docs/installation.md) for platform-specific setup.
 
 ## Local network co-op
 
-Up to four pilots on the same IPv4 network can play the campaign together. Open
-**Local Network** and select **Host game** on one computer. Guests can select
-the host from **Available games**, or enter one of the IPv4 addresses shown in
-the host lobby. Both computers need compatible game versions. The host uses
-TCP port `41616` for the game and UDP port `41616` for discovery. The host runs
-the simulation and sends snapshots to each guest. If broadcast discovery is
-unavailable on your network, use the IP address directly.
-
-Pick a ship, have all guests mark **Ready**, and start the campaign from the
-host lobby. The host chooses the campaign's difficulty. Starting a mission with
-two or more pilots raises asteroid counts, count-based objectives, and Dreadnought health
-by 50%. Regular enemies spawn 25% more often. In Nebula, the spawn warning also
-shortens from 2.5 to 2 seconds to maintain that rate. All pilots share mission
-progress and score, and each spends their own salvage in the Upgrade Bay. If
-a pilot is destroyed, they spectate a surviving teammate until the next mission.
-The camera follows your ship across the 1920 × 1080 arena. The minimap shows
-teammates, enemies, and asteroids. **Esc** opens a personal menu while the
-battle continues.
-
-If a guest disconnects, the remaining pilots can finish the mission. If the
-host is alone, the next mission uses single-pilot settings. Join and rejoin
-from the host lobby between campaigns. LAN scores stay in the session.
+Up to four pilots can play the campaign together over IPv4. See the [local
+network guide](docs/local-network.md) for setup and troubleshooting.
 
 ## Documentation
 
@@ -56,7 +36,6 @@ from the host lobby between campaigns. LAN scores stay in the session.
 - [Enemies](docs/enemies.md) and [Loot](docs/loot.md) list enemy stats, scoring, pickups, and drop rates.
 - [Save data](docs/save-data.md) explains where scores and settings are stored and how older saves are imported.
 - [Development](docs/development.md) covers build commands, project layout, release packaging, and asset credits.
-- [Ship art guide](SHIP_ART_GUIDE.md) documents models, upgrade art, and the asset workflow.
 
 The [online documentation](https://github.com/olegbespalov/rust-in-space/tree/main/docs) is also available when reading this README from a release package.
 
