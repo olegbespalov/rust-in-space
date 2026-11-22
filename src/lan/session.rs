@@ -1168,7 +1168,7 @@ mod tests {
     #[test]
     fn dreadnought_health_scales_but_its_wave_schedule_does_not() {
         let mut campaign = Campaign::new(Difficulty::Supernova);
-        campaign.game.current_mission = get_mission(3);
+        campaign.game.current_mission = get_mission(5);
         campaign.game.start_mission();
         let (hp, delay) = {
             let boss = campaign.game.boss.as_ref().unwrap();

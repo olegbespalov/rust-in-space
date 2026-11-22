@@ -549,20 +549,21 @@ mod tests {
 
     #[test]
     fn dreadnought_and_salvage_each_require_two_objectives() {
+        let boss_mission = get_mission(5);
         let mut progress = MissionProgress {
             boss_defeated: true,
             ..Default::default()
         };
-        assert!(!progress.completes(&get_mission(3)));
+        assert!(!progress.completes(&boss_mission));
         for _ in 0..6 {
             progress.record_enemy_defeat(EnemyType::Regular);
         }
-        assert!(progress.completes(&get_mission(3)));
+        assert!(progress.completes(&boss_mission));
 
         progress.boss_defeated = false;
-        assert!(!progress.completes(&get_mission(3)));
+        assert!(!progress.completes(&boss_mission));
         progress.boss_defeated = true;
-        assert!(progress.completes(&get_mission(3)));
+        assert!(progress.completes(&boss_mission));
 
         let mut progress = MissionProgress {
             scrap_collected: 35,
@@ -577,10 +578,16 @@ mod tests {
     }
 
     #[test]
-    fn defeating_the_dreadnought_completes_mission_three_and_awards_its_loot() {
+    fn dreadnought_appears_in_mission_five_and_awards_loot_on_defeat() {
         let bounds = vec2(1280.0, 720.0);
         let mut game = Game::new(bounds);
-        game.current_mission = get_mission(3);
+        for level in 1..5 {
+            assert_eq!(game.current_mission.level_id, level);
+            game.start_mission();
+            assert!(game.boss.is_none(), "mission {level}");
+            game.next_mission();
+        }
+        assert_eq!(game.current_mission.level_id, 5);
         game.start_mission();
         for _ in 0..6 {
             game.mission_progress
@@ -608,5 +615,10 @@ mod tests {
             game.loot_items[0].item_type,
             LootType::RareMetal(10..=49)
         ));
+
+        game.next_mission();
+        assert_eq!(game.current_mission.level_id, 6);
+        game.start_mission();
+        assert!(game.boss.is_none());
     }
 }

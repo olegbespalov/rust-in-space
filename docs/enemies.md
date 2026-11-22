@@ -9,7 +9,7 @@ A reference to the enemies currently implemented in the game. Images use the sam
 | Interceptor (`Interceptor`) | ![Interceptor enemy](../assets/enemy.png) | 15 | 150 | 210 | Strafes quickly and fires fast aimed shots about every 2.4 seconds. It uses a separate 3D model. |
 | Heavy ship (`Heavy`) | ![Heavy enemy](../assets/boss_1.png) | 60 | 600 | 75 | Fires a spread of three projectiles about every 3.2 seconds. It uses a separate 3D model. |
 | Guardian (`Guardian`) | ![Guardian](../assets/boss_1.png) | 105 | 1,050 | 65 | Fires a spread of five aimed shots about every 3.6 seconds. Its hull changes appearance at half health. |
-| Dreadnought (`Boss`) | [Dreadnought sprite](../assets/boss_dreadnought.png) | 600 | 6,000 | — | The boss in mission 3. Unlocks missiles at two-thirds health and staggered projectile rings at one-third. Always drops rare metal. |
+| Dreadnought (`Boss`) | [Dreadnought sprite](../assets/boss_dreadnought.png) | 600 | 6,000 | — | The boss in mission 5. Unlocks missiles at two-thirds health and staggered projectile rings at one-third. Always drops rare metal. |
 
 Kamikazes are available from the start and interceptors appear from level 2. Heavy ships and Guardians appear from level 4. Guardians account for 5% of random spawns when none is already on the field. Every fourth enemy spawn supplies the targeted ship type while an interceptor or heavy-ship objective is still active.
 

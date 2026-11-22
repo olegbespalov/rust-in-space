@@ -119,19 +119,19 @@ pub fn get_mission(level: u32) -> Mission {
             enemy_spawn_interval: 2.0,
             asteroid_count: 8,
         },
-        3 => Mission {
-            level_id: 3,
-            title: "Boss: Dreadnought".to_string(),
-            objectives: vec![DefeatBoss, DefeatEnemies(6)],
-            enemy_spawn_interval: 6.0,
-            asteroid_count: 0,
-        },
         4 => Mission {
             level_id: 4,
             title: "Scrap Yard".to_string(),
             objectives: vec![CollectScrap(35), DefeatHeavyShips(3)],
             enemy_spawn_interval: 2.5,
             asteroid_count: 12,
+        },
+        5 => Mission {
+            level_id: 5,
+            title: "Boss: Dreadnought".to_string(),
+            objectives: vec![DefeatBoss, DefeatEnemies(6)],
+            enemy_spawn_interval: 6.0,
+            asteroid_count: 0,
         },
         _ => Mission {
             level_id: level,

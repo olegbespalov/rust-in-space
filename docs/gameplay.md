@@ -6,7 +6,7 @@
 
 ## Missions and upgrades
 
-Read the briefing and complete every listed objective to advance. Objectives include destroying ships or asteroids, surviving for a set time, and collecting scrap. The Dreadnought mission requires defeating the boss and six enemy ships in solo play. After the initial missions, deep-space sectors continue with scaling objectives and more asteroids.
+Read the briefing and complete every listed objective to advance. Objectives include destroying ships or asteroids, surviving for a set time, and collecting scrap. Mission five requires defeating the Dreadnought and six enemy ships in solo play. After the initial missions, deep-space sectors continue with scaling objectives and more asteroids.
 
 After each successful mission, enter the Upgrade Bay and spend scrap and rare metal on Reinforced Hull, Weapon Tuning, Engine Overdrive, Magnet Array, or Shield Capacitor. Purchased upgrades, remaining resources, active shields, and pickup timers carry between missions during the run. Health is fully restored to the ship's current maximum at the start of each mission. The base maximum is 150 HP.
 
