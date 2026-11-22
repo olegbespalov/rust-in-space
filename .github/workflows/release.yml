@@ -86,10 +86,12 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Publish GitHub release
+    name: Prepare GitHub release draft
     needs: build
     runs-on: ubuntu-22.04
     environment: macos-release
+    concurrency:
+      group: release-draft-${{ github.ref }}
     permissions:
       contents: write
     steps:
@@ -121,7 +123,7 @@ jobs:
             openssl dgst -sha256 -sign "$key_dir/private.pem" -out "$archive.sig" "$archive"
             openssl dgst -sha256 -verify "$key_dir/public.pem" -signature "$archive.sig" "$archive"
           done
-      - name: Publish the tagged release
+      - name: Attach packages to the release draft
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -143,9 +145,19 @@ jobs:
             assets+=("$prefix-x86_64-apple-darwin.zip.sig" "$prefix-aarch64-apple-darwin.zip.sig")
           fi
 
-          flags=()
-          if [[ "${TAG%%+*}" == *-* ]]; then
-            flags+=(--prerelease --latest=false)
+          if draft=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>&1); then
+            if [[ "$draft" != true ]]; then
+              echo "::notice::Release $TAG is already published. Skipping asset upload."
+              exit 0
+            fi
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          elif [[ "$draft" == 'release not found' ]]; then
+            flags=(--draft --verify-tag --generate-notes)
+            if [[ "${TAG%%+*}" == *-* ]]; then
+              flags+=(--prerelease)
+            fi
+            gh release create "$TAG" "${assets[@]}" "${flags[@]}"
+          else
+            echo "$draft" >&2
+            exit 1
           fi
-
-          gh release create "$TAG" "${assets[@]}" --verify-tag --generate-notes "${flags[@]}"

@@ -33,13 +33,16 @@ The Security workflow runs zizmor, Gitleaks, and cargo-audit on pushes and pull 
 
 ## Publishing a release
 
-Push a version tag such as `v0.1.0` from a commit that has passed CI. The release workflow attaches a Linux AppImage, a Linux tarball, and ZIP packages for Intel and Apple Silicon Macs. A tag with a prerelease suffix, such as `-beta.1`, is published as a prerelease.
+1. Push a version tag such as `v0.1.0` from a commit that has passed CI.
+2. Wait for the **Release** workflow to succeed. It creates a draft with generated release notes or adds files to an existing draft for the same tag. It attaches a Linux AppImage, a Linux tarball, and ZIP packages for Intel and Apple Silicon Macs.
+3. In GitHub **Releases**, edit the draft's title and describe the player-facing changes. A new draft for a tag with a prerelease suffix such as `-beta.1` is marked as a prerelease automatically. If you created the draft yourself, set the prerelease checkbox as appropriate.
+4. Once the packages are attached and the notes are ready, click **Publish release**.
 
 Packaged builds display the version from the release tag. The updater uses the latest stable release from GitHub's public API and verifies the downloaded asset against its GitHub SHA-256 digest.
 
 ### macOS update signing
 
-The release build embeds the public key from the `RUST_IN_SPACE_UPDATE_PUBLIC_KEY` repository variable. The publish job uses the `RUST_IN_SPACE_UPDATE_PRIVATE_KEY` secret from the `macos-release` environment to sign each Mac ZIP. If the key is replaced, players need to install the build with the new public key manually. Without a configured key pair, the game directs Mac players to GitHub for updates.
+The release build embeds the public key from the `RUST_IN_SPACE_UPDATE_PUBLIC_KEY` repository variable. The draft preparation job uses the `RUST_IN_SPACE_UPDATE_PRIVATE_KEY` secret from the `macos-release` environment to sign each Mac ZIP. If the key is replaced, players need to install the build with the new public key manually. Without a configured key pair, the game directs Mac players to GitHub for updates.
 
 The release key verifies updates inside the game. Apple Developer ID and notarization are separate and determine how Gatekeeper treats downloaded builds.
 
