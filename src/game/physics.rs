@@ -324,10 +324,10 @@ fn open_mystery_box(ship: &mut Ship, roll: i32) -> AudioCue {
     }
 }
 
-pub fn update_collisions(game: &mut Game) {
+pub fn update_collisions(game: &mut Game, dt: f32) {
     handle_bullet_bullet_collisions(game);
-    handle_player_bullet_collisions(game);
-    handle_enemy_bullet_collisions(game);
+    handle_player_bullet_collisions(game, dt);
+    handle_enemy_bullet_collisions(game, dt);
     handle_ship_entity_collisions(game);
 }
 
@@ -384,7 +384,7 @@ fn drop_small_enemy_loot(items: &mut Vec<LootItem>, pos: Vec2, difficulty: Diffi
     }
 }
 
-fn handle_player_bullet_collisions(game: &mut Game) {
+fn handle_player_bullet_collisions(game: &mut Game, dt: f32) {
     let mut new_asteroids = Vec::new();
     let mut boss_died_at: Option<(Vec2, f32)> = None;
 
@@ -425,8 +425,22 @@ fn handle_player_bullet_collisions(game: &mut Game) {
         // Enemy ships
         if !hit {
             game.enemy_ships.retain_mut(|e| {
-                if (b.pos - e.pos).length() < e.enemy_type.projectile_hitbox_radius() + b.radius {
+                if hit {
+                    return true;
+                }
+                let shielded = e.power_ups.shield.is_some();
+                if let Some(impact) = projectile_impact(
+                    b,
+                    dt,
+                    e.pos,
+                    e.enemy_type.projectile_hitbox_radius(),
+                    shielded.then(|| e.enemy_type.draw_size()),
+                ) {
                     hit = true;
+                    if shielded {
+                        game.explosions.push(Explosion::new(impact, 0.5));
+                        game.audio_cues.push(AudioCue::ShieldHit);
+                    }
                     points += effective_damage(b.damage, e.health, &e.power_ups);
                     if e.take_damage(b.damage) {
                         game.score += (e.max_health as u32) * SCORE_PER_ENEMY_HP;
@@ -447,8 +461,19 @@ fn handle_player_bullet_collisions(game: &mut Game) {
         // Boss
         if !hit {
             if let Some(ref mut boss) = game.boss {
-                if (b.pos - boss.pos).length() < BOSS_HITBOX_RADIUS + b.radius {
+                let shielded = boss.power_ups.shield.is_some();
+                if let Some(impact) = projectile_impact(
+                    b,
+                    dt,
+                    boss.pos,
+                    BOSS_HITBOX_RADIUS,
+                    shielded.then_some(BOSS_SIZE),
+                ) {
                     hit = true;
+                    if shielded {
+                        game.explosions.push(Explosion::new(impact, 0.5));
+                        game.audio_cues.push(AudioCue::ShieldHit);
+                    }
                     points += effective_damage(b.damage, boss.health, &boss.power_ups);
                     let pos = boss.pos;
                     let max_health = boss.max_health;
@@ -505,27 +530,62 @@ fn collision_pilot(
     pilots[slot].as_mut().map(|pilot| &mut pilot.ship)
 }
 
-fn collision_pilot_projectile(
-    pilots: &mut [Option<super::Pilot>; super::MAX_PILOTS],
-    pos: Vec2,
-    radius: f32,
-) -> Option<&mut Ship> {
-    let hit = |pilot: &super::Pilot| {
-        let shield_radius = if pilot.ship.has_shield() {
-            SHIP_RADIUS * 1.8
-        } else {
-            SHIP_RADIUS
-        };
-        pilot.ship.pos.distance_squared(pos) < (shield_radius + radius).powi(2)
+fn projectile_impact(
+    bullet: &Bullet,
+    dt: f32,
+    center: Vec2,
+    hull_radius: f32,
+    shield_hull_size: Option<f32>,
+) -> Option<Vec2> {
+    let Some(hull_size) = shield_hull_size else {
+        return (bullet.pos.distance_squared(center) < (hull_radius + bullet.radius).powi(2))
+            .then_some(center);
     };
-    if pilots[1..].iter().all(Option::is_none) {
-        return pilots[0]
-            .as_mut()
-            .filter(|pilot| hit(pilot))
-            .map(|pilot| &mut pilot.ship);
-    }
-    let slot = nearest_pilot(pilots, pos, hit)?;
-    pilots[slot].as_mut().map(|pilot| &mut pilot.ship)
+    let shield_radius = hull_size * SHIELD_DRAW_SCALE * SHIELD_RING_FRACTION / 2.0;
+    // Use the same velocity as the movement step, including any homing turn.
+    let travel = bullet.vel * dt;
+    let start = bullet.pos - center - travel;
+    let c = start.length_squared() - (shield_radius + bullet.radius).powi(2);
+    let contact = if c <= 0.0 {
+        start
+    } else {
+        let a = travel.length_squared();
+        let b = start.dot(travel);
+        let discriminant = b * b - a * c;
+        if a == 0.0 || b >= 0.0 || discriminant < 0.0 {
+            return None;
+        }
+        let t = (-b - discriminant.sqrt()) / a;
+        if t > 1.0 {
+            return None;
+        }
+        start + travel * t
+    };
+    Some(center + contact.normalize_or(-bullet.vel.normalize_or(Vec2::X)) * shield_radius)
+}
+
+fn collision_pilot_projectile<'a>(
+    pilots: &'a mut [Option<Pilot>; super::MAX_PILOTS],
+    bullet: &Bullet,
+    dt: f32,
+) -> Option<(&'a mut Ship, Vec2)> {
+    let impact = |pilot: &Pilot| {
+        projectile_impact(
+            bullet,
+            dt,
+            pilot.ship.pos,
+            SHIP_RADIUS,
+            pilot.ship.has_shield().then_some(PLAYER_SHIP_DRAW_SIZE),
+        )
+    };
+    let slot = if pilots[1..].iter().all(Option::is_none) {
+        0
+    } else {
+        nearest_pilot(pilots, bullet.pos, |pilot| impact(pilot).is_some())?
+    };
+    let pilot = pilots[slot].as_mut()?;
+    let impact = impact(pilot)?;
+    Some((&mut pilot.ship, impact))
 }
 
 fn damage_ship(ship: &mut Ship, damage: f32, cues: &mut Vec<AudioCue>) {
@@ -537,13 +597,11 @@ fn damage_ship(ship: &mut Ship, damage: f32, cues: &mut Vec<AudioCue>) {
     ship.take_damage(damage);
 }
 
-fn handle_enemy_bullet_collisions(game: &mut Game) {
+fn handle_enemy_bullet_collisions(game: &mut Game, dt: f32) {
     game.bullets.retain(|bullet| {
         if bullet.style != BulletStyle::Player {
-            if let Some(ship) =
-                collision_pilot_projectile(&mut game.pilots, bullet.pos, bullet.radius)
-            {
-                game.explosions.push(Explosion::new(ship.pos, 0.5));
+            if let Some((ship, impact)) = collision_pilot_projectile(&mut game.pilots, bullet, dt) {
+                game.explosions.push(Explosion::new(impact, 0.5));
                 damage_ship(
                     ship,
                     bullet.damage * game.difficulty.damage_mult(),
@@ -632,7 +690,7 @@ mod tests {
                 radius: PLAYER_BULLET_RADIUS,
             });
         }
-        update_collisions(&mut game);
+        update_collisions(&mut game, 0.0);
 
         assert!(game.enemy_ships.is_empty());
         assert_eq!(game.solo_pilot().mission_points(), 12);
@@ -655,7 +713,7 @@ mod tests {
             damage: ENEMY_BULLET_DAMAGE,
             radius: 9.0,
         });
-        update_collisions(&mut game);
+        update_collisions(&mut game, 0.0);
         assert!(game.bullets.is_empty());
         assert_eq!(game.solo_pilot().ship.health, BASE_SHIP_HP);
         assert_eq!(
@@ -666,26 +724,85 @@ mod tests {
 
     #[test]
     fn enemy_projectile_hits_active_shield_before_ship_hull() {
-        let mut game = Game::new(vec2(1280.0, 720.0));
-        let ship = &mut game.solo_pilot_mut().ship;
-        ship.activate_shield(ShieldKind::Standard, 30.0, 5.0);
-        let pos = ship.pos + vec2(SHIP_RADIUS * 1.4, 0.0);
-        game.bullets.push(Bullet {
-            pos,
-            vel: Vec2::ZERO,
-            owner: None,
-            life_time: 2.0,
-            style: BulletStyle::Enemy,
-            homing: false,
-            damage: ENEMY_BULLET_DAMAGE,
-            radius: 9.0,
-        });
+        for style in [
+            BulletStyle::Enemy,
+            BulletStyle::Boss,
+            BulletStyle::BossMissile,
+        ] {
+            let mut game = Game::new(vec2(1280.0, 720.0));
+            let ship = &mut game.solo_pilot_mut().ship;
+            ship.activate_shield(ShieldKind::Standard, 30.0, 5.0);
+            let center = ship.pos;
+            game.bullets.push(Bullet {
+                pos: center + vec2(100.0, 0.0),
+                vel: vec2(-200.0, 0.0),
+                owner: None,
+                life_time: 2.0,
+                style,
+                homing: false,
+                damage: ENEMY_BULLET_DAMAGE,
+                radius: 9.0,
+            });
 
-        update_collisions(&mut game);
+            update_physics(&mut game, 1.0);
+            update_collisions(&mut game, 1.0);
+
+            assert!(game.bullets.is_empty());
+            assert_eq!(game.solo_pilot().ship.health, BASE_SHIP_HP);
+            assert_eq!(game.solo_pilot().ship.shield_hp, 30.0 - ENEMY_BULLET_DAMAGE);
+            assert_eq!(game.audio_cues, [AudioCue::ShieldHit]);
+            assert_eq!(game.explosions.len(), 1);
+            assert!((game.explosions[0].pos.x - center.x - 76.0).abs() < 1.0);
+            assert_eq!(game.explosions[0].pos.y, center.y);
+        }
+    }
+
+    #[test]
+    fn player_projectiles_hit_enemy_and_boss_shield_rims() {
+        let mut game = Game::new(vec2(1280.0, 720.0));
+        game.asteroids.clear();
+        let mut enemy = EnemyShip::new_at_side(true, 100.0, EnemyType::Guardian, game.bounds.x);
+        enemy.pos = vec2(350.0, 100.0);
+        let mut boss = Boss::new(vec2(350.0, 550.0), 0.0);
+        for power_ups in [&mut enemy.power_ups, &mut boss.power_ups] {
+            power_ups.activate_shield(ShieldKind::Golden, 30.0, 5.0);
+        }
+        let targets = [(enemy.pos, 93.0), (boss.pos, 203.0)];
+        game.enemy_ships.push(enemy);
+        game.boss = Some(boss);
+
+        for (center, rim) in targets {
+            game.bullets.push(Bullet {
+                pos: center - vec2(rim + 15.0, 0.0),
+                vel: vec2(30.0, 0.0),
+                owner: Some(0),
+                life_time: 2.0,
+                style: BulletStyle::Player,
+                homing: false,
+                damage: PLAYER_BULLET_DAMAGE,
+                radius: PLAYER_BULLET_RADIUS,
+            });
+        }
+
+        update_physics(&mut game, 1.0);
+        update_collisions(&mut game, 1.0);
 
         assert!(game.bullets.is_empty());
-        assert_eq!(game.solo_pilot().ship.health, BASE_SHIP_HP);
-        assert_eq!(game.solo_pilot().ship.shield_hp, 30.0 - ENEMY_BULLET_DAMAGE);
+        let enemy = &game.enemy_ships[0];
+        let boss = game.boss.as_ref().unwrap();
+        assert_eq!(enemy.health, enemy.max_health);
+        assert_eq!(boss.health, boss.max_health);
+        for power_ups in [&enemy.power_ups, &boss.power_ups] {
+            assert_eq!(
+                power_ups.shield.as_ref().unwrap().hp,
+                30.0 - PLAYER_BULLET_DAMAGE
+            );
+        }
+        assert_eq!(game.explosions.len(), 2);
+        for (explosion, (center, rim)) in game.explosions.iter().zip(targets) {
+            assert!((explosion.pos.x - center.x + rim).abs() < 1.0);
+            assert_eq!(explosion.pos.y, center.y);
+        }
     }
 
     #[test]
@@ -717,7 +834,7 @@ mod tests {
             damage: PLAYER_BULLET_DAMAGE,
             radius: PLAYER_BULLET_RADIUS,
         });
-        update_collisions(&mut game);
+        update_collisions(&mut game, 0.0);
         assert!(game.bullets.is_empty());
         assert_eq!(game.solo_pilot().ship.health, BASE_SHIP_HP);
     }

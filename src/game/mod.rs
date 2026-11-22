@@ -321,7 +321,7 @@ impl Game {
         physics::update_loot(self, dt);
         if self.has_survivors() {
             physics::update_physics(self, dt);
-            physics::update_collisions(self);
+            physics::update_collisions(self, dt);
         }
         if !self.has_survivors() {
             return BattleOutcome::Defeat;

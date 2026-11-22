@@ -4,8 +4,7 @@ use crate::components::{
     MissionObjective, ShieldKind, Ship, ShipKind, UpgradeId, DEFAULT_PLAYER_NAME,
 };
 use crate::game::constants::{
-    BOSS_SIZE, ENEMY_SMALL_RADIUS, GUARDIAN_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS,
-    KAMIKAZE_RADIUS, PLAYER_SHIP_DRAW_SIZE,
+    BOSS_SIZE, PLAYER_SHIP_DRAW_SIZE, SHIELD_DRAW_SCALE, SHIP_VISUAL_SCALE,
 };
 use crate::game::{upgrade_definition, Game, Pilot, UpgradeSelection, MAX_PILOTS, UPGRADABLE_IDS};
 use crate::model_sprite::ModelSprite;
@@ -81,7 +80,6 @@ pub fn draw_background_in(texture: &Texture2D, bounds: Vec2) {
     );
 }
 
-const SHIP_VISUAL_SCALE: f32 = 1.25;
 const INVISIBLE_TINT: Color = Color::new(0.65, 0.9, 1.0, 0.3);
 
 pub fn draw_ship(ship: &Ship, resources: &Resources) {
@@ -126,7 +124,7 @@ fn draw_active_shield(
     tint: Color,
     texture: &Texture2D,
 ) {
-    let size = hull_size * 1.8;
+    let size = hull_size * SHIELD_DRAW_SCALE;
     let alpha = (hp_ratio * 0.7 + 0.3).min(1.0) * tint.a;
     let color = match kind {
         ShieldKind::Standard => Color::new(tint.r, tint.g, tint.b, alpha),
@@ -248,27 +246,25 @@ fn health_bar_left(center_x: f32, width: f32, field_width: f32) -> f32 {
 }
 
 fn draw_enemy(enemy: &EnemyShip, field_width: f32, res: &Resources) {
-    let (radius, sprite) = match enemy.enemy_type {
-        EnemyType::Regular => (ENEMY_SMALL_RADIUS, &res.enemy_small),
-        EnemyType::Kamikaze => (KAMIKAZE_RADIUS, &res.enemy_kamikaze),
-        EnemyType::Interceptor => (INTERCEPTOR_RADIUS, &res.enemy_interceptor),
-        EnemyType::Heavy => (HEAVY_RADIUS, &res.enemy_heavy),
-        EnemyType::Guardian => (
-            GUARDIAN_RADIUS,
+    let sprite = match enemy.enemy_type {
+        EnemyType::Regular => &res.enemy_small,
+        EnemyType::Kamikaze => &res.enemy_kamikaze,
+        EnemyType::Interceptor => &res.enemy_interceptor,
+        EnemyType::Heavy => &res.enemy_heavy,
+        EnemyType::Guardian => {
             if enemy.health <= enemy.max_health / 2.0 {
                 &res.enemy_guardian_damaged
             } else {
                 &res.enemy_guardian
-            },
-        ),
+            }
+        }
     };
-    let visual_radius = radius * SHIP_VISUAL_SCALE;
-    let size = visual_radius * 2.0;
+    let size = enemy.enemy_type.draw_size();
 
     let bar_left = health_bar_left(enemy.pos.x, size, field_width);
     let bar_top = health_bar_top(
         enemy.pos.y,
-        visual_radius,
+        size / 2.0,
         ENEMY_HP_BAR_GAP,
         ENEMY_HP_BAR_HEIGHT,
     );

@@ -1,7 +1,7 @@
 use crate::game::constants::{
     BIG_BULLET_DURATION, BOSS_MAX_HEALTH, BOSS_RING_COUNT, BOSS_SIZE, ENEMY_SMALL_RADIUS,
-    GUARDIAN_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, INVISIBILITY_DURATION,
-    MAGNETIC_AMMO_DURATION, RAPID_FIRE_DURATION, SHIELD_DURATION,
+    GUARDIAN_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, INVISIBILITY_DURATION, KAMIKAZE_RADIUS,
+    MAGNETIC_AMMO_DURATION, RAPID_FIRE_DURATION, SHIELD_DURATION, SHIP_VISUAL_SCALE,
 };
 use crate::localization::Language;
 use macroquad::prelude::*;
@@ -163,6 +163,14 @@ pub enum EnemyType {
 }
 
 impl EnemyType {
+    pub fn draw_size(self) -> f32 {
+        let radius = match self {
+            Self::Kamikaze => KAMIKAZE_RADIUS,
+            _ => self.projectile_hitbox_radius(),
+        };
+        radius * SHIP_VISUAL_SCALE * 2.0
+    }
+
     pub fn projectile_hitbox_radius(self) -> f32 {
         match self {
             Self::Regular | Self::Kamikaze => ENEMY_SMALL_RADIUS,
