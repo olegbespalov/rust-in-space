@@ -1392,9 +1392,13 @@ pub fn render_briefing(
         possible.extend([EnemyType::Heavy, EnemyType::Guardian]);
     }
     draw_text_centered(res.lang.t("briefing_threats"), 130.0, 18, ORANGE, res);
-    let slot_width = screen_width() / possible.len() as f32;
+    // Keep the threat previews grouped around the briefing text instead of
+    // spreading them across the full width on ultrawide displays.
+    let slot_width = (screen_width() * 0.8 / possible.len() as f32).min(140.0);
+    let row_width = slot_width * possible.len() as f32;
+    let row_left = (screen_width() - row_width) / 2.0;
     for (index, enemy) in possible.into_iter().enumerate() {
-        let x = slot_width * (index as f32 + 0.5);
+        let x = row_left + slot_width * (index as f32 + 0.5);
         enemy_sprite(enemy, res).draw(vec2(x, screen_height() / 2.0 + 155.0), 48.0, 0.0);
         draw_menu_label(
             res.lang.t(enemy_name_key(enemy)),
