@@ -505,6 +505,29 @@ fn collision_pilot(
     pilots[slot].as_mut().map(|pilot| &mut pilot.ship)
 }
 
+fn collision_pilot_projectile(
+    pilots: &mut [Option<super::Pilot>; super::MAX_PILOTS],
+    pos: Vec2,
+    radius: f32,
+) -> Option<&mut Ship> {
+    let hit = |pilot: &super::Pilot| {
+        let shield_radius = if pilot.ship.has_shield() {
+            SHIP_RADIUS * 1.8
+        } else {
+            SHIP_RADIUS
+        };
+        pilot.ship.pos.distance_squared(pos) < (shield_radius + radius).powi(2)
+    };
+    if pilots[1..].iter().all(Option::is_none) {
+        return pilots[0]
+            .as_mut()
+            .filter(|pilot| hit(pilot))
+            .map(|pilot| &mut pilot.ship);
+    }
+    let slot = nearest_pilot(pilots, pos, hit)?;
+    pilots[slot].as_mut().map(|pilot| &mut pilot.ship)
+}
+
 fn damage_ship(ship: &mut Ship, damage: f32, cues: &mut Vec<AudioCue>) {
     cues.push(if ship.has_shield() {
         AudioCue::ShieldHit
@@ -517,7 +540,9 @@ fn damage_ship(ship: &mut Ship, damage: f32, cues: &mut Vec<AudioCue>) {
 fn handle_enemy_bullet_collisions(game: &mut Game) {
     game.bullets.retain(|bullet| {
         if bullet.style != BulletStyle::Player {
-            if let Some(ship) = collision_pilot(&mut game.pilots, bullet.pos, bullet.radius) {
+            if let Some(ship) =
+                collision_pilot_projectile(&mut game.pilots, bullet.pos, bullet.radius)
+            {
                 game.explosions.push(Explosion::new(ship.pos, 0.5));
                 damage_ship(
                     ship,
@@ -637,6 +662,30 @@ mod tests {
             game.pilots[1].as_ref().unwrap().ship.health,
             BASE_SHIP_HP - ENEMY_BULLET_DAMAGE
         );
+    }
+
+    #[test]
+    fn enemy_projectile_hits_active_shield_before_ship_hull() {
+        let mut game = Game::new(vec2(1280.0, 720.0));
+        let ship = &mut game.solo_pilot_mut().ship;
+        ship.activate_shield(ShieldKind::Standard, 30.0, 5.0);
+        let pos = ship.pos + vec2(SHIP_RADIUS * 1.4, 0.0);
+        game.bullets.push(Bullet {
+            pos,
+            vel: Vec2::ZERO,
+            owner: None,
+            life_time: 2.0,
+            style: BulletStyle::Enemy,
+            homing: false,
+            damage: ENEMY_BULLET_DAMAGE,
+            radius: 9.0,
+        });
+
+        update_collisions(&mut game);
+
+        assert!(game.bullets.is_empty());
+        assert_eq!(game.solo_pilot().ship.health, BASE_SHIP_HP);
+        assert_eq!(game.solo_pilot().ship.shield_hp, 30.0 - ENEMY_BULLET_DAMAGE);
     }
 
     #[test]
