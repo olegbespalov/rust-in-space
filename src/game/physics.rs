@@ -347,7 +347,8 @@ fn handle_bullet_bullet_collisions(game: &mut Game) {
             let Some(bullet) = *hostile else {
                 continue;
             };
-            if player.pos.distance(bullet.pos) < player.radius + bullet.radius {
+            let radius = player.radius + bullet.radius;
+            if player.pos.distance_squared(bullet.pos) < radius * radius {
                 let collision_pos = (player.pos + bullet.pos) * 0.5;
                 game.explosions.push(Explosion::new(collision_pos, 0.5));
                 game.audio_cues.push(AudioCue::ExplosionSmall);
@@ -401,7 +402,9 @@ fn handle_player_bullet_collisions(game: &mut Game, dt: f32) {
 
         // Asteroids
         for i in (0..game.asteroids.len()).rev() {
-            if (b.pos - game.asteroids[i].pos).length() < game.asteroids[i].radius + b.radius {
+            let asteroid = &game.asteroids[i];
+            let radius = asteroid.radius + b.radius;
+            if b.pos.distance_squared(asteroid.pos) < radius * radius {
                 game.score += 100;
                 points += ASTEROID_MISSION_POINTS;
                 let asteroid = game.asteroids.remove(i);
@@ -428,38 +431,42 @@ fn handle_player_bullet_collisions(game: &mut Game, dt: f32) {
 
         // Enemy ships
         if !hit {
-            game.enemy_ships.retain_mut(|e| {
-                if hit {
-                    return true;
+            let target = game
+                .enemy_ships
+                .iter()
+                .enumerate()
+                .find_map(|(index, enemy)| {
+                    let shield_size = enemy
+                        .power_ups
+                        .shield
+                        .as_ref()
+                        .map(|_| enemy.enemy_type.draw_size());
+                    projectile_impact(
+                        b,
+                        dt,
+                        enemy.pos,
+                        enemy.enemy_type.projectile_hitbox_radius(),
+                        shield_size,
+                    )
+                    .map(|impact| (index, impact))
+                });
+            if let Some((index, impact)) = target {
+                hit = true;
+                let enemy = &mut game.enemy_ships[index];
+                if enemy.power_ups.shield.is_some() {
+                    game.explosions.push(Explosion::new(impact, 0.5));
+                    game.audio_cues.push(AudioCue::ShieldHit);
                 }
-                let shielded = e.power_ups.shield.is_some();
-                if let Some(impact) = projectile_impact(
-                    b,
-                    dt,
-                    e.pos,
-                    e.enemy_type.projectile_hitbox_radius(),
-                    shielded.then(|| e.enemy_type.draw_size()),
-                ) {
-                    hit = true;
-                    if shielded {
-                        game.explosions.push(Explosion::new(impact, 0.5));
-                        game.audio_cues.push(AudioCue::ShieldHit);
-                    }
-                    points += effective_damage(b.damage, e.health, &e.power_ups);
-                    if e.take_damage(b.damage) {
-                        game.score += (e.max_health as u32) * SCORE_PER_ENEMY_HP;
-                        drop_small_enemy_loot(&mut game.loot_items, e.pos, game.difficulty);
-                        game.mission_progress.record_enemy_defeat(e.enemy_type);
-                        game.explosions.push(Explosion::new(e.pos, 0.4));
-                        game.audio_cues.push(crate::audio::AudioCue::ExplosionBig);
-                        false
-                    } else {
-                        true
-                    }
-                } else {
-                    true
+                points += effective_damage(b.damage, enemy.health, &enemy.power_ups);
+                if enemy.take_damage(b.damage) {
+                    let enemy = game.enemy_ships.remove(index);
+                    game.score += (enemy.max_health as u32) * SCORE_PER_ENEMY_HP;
+                    drop_small_enemy_loot(&mut game.loot_items, enemy.pos, game.difficulty);
+                    game.mission_progress.record_enemy_defeat(enemy.enemy_type);
+                    game.explosions.push(Explosion::new(enemy.pos, 0.4));
+                    game.audio_cues.push(AudioCue::ExplosionBig);
                 }
-            });
+            }
         }
 
         // Boss
@@ -699,6 +706,39 @@ mod tests {
         assert!(game.enemy_ships.is_empty());
         assert_eq!(game.solo_pilot().mission_points(), 12);
         assert_eq!(game.pilots[1].as_ref().unwrap().mission_points(), 7);
+    }
+
+    #[test]
+    fn player_projectile_hits_first_enemy_and_preserves_survivor_order() {
+        let mut game = Game::new(vec2(1280.0, 720.0));
+        let pos = vec2(350.0, 100.0);
+        for kind in [EnemyType::Regular, EnemyType::Kamikaze, EnemyType::Heavy] {
+            let mut enemy = EnemyShip::new_at_side(true, pos.y, kind, game.bounds.x);
+            enemy.pos = pos;
+            enemy.health = 1.0;
+            game.enemy_ships.push(enemy);
+        }
+        game.bullets.push(Bullet {
+            pos,
+            vel: Vec2::ZERO,
+            owner: Some(0),
+            life_time: 1.0,
+            style: BulletStyle::Player,
+            homing: false,
+            damage: PLAYER_BULLET_DAMAGE,
+            radius: PLAYER_BULLET_RADIUS,
+        });
+
+        handle_player_bullet_collisions(&mut game, 0.0);
+
+        assert!(game.bullets.is_empty());
+        assert_eq!(game.enemy_ships.len(), 2);
+        assert!(matches!(
+            game.enemy_ships[0].enemy_type,
+            EnemyType::Kamikaze
+        ));
+        assert!(matches!(game.enemy_ships[1].enemy_type, EnemyType::Heavy));
+        assert!(game.enemy_ships.iter().all(|enemy| enemy.health == 1.0));
     }
 
     #[test]
