@@ -153,8 +153,6 @@ pub struct Game {
     #[serde(skip)]
     enemy_hint_delay: f64,
     pub difficulty: Difficulty,
-    #[serde(skip)]
-    pub menu_selection: MenuItem,
     pub pending_enemy_hint: Option<(bool, f32, f64)>,
     pub boss: Option<Boss>,
     #[serde(skip)]
@@ -184,7 +182,6 @@ impl Game {
             enemy_spawn_count: 0,
             enemy_hint_delay: ENEMY_HINT_DELAY,
             difficulty: Difficulty::Supernova,
-            menu_selection: MenuItem::Start,
             pending_enemy_hint: None,
             boss: None,
             audio_cues: Vec::new(),
@@ -197,10 +194,8 @@ impl Game {
 
     pub fn reset(&mut self, ship_kind: ShipKind, bounds: Vec2) {
         let difficulty = self.difficulty;
-        let menu_selection = self.menu_selection;
         *self = Self::new(bounds);
         self.difficulty = difficulty;
-        self.menu_selection = menu_selection;
         self.set_pilot(0, ship_kind);
     }
 

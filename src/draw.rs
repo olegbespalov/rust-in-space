@@ -792,7 +792,8 @@ pub fn difficulty_key(difficulty: Difficulty) -> &'static str {
 }
 
 pub fn render_menu(
-    game: &Game,
+    selection: MenuItem,
+    difficulty: Difficulty,
     player_name: &str,
     high_score: u32,
     settings: &AudioSettings,
@@ -834,7 +835,7 @@ pub fn render_menu(
         res,
     );
 
-    let difficulty = difficulty_key(game.difficulty);
+    let difficulty = difficulty_key(difficulty);
     let language = match res.lang.current_lang {
         crate::localization::Language::English => "lang_english",
         crate::localization::Language::Russian => "lang_russian",
@@ -890,7 +891,7 @@ pub fn render_menu(
             row_width,
             row_step * 0.88,
         );
-        let selected = game.menu_selection == item;
+        let selected = selection == item;
         let label = res.lang.t(key);
         let text = value.map_or_else(|| label.to_owned(), |value| format!("{label}  {value}"));
 

@@ -66,6 +66,7 @@ async fn main() {
     let mut save_timer = None;
     audio.play_music(&resources.audio, MusicTrack::Menu);
     let mut game = Game::new(vec2(screen_width(), screen_height()));
+    let mut menu_selection = MenuItem::Start;
     let mut upgrade_selection = UpgradeSelection::default();
 
     // XWayland can leave the window at 4×4 after the initial configure.
@@ -127,16 +128,17 @@ async fn main() {
 
                 // Menu navigation
                 if is_key_pressed(KeyCode::Up) {
-                    game.menu_selection = game.menu_selection.prev();
+                    menu_selection = menu_selection.prev();
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                 }
                 if is_key_pressed(KeyCode::Down) {
-                    game.menu_selection = game.menu_selection.next();
+                    menu_selection = menu_selection.next();
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                 }
 
                 let click = render_menu(
-                    &game,
+                    menu_selection,
+                    game.difficulty,
                     player_name,
                     saved.high_score,
                     audio.settings(),
@@ -144,17 +146,17 @@ async fn main() {
                 );
                 if let Some(click) = click {
                     let item = click.item();
-                    if matches!(click, MenuClick::Select(_)) && item != game.menu_selection {
+                    if matches!(click, MenuClick::Select(_)) && item != menu_selection {
                         audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                     }
-                    game.menu_selection = item;
+                    menu_selection = item;
                 }
                 let activate = matches!(click, Some(MenuClick::Activate(_)));
                 let enter = click.is_none() && is_key_pressed(KeyCode::Enter);
                 let left = click.is_none() && is_key_pressed(KeyCode::Left);
                 let right = click.is_none() && is_key_pressed(KeyCode::Right);
 
-                match game.menu_selection {
+                match menu_selection {
                     MenuItem::Start => {
                         if enter || activate {
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
