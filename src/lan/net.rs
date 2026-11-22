@@ -452,7 +452,8 @@ mod tests {
     fn compact_game_state_preserves_visual_effects() {
         use super::super::session::FIELD;
         use crate::components::{
-            Boss, BossPhase, BossSummon, Explosion, LootItem, LootType, ShieldKind,
+            Boss, BossAttack, BossAttackKind, BossPhase, BossSummon, Bullet, BulletStyle,
+            Explosion, LootItem, LootType, ShieldKind,
         };
         use crate::game::Game;
         use macroquad::prelude::{vec2, Vec2};
@@ -478,6 +479,10 @@ mod tests {
         game.explosions.push(explosion);
         let mut boss = Boss::new(vec2(400.0, 100.0), 2.0);
         boss.phase = BossPhase::Escalated;
+        boss.pending_attack = Some(BossAttack {
+            kind: BossAttackKind::Rings,
+            remaining: 0.5,
+        });
         boss.pending_summon = Some(BossSummon {
             from_left: true,
             y: 150.0,
@@ -489,6 +494,15 @@ mod tests {
             boss.max_health,
         );
         game.boss = Some(boss);
+        game.bullets.push(Bullet {
+            pos: vec2(400.0, 220.0),
+            vel: vec2(20.0, 200.0),
+            life_time: 3.0,
+            style: BulletStyle::BossMissile,
+            homing: true,
+            damage: 24.0,
+            radius: 11.25,
+        });
 
         let mut reader = FrameReader::new(SNAPSHOT_LIMIT);
         reader.bytes = encode(&game, SNAPSHOT_LIMIT, true).unwrap();
@@ -507,6 +521,11 @@ mod tests {
         );
         let boss = received.boss.unwrap();
         assert_eq!(boss.phase, BossPhase::Escalated);
+        let attack = boss.pending_attack.unwrap();
+        assert_eq!(attack.kind, BossAttackKind::Rings);
+        assert_eq!(attack.remaining, 0.5);
+        assert!(received.bullets[0].style == BulletStyle::BossMissile);
+        assert_eq!(received.bullets[0].vel, game.bullets[0].vel);
         assert_eq!(boss.pending_summon.unwrap().remaining, 0.75);
         assert_eq!(boss.power_ups.shield.unwrap().hp, 30.0);
     }

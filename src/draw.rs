@@ -1,10 +1,11 @@
 use crate::components::{
-    Asteroid, AudioSettings, Boss, BossPhase, BulletStyle, Difficulty, EnemyShip, EnemyType,
-    Engine, Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective, ShieldKind, Ship,
-    ShipKind, DEFAULT_PLAYER_NAME,
+    Asteroid, AudioSettings, Boss, BossAttackKind, BossPhase, BulletStyle, Difficulty, EnemyShip,
+    EnemyType, Engine, Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective,
+    ShieldKind, Ship, ShipKind, DEFAULT_PLAYER_NAME,
 };
 use crate::game::constants::{
-    ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, KAMIKAZE_RADIUS,
+    BOSS_SIZE, ENEMY_SMALL_RADIUS, GUARDIAN_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS,
+    KAMIKAZE_RADIUS,
 };
 use crate::game::{upgrade_definition, Game, Pilot, UpgradeSelection, UPGRADABLE_IDS};
 use crate::resources::Resources;
@@ -219,6 +220,14 @@ fn draw_enemy(enemy: &EnemyShip, field_width: f32, res: &Resources) {
         EnemyType::Kamikaze => (KAMIKAZE_RADIUS, &res.enemy_kamikaze),
         EnemyType::Interceptor => (INTERCEPTOR_RADIUS, &res.enemy_interceptor),
         EnemyType::Heavy => (HEAVY_RADIUS, &res.enemy_heavy),
+        EnemyType::Guardian => (
+            GUARDIAN_RADIUS,
+            if enemy.health <= enemy.max_health / 2.0 {
+                &res.enemy_guardian_damaged
+            } else {
+                &res.enemy_guardian
+            },
+        ),
     };
     let visual_radius = radius * SHIP_VISUAL_SCALE;
     let size = visual_radius * 2.0;
@@ -258,13 +267,12 @@ fn draw_enemy(enemy: &EnemyShip, field_width: f32, res: &Resources) {
     }
 }
 
-const BOSS_SIZE: f32 = 120.0;
-const BOSS_HP_BAR_HEIGHT: f32 = 8.0;
+const BOSS_HP_BAR_HEIGHT: f32 = 10.0;
 const BOSS_HP_BAR_GAP: f32 = 8.0;
 
 fn draw_boss(boss: &Boss, field_width: f32, res: &Resources) {
-    let size = BOSS_SIZE * SHIP_VISUAL_SCALE;
-    let bar_width = size * 1.2;
+    let size = BOSS_SIZE;
+    let bar_width = size;
     let bar_left = health_bar_left(boss.pos.x, bar_width, field_width);
     let bar_top = health_bar_top(boss.pos.y, size / 2.0, BOSS_HP_BAR_GAP, BOSS_HP_BAR_HEIGHT);
 
@@ -281,11 +289,46 @@ fn draw_boss(boss: &Boss, field_width: f32, res: &Resources) {
         WHITE
     };
 
-    let model = match boss.phase {
-        BossPhase::Opening => &res.boss_1,
-        BossPhase::Escalated => &res.boss_2,
-    };
-    model.draw_tinted(boss.pos, size, boss.rotation, tint);
+    if !boss.power_ups.is_invisible() {
+        for phase in 1..BossPhase::COUNT {
+            let x = bar_left + bar_width * f32::from(phase) / f32::from(BossPhase::COUNT);
+            draw_line(x, bar_top, x, bar_top + BOSS_HP_BAR_HEIGHT, 2.0, BLACK);
+        }
+    }
+    draw_texture_ex(
+        &res.boss_dreadnought,
+        boss.pos.x - size / 2.0,
+        boss.pos.y - size / 2.0,
+        tint,
+        DrawTextureParams {
+            dest_size: Some(Vec2::splat(size)),
+            rotation: boss.rotation + std::f32::consts::FRAC_PI_2,
+            ..Default::default()
+        },
+    );
+    if boss.phase >= BossPhase::MissileSalvos {
+        let launcher_light = Color::new(SKYBLUE.r, SKYBLUE.g, SKYBLUE.b, tint.a * 0.85);
+        for (launcher, _) in boss.attack_paths(BossAttackKind::Missiles, 0) {
+            draw_circle(launcher.x, launcher.y, 3.5, launcher_light);
+        }
+    }
+    if boss.phase == BossPhase::Escalated {
+        let fwd = Vec2::from_angle(boss.rotation);
+        let core = boss.pos - fwd * (size * 0.19);
+        draw_circle(
+            core.x,
+            core.y,
+            20.0,
+            Color::new(1.0, 0.14, 0.42, tint.a * 0.42),
+        );
+        draw_circle_lines(
+            core.x,
+            core.y,
+            19.0,
+            2.0,
+            Color::new(1.0, 0.49, 0.31, tint.a),
+        );
+    }
     if let Some(shield) = &boss.power_ups.shield {
         draw_active_shield(
             boss.pos,
@@ -296,6 +339,47 @@ fn draw_boss(boss: &Boss, field_width: f32, res: &Resources) {
             &res.shield_active,
         );
     }
+}
+
+fn draw_boss_attack(boss: &Boss) {
+    let Some(attack) = boss.pending_attack else {
+        return;
+    };
+    let charge = (1.0 - attack.remaining / attack.kind.warning_duration()).clamp(0.0, 1.0);
+    let (color, length) = match attack.kind {
+        BossAttackKind::Cannons => (ORANGE, 570.0),
+        BossAttackKind::Missiles => (SKYBLUE, 95.0),
+        BossAttackKind::Rings => (VIOLET, 140.0),
+    };
+    let mut line_color = color;
+    line_color.a = 0.35 + charge * 0.45;
+    for (index, (from, dir)) in boss.attack_paths(attack.kind, 0).enumerate() {
+        let to = from + dir * length;
+        draw_line(from.x, from.y, to.x, to.y, 2.0 + 2.0 * charge, line_color);
+        if attack.kind != BossAttackKind::Cannons || index.is_multiple_of(3) {
+            draw_circle(from.x, from.y, 4.0 + 5.0 * charge, color);
+        }
+    }
+    if attack.kind == BossAttackKind::Rings {
+        draw_circle_lines(
+            boss.pos.x,
+            boss.pos.y,
+            BOSS_SIZE * 0.48,
+            2.0 + 4.0 * charge,
+            line_color,
+        );
+    }
+}
+
+fn draw_boss_missile(pos: Vec2, vel: Vec2, radius: f32) {
+    let forward = vel.normalize_or_zero() * radius;
+    let wing = forward.perp() * 0.48;
+    let tip = pos + forward * 1.12;
+    let tail = pos - forward * 0.66;
+    let exhaust = pos - forward * 1.65;
+    draw_triangle(tail + wing * 0.64, exhaust, tail - wing * 0.64, ORANGE);
+    draw_triangle(tip, tail + wing, tail - wing, SKYBLUE);
+    draw_triangle(tip, tail + wing * 0.28, tail - wing * 0.28, WHITE);
 }
 
 fn draw_enemy_health_bar(x: f32, y: f32, width: f32, height: f32, ratio: f32) {
@@ -482,9 +566,21 @@ pub fn render_battle_world(game: &Game, lan: Option<LanView>, resources: &Resour
     {
         let rotation = b.vel.y.atan2(b.vel.x) + std::f32::consts::FRAC_PI_2;
         let size = b.radius * 2.0;
-        if b.style == BulletStyle::Enemy {
-            resources.enemy_bullet.draw(b.pos, size, rotation);
-            continue;
+        match b.style {
+            BulletStyle::Enemy => {
+                resources.enemy_bullet.draw(b.pos, size, rotation);
+                continue;
+            }
+            BulletStyle::Boss => {
+                draw_circle(b.pos.x, b.pos.y, b.radius, ORANGE);
+                draw_circle(b.pos.x, b.pos.y, b.radius * 0.55, YELLOW);
+                continue;
+            }
+            BulletStyle::BossMissile => {
+                draw_boss_missile(b.pos, b.vel, b.radius);
+                continue;
+            }
+            BulletStyle::Player => {}
         }
 
         let tint = if b.homing {
@@ -524,6 +620,9 @@ pub fn render_battle_world(game: &Game, lan: Option<LanView>, resources: &Resour
         .filter(|boss| visible(boss.pos, BOSS_SIZE))
     {
         draw_boss(boss, bounds.x, resources);
+    }
+    if let Some(boss) = &game.boss {
+        draw_boss_attack(boss);
     }
 
     for ex in game.explosions.iter().filter(|ex| {
@@ -608,16 +707,14 @@ pub fn render_battle_hud(game: &Game, lan: Option<LanView>, resources: &Resource
         let status = match objective {
             MissionObjective::DefeatBoss => match &game.boss {
                 Some(boss) => {
-                    let phase = match boss.phase {
-                        BossPhase::Opening => 1,
-                        BossPhase::Escalated => 2,
-                    };
                     format!(
-                        "{} {:.0}/{:.0}  {} {phase}/2",
+                        "{} {:.0}/{:.0}  {} {}/{}",
                         resources.lang.t("boss_hp"),
                         boss.health.ceil(),
                         boss.max_health,
-                        resources.lang.t("boss_phase")
+                        resources.lang.t("boss_phase"),
+                        boss.phase.number(),
+                        BossPhase::COUNT,
                     )
                 }
                 None => resources.lang.t("boss_defeated").to_string(),

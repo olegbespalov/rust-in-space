@@ -1,9 +1,11 @@
 use crate::components::*;
 use crate::game::constants::*;
-use crate::game::Game;
+use crate::game::{nearest_pilot, Game};
 use macroquad::prelude::*;
 
 const TARGET_ENEMY_SPAWN_PERIOD: u32 = 4;
+const GUARDIAN_UNLOCK_LEVEL: u32 = 4;
+const GUARDIAN_VOLLEY_ANGLES: [f32; 5] = [-0.42, -0.21, 0.0, 0.21, 0.42];
 
 pub fn update_enemies(game: &mut Game, dt: f32, now: f64) {
     if game.boss.is_none() {
@@ -118,7 +120,12 @@ fn spawn_enemy(game: &mut Game, from_left: bool, y: f32) {
     let enemy_type =
         scheduled_target_enemy(mission, &game.mission_progress, game.enemy_spawn_count)
             .unwrap_or_else(|| {
-                enemy_type_for_roll(mission.level_id, macroquad::rand::gen_range(0, 100))
+                let roll = macroquad::rand::gen_range(0, 100);
+                let guardian_present = game
+                    .enemy_ships
+                    .iter()
+                    .any(|enemy| enemy.enemy_type == EnemyType::Guardian);
+                enemy_type_for_roll(mission.level_id, roll, guardian_present)
             });
     game.enemy_ships.push(EnemyShip::new_at_side(
         from_left,
@@ -151,11 +158,12 @@ fn scheduled_target_enemy(
     })
 }
 
-fn enemy_type_for_roll(level: u32, roll: i32) -> EnemyType {
+fn enemy_type_for_roll(level: u32, roll: i32, guardian_present: bool) -> EnemyType {
     match roll {
         0..=29 => EnemyType::Kamikaze,
         30..=49 if level >= 2 => EnemyType::Interceptor,
         50..=64 if level >= 4 => EnemyType::Heavy,
+        65..=69 if level >= GUARDIAN_UNLOCK_LEVEL && !guardian_present => EnemyType::Guardian,
         _ => EnemyType::Regular,
     }
 }
@@ -169,6 +177,7 @@ fn enemy_volley(enemy_type: EnemyType) -> Option<(f32, f32, &'static [f32])> {
             250.0,
             &[-HEAVY_VOLLEY_HALF_ANGLE, 0.0, HEAVY_VOLLEY_HALF_ANGLE],
         )),
+        EnemyType::Guardian => Some((3.6, 260.0, &GUARDIAN_VOLLEY_ANGLES)),
         EnemyType::Kamikaze => None,
     }
 }
@@ -223,15 +232,27 @@ mod tests {
     }
 
     #[test]
-    fn boss_escalates_once_at_half_health_and_replaces_the_pending_wave() {
+    fn boss_changes_phases_at_health_thresholds_without_reverting_after_repairs() {
         let mut boss = opening_boss();
-        boss.health = 226.0;
+        let missile_threshold = boss.max_health * BOSS_MISSILE_PHASE_HEALTH_RATIO;
+        let escalation_threshold = boss.max_health * BOSS_ESCALATION_HEALTH_RATIO;
+        boss.health = missile_threshold + 1.0;
         assert!(advance(&mut boss, 0, 5.0).is_none());
         assert_eq!(boss.phase, BossPhase::Opening);
         assert!(boss.pending_summon.is_some());
 
         boss.take_damage(1.0);
         boss.shoot_timer = BossPhase::Opening.shot_interval();
+        assert!(advance(&mut boss, 0, 1.0).is_none());
+        assert_eq!(boss.phase, BossPhase::MissileSalvos);
+        assert_eq!(boss.shoot_timer, 2.5);
+        assert_eq!(boss.summon_timer, 4.25);
+        assert!(boss.pending_summon.is_none());
+
+        boss.health = escalation_threshold + 1.0;
+        advance(&mut boss, 0, 0.0);
+        assert_eq!(boss.phase, BossPhase::MissileSalvos);
+        boss.take_damage(1.0);
         assert!(advance(&mut boss, 0, 1.0).is_none());
         assert_eq!(boss.phase, BossPhase::Escalated);
         assert_eq!(boss.shoot_timer, 2.0);
@@ -240,7 +261,7 @@ mod tests {
 
         boss.health = boss.max_health;
         advance(&mut boss, 0, 1.0);
-        boss.take_damage(boss.max_health / 2.0);
+        boss.take_damage(boss.max_health * (1.0 - BOSS_ESCALATION_HEALTH_RATIO));
         advance(&mut boss, 0, 1.0);
         assert_eq!(boss.phase, BossPhase::Escalated);
         assert_eq!(boss.summon_timer, 1.5);
@@ -260,7 +281,7 @@ mod tests {
             .eq([(true, 160.0, EnemyType::Regular)]));
         assert_eq!(boss.summon_timer, 5.0);
 
-        boss.health = boss.max_health / 2.0;
+        boss.health = boss.max_health * BOSS_ESCALATION_HEALTH_RATIO;
         advance(&mut boss, 3, 0.0);
         assert!(advance(&mut boss, 3, 3.5).is_none());
         assert!(boss.pending_summon.is_none());
@@ -295,6 +316,101 @@ mod tests {
         assert!(advance(&mut boss, 0, 1.0).is_none());
         assert!(boss.pending_summon.is_none());
         assert_eq!(boss.phase, BossPhase::Opening);
+    }
+
+    #[test]
+    fn boss_locks_its_aim_and_unlocks_missiles_then_rings() {
+        use BossAttackKind::*;
+
+        let mut boss = opening_boss();
+        assert!(advance_boss_weapons(&mut boss, Some(0.5), 1.0).is_none());
+        assert_eq!(boss.pending_attack.unwrap().kind, Cannons);
+        assert!(advance_boss_weapons(&mut boss, Some(1.0), 0.25).is_none());
+        assert_eq!(
+            advance_boss_weapons(&mut boss, Some(1.0), Cannons.warning_duration()),
+            Some((Cannons, 0))
+        );
+        assert_eq!(boss.rotation, 0.5);
+        assert_eq!(boss.next_attack, Cannons);
+
+        boss.health = boss.max_health * BOSS_MISSILE_PHASE_HEALTH_RATIO;
+        advance(&mut boss, 0, 0.0);
+        assert_eq!(boss.phase, BossPhase::MissileSalvos);
+        assert!(
+            advance_boss_weapons(&mut boss, Some(1.0), BOSS_MISSILE_PHASE_SHOOT_INTERVAL,)
+                .is_none()
+        );
+        assert_eq!(
+            advance_boss_weapons(&mut boss, Some(1.0), Missiles.warning_duration()),
+            Some((Missiles, 0))
+        );
+        assert_eq!(boss.next_attack, Cannons);
+        boss.health = boss.max_health * BOSS_ESCALATION_HEALTH_RATIO;
+        advance(&mut boss, 0, 0.0);
+        assert!(advance_boss_weapons(&mut boss, None, BOSS_ESCALATED_SHOOT_INTERVAL).is_none());
+        assert_eq!(boss.pending_attack.unwrap().kind, Rings);
+        assert_eq!(
+            advance_boss_weapons(&mut boss, None, Rings.warning_duration()),
+            Some((Rings, 0))
+        );
+        let (_, first_ray) = boss.attack_paths(Rings, 0).next().unwrap();
+        for ring in 1..BOSS_RING_COUNT {
+            assert_eq!(
+                advance_boss_weapons(&mut boss, None, BOSS_RING_DELAY),
+                Some((Rings, ring))
+            );
+            assert_ne!(boss.attack_paths(Rings, ring).next().unwrap().1, first_ray);
+        }
+        assert!(advance_boss_weapons(&mut boss, None, 0.0).is_none());
+        assert_eq!(boss.rings_left, 0);
+    }
+
+    #[test]
+    fn boss_shields_block_damage_and_recharge_faster_in_the_final_phase() {
+        let mut boss = opening_boss();
+        assert!(!advance_boss_shield(&mut boss, BOSS_SHIELD_INTERVAL));
+
+        boss.health = boss.max_health * BOSS_MISSILE_PHASE_HEALTH_RATIO;
+        advance(&mut boss, 0, 0.0);
+        assert!(!advance_boss_shield(
+            &mut boss,
+            BOSS_FIRST_SHIELD_DELAY - 1.0
+        ));
+        assert!(advance_boss_shield(&mut boss, 1.0));
+        assert_eq!(
+            boss.power_ups.shield.as_ref().unwrap().hp,
+            BOSS_SHIELD_HEALTH
+        );
+        let health = boss.health;
+        boss.take_damage(15.0);
+        assert_eq!(boss.health, health);
+        assert_eq!(
+            boss.power_ups.shield.as_ref().unwrap().hp,
+            BOSS_SHIELD_HEALTH - 15.0
+        );
+
+        boss.power_ups.tick(BOSS_SHIELD_DURATION);
+        assert!(boss.power_ups.shield.is_none());
+        assert!(!advance_boss_shield(&mut boss, BOSS_SHIELD_DURATION));
+        assert!(advance_boss_shield(
+            &mut boss,
+            BOSS_SHIELD_INTERVAL - BOSS_SHIELD_DURATION
+        ));
+
+        boss.health = boss.max_health * BOSS_ESCALATION_HEALTH_RATIO;
+        advance(&mut boss, 0, 0.0);
+        assert!(!advance_boss_shield(&mut boss, BOSS_FIRST_SHIELD_DELAY));
+        assert_eq!(
+            boss.power_ups.shield.as_ref().unwrap().hp,
+            BOSS_SHIELD_HEALTH
+        );
+        boss.power_ups.tick(BOSS_SHIELD_DURATION);
+        assert!(advance_boss_shield(&mut boss, 0.0));
+        assert_eq!(
+            boss.power_ups.shield.as_ref().unwrap().hp,
+            BOSS_ESCALATED_SHIELD_HEALTH
+        );
+        assert_eq!(boss.shield_timer, BOSS_ESCALATED_SHIELD_INTERVAL);
     }
 
     #[test]
@@ -341,22 +457,25 @@ mod tests {
     #[test]
     fn enemy_variants_unlock_without_changing_kamikaze_frequency() {
         for (level, expected) in [
-            (1, [70, 30, 0, 0]),
-            (2, [50, 30, 20, 0]),
-            (4, [35, 30, 20, 15]),
+            (1, [70, 30, 0, 0, 0]),
+            (2, [50, 30, 20, 0, 0]),
+            (3, [50, 30, 20, 0, 0]),
+            (4, [30, 30, 20, 15, 5]),
         ] {
-            let mut counts = [0; 4];
+            let mut counts = [0; 5];
             for roll in 0..100 {
-                let index = match enemy_type_for_roll(level, roll) {
+                let index = match enemy_type_for_roll(level, roll, false) {
                     EnemyType::Regular => 0,
                     EnemyType::Kamikaze => 1,
                     EnemyType::Interceptor => 2,
                     EnemyType::Heavy => 3,
+                    EnemyType::Guardian => 4,
                 };
                 counts[index] += 1;
             }
             assert_eq!(counts, expected, "mission {level}");
         }
+        assert!(enemy_type_for_roll(4, 65, true) == EnemyType::Regular);
     }
 }
 
@@ -384,32 +503,134 @@ fn keep_enemy_in_bounds(e: &mut EnemyShip, bounds: Vec2) {
 }
 
 pub fn update_boss(game: &mut Game, dt: f32) {
-    if let Some(ref mut boss) = game.boss {
-        boss.power_ups.tick(dt);
+    let Some(boss) = game.boss.as_mut() else {
+        return;
+    };
+    boss.power_ups.tick(dt);
+    if advance_boss_shield(boss, dt) {
+        game.audio_cues.push(crate::audio::AudioCue::ShieldOn);
+    }
+    if boss.pending_attack.is_none() && boss.rings_left == 0 {
         boss.pos += boss.vel * dt;
-        boss.rotation += BOSS_ROTATION_SPEED * dt * std::f32::consts::PI / 180.0;
-        keep_boss_in_bounds(boss, game.bounds);
-        boss.shoot_timer -= dt;
-        if boss.shoot_timer <= 0.0 {
-            if boss.burst_shots_left == 0 {
-                boss.burst_shots_left = BOSS_BURST_SIZE;
-            }
-            boss.burst_shots_left -= 1;
-            boss.shoot_timer = if boss.burst_shots_left > 0 {
-                BOSS_BURST_DELAY
+    }
+    keep_boss_in_bounds(boss, game.bounds);
+    let aim = nearest_pilot(&game.pilots, boss.pos, |pilot| !pilot.ship.is_invisible())
+        .and_then(|slot| game.pilots[slot].as_ref())
+        .map(|pilot| {
+            let offset = pilot.ship.pos - boss.pos;
+            offset.y.atan2(offset.x)
+        });
+    let Some((kind, ring)) = advance_boss_weapons(boss, aim, dt) else {
+        return;
+    };
+
+    game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
+    game.bullets
+        .extend(boss.attack_paths(kind, ring).map(|(pos, direction)| {
+            let missile = kind == BossAttackKind::Missiles;
+            let (speed, damage) = if missile {
+                (BOSS_MISSILE_SPEED, BOSS_MISSILE_DAMAGE)
             } else {
-                enemy_shot_delay(boss.phase.shot_interval(), &boss.power_ups)
+                (BOSS_BULLET_SPEED, BOSS_BULLET_DAMAGE)
             };
-            game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
-            for (dx, dy) in BOSS_VOLLEY_DIRS {
-                game.bullets.push(enemy_bullet(
-                    boss.pos,
-                    vec2(dx, dy) * BOSS_BULLET_SPEED,
-                    BOSS_BULLET_DAMAGE,
-                    &boss.power_ups,
-                ));
-            }
+            let mut bullet = enemy_bullet(pos, direction * speed, damage, &boss.power_ups);
+            bullet.style = if missile {
+                bullet.homing = true;
+                bullet.radius *= 1.25;
+                BulletStyle::BossMissile
+            } else {
+                BulletStyle::Boss
+            };
+            bullet
+        }));
+}
+
+fn advance_boss_shield(boss: &mut Boss, dt: f32) -> bool {
+    let (interval, hp) = match boss.phase {
+        BossPhase::Opening => return false,
+        BossPhase::MissileSalvos => (BOSS_SHIELD_INTERVAL, BOSS_SHIELD_HEALTH),
+        BossPhase::Escalated => (BOSS_ESCALATED_SHIELD_INTERVAL, BOSS_ESCALATED_SHIELD_HEALTH),
+    };
+    boss.shield_timer = (boss.shield_timer - dt).max(0.0);
+    if boss.shield_timer > 0.0 || boss.power_ups.shield.is_some() {
+        return false;
+    }
+    boss.power_ups
+        .activate_shield(ShieldKind::Standard, hp, BOSS_SHIELD_DURATION);
+    boss.shield_timer = interval;
+    true
+}
+
+fn advance_boss_weapons(
+    boss: &mut Boss,
+    aim: Option<f32>,
+    dt: f32,
+) -> Option<(BossAttackKind, u32)> {
+    use BossAttackKind::*;
+
+    if let Some(attack) = boss.pending_attack.as_mut() {
+        attack.remaining -= dt;
+        if attack.remaining > 0.0 {
+            return None;
         }
+        let kind = attack.kind;
+        boss.pending_attack = None;
+        boss.rings_left = if kind == Rings {
+            BOSS_RING_COUNT - 1
+        } else {
+            0
+        };
+        boss.shoot_timer = boss_recovery(boss);
+        return Some((kind, 0));
+    }
+
+    boss.shoot_timer = (boss.shoot_timer - dt).max(0.0);
+    if boss.rings_left > 0 {
+        if boss.shoot_timer > 0.0 {
+            return None;
+        }
+        let ring = BOSS_RING_COUNT - boss.rings_left;
+        boss.rings_left -= 1;
+        boss.shoot_timer = boss_recovery(boss);
+        return Some((Rings, ring));
+    }
+
+    if let Some(angle) = aim {
+        let difference = angle - boss.rotation;
+        let turn = difference.sin().atan2(difference.cos());
+        boss.rotation += turn.clamp(-1.9 * dt, 1.9 * dt);
+    }
+    if boss.shoot_timer > 0.0 {
+        return None;
+    }
+
+    let kind = if aim.is_some() {
+        boss.next_attack
+    } else if boss.phase == BossPhase::Escalated {
+        Rings
+    } else {
+        return None;
+    };
+    if let Some(angle) = aim.filter(|_| kind != Rings) {
+        boss.rotation = angle;
+    }
+    boss.pending_attack = Some(BossAttack {
+        kind,
+        remaining: kind.warning_duration(),
+    });
+    boss.next_attack = match kind {
+        Cannons if boss.phase != BossPhase::Opening => Missiles,
+        Missiles if boss.phase == BossPhase::Escalated => Rings,
+        _ => Cannons,
+    };
+    None
+}
+
+fn boss_recovery(boss: &Boss) -> f32 {
+    if boss.rings_left > 0 {
+        BOSS_RING_DELAY
+    } else {
+        enemy_shot_delay(boss.phase.shot_interval(), &boss.power_ups)
     }
 }
 
@@ -417,6 +638,7 @@ impl BossPhase {
     fn shot_interval(self) -> f32 {
         match self {
             Self::Opening => BOSS_SHOOT_INTERVAL,
+            Self::MissileSalvos => BOSS_MISSILE_PHASE_SHOOT_INTERVAL,
             Self::Escalated => BOSS_ESCALATED_SHOOT_INTERVAL,
         }
     }
@@ -424,6 +646,7 @@ impl BossPhase {
     fn summon_types(self) -> &'static [EnemyType] {
         match self {
             Self::Opening => &[EnemyType::Regular],
+            Self::MissileSalvos => &[EnemyType::Interceptor],
             Self::Escalated => &[EnemyType::Interceptor, EnemyType::Kamikaze],
         }
     }
@@ -449,6 +672,7 @@ impl BossSummon {
 pub(super) fn boss_summon_delay(phase: BossPhase, difficulty: Difficulty) -> f32 {
     let interval = match phase {
         BossPhase::Opening => BOSS_SUMMON_INTERVAL,
+        BossPhase::MissileSalvos => BOSS_MISSILE_PHASE_SUMMON_INTERVAL,
         BossPhase::Escalated => BOSS_ESCALATED_SUMMON_INTERVAL,
     };
     interval / difficulty.spawn_rate_mult() - BOSS_SUMMON_WARNING_DURATION
@@ -486,17 +710,29 @@ fn advance_boss_encounter(
 ) -> Option<BossSummon> {
     if boss.health <= 0.0 {
         boss.pending_summon = None;
+        boss.pending_attack = None;
+        boss.rings_left = 0;
         return None;
     }
 
-    if boss.phase == BossPhase::Opening
-        && boss.health <= boss.max_health * BOSS_ESCALATION_HEALTH_RATIO
-    {
-        boss.phase = BossPhase::Escalated;
-        if boss.burst_shots_left == 0 {
-            let new_delay = enemy_shot_delay(boss.phase.shot_interval(), &boss.power_ups);
-            boss.shoot_timer = boss.shoot_timer.min(new_delay);
-        }
+    let health_phase = if boss.health <= boss.max_health * BOSS_ESCALATION_HEALTH_RATIO {
+        BossPhase::Escalated
+    } else if boss.health <= boss.max_health * BOSS_MISSILE_PHASE_HEALTH_RATIO {
+        BossPhase::MissileSalvos
+    } else {
+        BossPhase::Opening
+    };
+    if health_phase > boss.phase {
+        boss.phase = health_phase;
+        boss.pending_attack = None;
+        boss.rings_left = 0;
+        boss.next_attack = match health_phase {
+            BossPhase::Opening => BossAttackKind::Cannons,
+            BossPhase::MissileSalvos => BossAttackKind::Missiles,
+            BossPhase::Escalated => BossAttackKind::Rings,
+        };
+        boss.shoot_timer = boss.shoot_timer.min(boss_recovery(boss));
+        boss.shield_timer = BOSS_FIRST_SHIELD_DELAY;
         boss.pending_summon = None;
         boss.summon_timer = boss_summon_delay(boss.phase, difficulty);
         return None;
@@ -525,23 +761,14 @@ fn advance_boss_encounter(
 }
 
 fn keep_boss_in_bounds(boss: &mut Boss, bounds: Vec2) {
-    let margin = BOSS_BORDER_MARGIN;
-    let w = bounds.x;
-    let h = bounds.y;
-    if boss.pos.x < margin {
-        boss.vel.x = boss.vel.x.abs();
-        boss.pos.x = margin;
+    let margin = Vec2::splat(BOSS_SIZE * 0.6).min(bounds / 2.0);
+    let max = vec2(bounds.x - margin.x, (bounds.y * 0.52).max(margin.y));
+    let clamped = boss.pos.clamp(margin, max);
+    if boss.pos.x != clamped.x {
+        boss.vel.x = boss.vel.x.copysign(clamped.x - boss.pos.x);
     }
-    if boss.pos.x > w - margin {
-        boss.vel.x = -boss.vel.x.abs();
-        boss.pos.x = w - margin;
+    if boss.pos.y != clamped.y {
+        boss.vel.y = boss.vel.y.copysign(clamped.y - boss.pos.y);
     }
-    if boss.pos.y < margin {
-        boss.vel.y = boss.vel.y.abs();
-        boss.pos.y = margin;
-    }
-    if boss.pos.y > h - margin {
-        boss.vel.y = -boss.vel.y.abs();
-        boss.pos.y = h - margin;
-    }
+    boss.pos = clamped;
 }

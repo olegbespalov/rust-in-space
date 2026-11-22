@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 pub(super) const FIELD: Vec2 = vec2(1920.0, 1080.0);
 pub(super) const HOST: usize = 0;
-const VERSION: u16 = 4;
+const VERSION: u16 = 6;
 const STEP: f64 = 1.0 / 60.0;
 const INPUT_PERIOD: Duration = Duration::from_nanos(33_333_334);
 const HEARTBEAT_PERIOD: Duration = Duration::from_secs(1);
@@ -1166,7 +1166,7 @@ mod tests {
     }
 
     #[test]
-    fn guardian_health_scales_but_its_wave_schedule_does_not() {
+    fn dreadnought_health_scales_but_its_wave_schedule_does_not() {
         let mut campaign = Campaign::new(Difficulty::Supernova);
         campaign.game.current_mission = get_mission(3);
         campaign.game.start_mission();

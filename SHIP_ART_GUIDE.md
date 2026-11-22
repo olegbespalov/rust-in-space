@@ -19,12 +19,16 @@ Use the purchased upgrade level to select each part or effect. Author one hull a
 
 ## Enemy variants
 
-The regular shooter, kamikaze, Guardian, interceptor, and heavy gunship belong to the same civilization in the first world. Their ships share segmented green armor, violet chitin spikes, and red eye-like sensors. Distinguish combat roles by silhouette and proportions. Give the second world's civilization its own hull shapes, materials, and palette so players can recognize the change in faction at a glance.
+The regular shooter, kamikaze, Guardian, interceptor, heavy gunship, and Dreadnought belong to the same civilization in the first world. Their ships share segmented green armor, violet chitin spikes, and red eye-like sensors. Distinguish combat roles by silhouette and proportions. Give the second world's civilization its own hull shapes, materials, and palette so players can recognize the change in faction at a glance.
 
 1. **Interceptor (60 px)**. An elongated fighter with a forked nose and swept-back violet spines, derived from the [regular shooter sprite](assets/enemy.png). [Meshy GLB](assets/models/enemy_interceptor.glb), task `01a1fef7-fbff-76d4-a1fe-12f2b74d0a8a`.
 2. **Heavy enemy (90 px)**. A wide gunship with green armor, red seams, and a single eye above three gun pods, derived from the [Guardian sprite](assets/boss_1.png). [Meshy GLB](assets/models/enemy_heavy.glb), task `01a1fef8-18a1-7399-88bd-6eb5033417be`.
 
 Both meshes are oriented with the nose at +Y and the top at +Z. The embedded 512-pixel PNG textures were brightened for the dark space background. The heavy gunship's textured eye was fitted into the forward recess to keep it visible at gameplay scale. Macroquad renders the meshes once at startup and rotates their baked textures during play. Meshy did not return license metadata for either task.
+
+The [Dreadnought sprite](assets/boss_dreadnought.png) was generated with ImageGen and renders at 240 pixels. Its two cannon muzzles and side launchers align with the firing warnings. The Guardian uses the former boss models, switching to the damaged hull at half health.
+
+> Create a single transparent game sprite for the final alien capital ship in a retro 2D space shooter. Directly overhead, nose straight up. Broad armored silhouette with two visibly separate forward cannons, layered emerald chitin, violet spines and a bright amber-red reactor. Crisp low-poly shading and bold shapes legible at 240 pixels against dark space. Center the whole ship, fill the square frame with a narrow margin, and leave true transparent alpha around it. No exhaust, detached effects, backdrop, or text.
 
 ## Sprite-based Meshy assets
 

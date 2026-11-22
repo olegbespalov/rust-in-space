@@ -40,7 +40,12 @@ pub fn update_timers(game: &mut Game, dt: f32) {
     });
 }
 
-fn homing_velocity(pos: Vec2, vel: Vec2, targets: impl Iterator<Item = Vec2>, dt: f32) -> Vec2 {
+fn homing_velocity(
+    pos: Vec2,
+    vel: Vec2,
+    targets: impl Iterator<Item = Vec2>,
+    max_turn: f32,
+) -> Vec2 {
     let heading = vel.normalize_or_zero();
     let cone_dot = HOMING_HALF_ANGLE.to_radians().cos();
     let target = targets
@@ -55,7 +60,6 @@ fn homing_velocity(pos: Vec2, vel: Vec2, targets: impl Iterator<Item = Vec2>, dt
     };
 
     let angle = heading.perp_dot(offset).atan2(heading.dot(offset));
-    let max_turn = HOMING_TURN_SPEED * dt;
     let (sin, cos) = angle.clamp(-max_turn, max_turn).sin_cos();
     vec2(vel.x * cos - vel.y * sin, vel.x * sin + vel.y * cos)
 }
@@ -76,16 +80,21 @@ pub fn update_physics(game: &mut Game, dt: f32) {
                                 .filter(|boss| !boss.power_ups.is_invisible())
                                 .map(|boss| boss.pos),
                         );
-                    b.vel = homing_velocity(b.pos, b.vel, targets, dt);
+                    b.vel = homing_velocity(b.pos, b.vel, targets, HOMING_TURN_SPEED * dt);
                 }
-                BulletStyle::Enemy => {
+                BulletStyle::Enemy | BulletStyle::Boss | BulletStyle::BossMissile => {
                     let targets = game
                         .pilots
                         .iter()
                         .flatten()
                         .filter(|pilot| pilot.is_alive() && !pilot.ship.is_invisible())
                         .map(|pilot| pilot.ship.pos);
-                    b.vel = homing_velocity(b.pos, b.vel, targets, dt);
+                    let turn_speed = if b.style == BulletStyle::BossMissile {
+                        BOSS_MISSILE_TURN_SPEED
+                    } else {
+                        HOMING_TURN_SPEED
+                    };
+                    b.vel = homing_velocity(b.pos, b.vel, targets, turn_speed * dt);
                 }
             }
         }
@@ -308,8 +317,8 @@ fn handle_bullet_bullet_collisions(game: &mut Game) {
         if bullets_to_remove.contains(&i) {
             continue;
         }
-        for (j, b2) in game.bullets.iter().enumerate().skip(i + 1) {
-            if b2.style != BulletStyle::Enemy {
+        for (j, b2) in game.bullets.iter().enumerate() {
+            if b2.style == BulletStyle::Player {
                 continue;
             }
             if bullets_to_remove.contains(&j) {
@@ -473,7 +482,7 @@ fn damage_ship(ship: &mut Ship, damage: f32, cues: &mut Vec<AudioCue>) {
 
 fn handle_enemy_bullet_collisions(game: &mut Game) {
     game.bullets.retain(|bullet| {
-        if bullet.style == BulletStyle::Enemy {
+        if bullet.style != BulletStyle::Player {
             if let Some(ship) = collision_pilot(&mut game.pilots, bullet.pos, bullet.radius) {
                 game.explosions.push(Explosion::new(ship.pos, 0.5));
                 damage_ship(
@@ -562,6 +571,38 @@ mod tests {
     }
 
     #[test]
+    fn a_missile_tracks_the_pilot_and_can_be_intercepted_by_a_later_shot() {
+        let mut game = Game::new(vec2(1280.0, 720.0));
+        let pos = game.solo_pilot().ship.pos - vec2(180.0, 80.0);
+        game.bullets.push(Bullet {
+            pos,
+            vel: Vec2::X * BOSS_MISSILE_SPEED,
+            life_time: 3.0,
+            style: BulletStyle::BossMissile,
+            homing: true,
+            damage: BOSS_MISSILE_DAMAGE,
+            radius: 11.25,
+        });
+        update_physics(&mut game, 0.1);
+        let missile = &game.bullets[0];
+        assert!(missile.vel.y > 0.0);
+        assert!((missile.vel.y.atan2(missile.vel.x) - BOSS_MISSILE_TURN_SPEED * 0.1).abs() < 1e-5);
+
+        game.bullets.push(Bullet {
+            pos: missile.pos,
+            vel: Vec2::ZERO,
+            life_time: 1.0,
+            style: BulletStyle::Player,
+            homing: false,
+            damage: PLAYER_BULLET_DAMAGE,
+            radius: PLAYER_BULLET_RADIUS,
+        });
+        update_collisions(&mut game);
+        assert!(game.bullets.is_empty());
+        assert_eq!(game.solo_pilot().ship.health, BASE_SHIP_HP);
+    }
+
+    #[test]
     fn enemy_can_collect_a_shield_and_it_absorbs_damage_until_expiry() {
         let mut enemies = [EnemyShip {
             pos: vec2(100.0, 100.0),
@@ -599,7 +640,7 @@ mod tests {
 
         for _ in 0..(BULLET_LIFETIME / dt) as usize {
             target += vec2(0.0, 80.0) * dt;
-            vel = homing_velocity(pos, vel, std::iter::once(target), dt);
+            vel = homing_velocity(pos, vel, std::iter::once(target), HOMING_TURN_SPEED * dt);
             assert!((vel.length() - BULLET_SPEED).abs() < 0.01);
             pos += vel * dt;
             if pos.distance(target) < ENEMY_SMALL_RADIUS + PLAYER_BULLET_RADIUS {
@@ -615,7 +656,12 @@ mod tests {
         let vel = vec2(BULLET_SPEED, 0.0);
         let targets = [vec2(-20.0, 10.0), vec2(HOMING_RANGE + 1.0, 50.0)];
         assert_eq!(
-            homing_velocity(Vec2::ZERO, vel, targets.into_iter(), 1.0 / 60.0),
+            homing_velocity(
+                Vec2::ZERO,
+                vel,
+                targets.into_iter(),
+                HOMING_TURN_SPEED / 60.0
+            ),
             vel
         );
     }

@@ -33,6 +33,8 @@ pub struct Resources {
     pub enemy_kamikaze: ModelSprite,
     pub enemy_interceptor: ModelSprite,
     pub enemy_heavy: ModelSprite,
+    pub enemy_guardian: ModelSprite,
+    pub enemy_guardian_damaged: ModelSprite,
     pub bullet: Texture2D,
     pub enemy_bullet: ModelSprite,
     pub loot_scrap: ModelSprite,
@@ -47,8 +49,7 @@ pub struct Resources {
     pub asteroid: ModelSprite,
     pub rare_asteroid: ModelSprite,
     pub explosion: Texture2D,
-    pub boss_1: ModelSprite,
-    pub boss_2: ModelSprite,
+    pub boss_dreadnought: Texture2D,
 }
 
 #[allow(dead_code)]
@@ -139,14 +140,14 @@ impl Resources {
             40,
         )
         .await;
-        let boss_1 = ModelSprite::load(
+        let enemy_guardian = ModelSprite::load(
             "assets/boss_1.png",
             "assets/models/enemy_guardian.glb",
             overhead,
             72,
         )
         .await;
-        let boss_2 = ModelSprite::load(
+        let enemy_guardian_damaged = ModelSprite::load(
             "assets/boss_2.png",
             "assets/models/enemy_guardian_escalated.glb",
             overhead,
@@ -161,9 +162,11 @@ impl Resources {
             )
             .await;
         // Tilt the heavy ship's view enough to show its recessed eye and three gun pods.
-        let enemy_heavy = boss_1
+        let enemy_heavy = enemy_guardian
             .with_model("assets/models/enemy_heavy.glb", vec3(0.0, 1.15, 2.0), 56)
             .await;
+        let boss_dreadnought = load_texture("assets/boss_dreadnought.png").await.unwrap();
+        boss_dreadnought.set_filter(FilterMode::Linear);
 
         let loot_scrap = ModelSprite::load(
             "assets/loot/resources/rust_pile.png",
@@ -302,6 +305,8 @@ impl Resources {
             enemy_kamikaze,
             enemy_interceptor,
             enemy_heavy,
+            enemy_guardian,
+            enemy_guardian_damaged,
             bullet,
             enemy_bullet,
             loot_scrap,
@@ -316,8 +321,7 @@ impl Resources {
             asteroid,
             rare_asteroid,
             explosion,
-            boss_1,
-            boss_2,
+            boss_dreadnought,
         }
     }
 }

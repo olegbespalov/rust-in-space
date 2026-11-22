@@ -88,8 +88,8 @@ impl Localization {
         en.insert("goal_survive", "Survive (sec)");
         ru.insert("goal_survive", "Продержаться (сек)");
 
-        en.insert("obj_destroy_boss", "Defeat the Guardian");
-        ru.insert("obj_destroy_boss", "Уничтожить Стража");
+        en.insert("obj_destroy_boss", "Defeat the Dreadnought");
+        ru.insert("obj_destroy_boss", "Уничтожить Дредноут");
 
         en.insert("press_space", "Launch [SPACE]");
         ru.insert("press_space", "Запустить [ПРОБЕЛ]");
@@ -283,7 +283,7 @@ impl Localization {
         de.insert("goal_heavy_ships", "Schwere Schiffe zerstören");
         de.insert("goal_scrap", "Schrott sammeln");
         de.insert("goal_survive", "Überleben (Sek.)");
-        de.insert("obj_destroy_boss", "Den Wächter besiegen");
+        de.insert("obj_destroy_boss", "Den Dreadnought besiegen");
         de.insert("press_space", "Starten [LEERTASTE]");
         de.insert("mission_complete", "MISSION ERFOLGREICH!");
         de.insert("level_cleared_prefix", "Level");

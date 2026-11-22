@@ -121,7 +121,7 @@ pub fn get_mission(level: u32) -> Mission {
         },
         3 => Mission {
             level_id: 3,
-            title: "Boss: Guardian".to_string(),
+            title: "Boss: Dreadnought".to_string(),
             objectives: vec![DefeatBoss, DefeatEnemies(6)],
             enemy_spawn_interval: 6.0,
             asteroid_count: 0,

@@ -37,7 +37,7 @@ unavailable on your network, use the IP address directly.
 
 Pick a ship, have all guests mark **Ready**, and start the campaign from the
 host lobby. The host chooses the campaign's difficulty. Starting a mission with
-two or more pilots raises asteroid counts, count-based objectives, and Guardian health
+two or more pilots raises asteroid counts, count-based objectives, and Dreadnought health
 by 50%. Regular enemies spawn 25% more often. In Nebula, the spawn warning also
 shortens from 2.5 to 2 seconds to maintain that rate. All pilots share mission
 progress and score, and each spends their own salvage in the Upgrade Bay. If

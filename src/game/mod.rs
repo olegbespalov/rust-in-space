@@ -114,7 +114,7 @@ impl MissionProgress {
         match enemy_type {
             EnemyType::Interceptor => self.interceptors_defeated += 1,
             EnemyType::Heavy => self.heavy_ships_defeated += 1,
-            EnemyType::Regular | EnemyType::Kamikaze => {}
+            EnemyType::Regular | EnemyType::Kamikaze | EnemyType::Guardian => {}
         }
     }
 
@@ -234,7 +234,7 @@ impl Game {
             .contains(&MissionObjective::DefeatBoss)
             .then(|| {
                 let mut boss = Boss::new(
-                    vec2(self.bounds.x / 2.0, 80.0),
+                    vec2(self.bounds.x / 2.0, BOSS_SIZE / 2.0),
                     npc::boss_summon_delay(BossPhase::Opening, self.difficulty),
                 );
                 if cooperative {
@@ -548,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn guardian_and_salvage_each_require_two_objectives() {
+    fn dreadnought_and_salvage_each_require_two_objectives() {
         let mut progress = MissionProgress {
             boss_defeated: true,
             ..Default::default()
@@ -574,5 +574,39 @@ mod tests {
         assert!(!progress.completes(&get_mission(4)));
         progress.record_enemy_defeat(EnemyType::Heavy);
         assert!(progress.completes(&get_mission(4)));
+    }
+
+    #[test]
+    fn defeating_the_dreadnought_completes_mission_three_and_awards_its_loot() {
+        let bounds = vec2(1280.0, 720.0);
+        let mut game = Game::new(bounds);
+        game.current_mission = get_mission(3);
+        game.start_mission();
+        for _ in 0..6 {
+            game.mission_progress
+                .record_enemy_defeat(EnemyType::Regular);
+        }
+
+        let boss = game.boss.as_mut().unwrap();
+        boss.health = PLAYER_BULLET_DAMAGE;
+        let pos = boss.pos + vec2(80.0, 24.0);
+        game.bullets.push(Bullet {
+            pos,
+            vel: Vec2::ZERO,
+            life_time: BULLET_LIFETIME,
+            style: BulletStyle::Player,
+            homing: false,
+            damage: PLAYER_BULLET_DAMAGE,
+            radius: PLAYER_BULLET_RADIUS,
+        });
+
+        let outcome = game.step([PilotInput::default(); MAX_PILOTS], bounds, 0.0, 0.0);
+        assert!(matches!(outcome, BattleOutcome::Success));
+        assert!(game.boss.is_none());
+        assert_eq!(game.score, BOSS_MAX_HEALTH as u32 * SCORE_PER_ENEMY_HP);
+        assert!(matches!(
+            game.loot_items[0].item_type,
+            LootType::RareMetal(10..=49)
+        ));
     }
 }

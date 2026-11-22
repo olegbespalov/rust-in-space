@@ -1,6 +1,7 @@
 use crate::game::constants::{
-    BIG_BULLET_DURATION, ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS,
-    INVISIBILITY_DURATION, MAGNETIC_AMMO_DURATION, RAPID_FIRE_DURATION, SHIELD_DURATION,
+    BIG_BULLET_DURATION, BOSS_MAX_HEALTH, BOSS_RING_COUNT, BOSS_SIZE, ENEMY_SMALL_RADIUS,
+    GUARDIAN_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, INVISIBILITY_DURATION,
+    MAGNETIC_AMMO_DURATION, RAPID_FIRE_DURATION, SHIELD_DURATION,
 };
 use crate::localization::Language;
 use macroquad::prelude::*;
@@ -111,6 +112,8 @@ impl MenuItem {
 pub enum BulletStyle {
     Player,
     Enemy,
+    Boss,
+    BossMissile,
 }
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -119,6 +122,7 @@ pub enum EnemyType {
     Kamikaze,
     Interceptor,
     Heavy,
+    Guardian,
 }
 
 impl EnemyType {
@@ -127,6 +131,7 @@ impl EnemyType {
             Self::Regular | Self::Kamikaze => ENEMY_SMALL_RADIUS,
             Self::Interceptor => INTERCEPTOR_RADIUS,
             Self::Heavy => HEAVY_RADIUS,
+            Self::Guardian => GUARDIAN_RADIUS,
         }
     }
 }
@@ -177,9 +182,13 @@ pub struct Boss {
     pub max_health: f32,
     #[serde(skip)]
     pub shoot_timer: f32,
-    /// How many shots left in current burst (0 = waiting for next burst).
     #[serde(skip)]
-    pub burst_shots_left: u32,
+    pub rings_left: u32,
+    #[serde(skip)]
+    pub next_attack: BossAttackKind,
+    pub pending_attack: Option<BossAttack>,
+    #[serde(skip)]
+    pub shield_timer: f32,
     pub power_ups: EnemyPowerUps,
     pub phase: BossPhase,
     #[serde(skip)]
@@ -187,10 +196,47 @@ pub struct Boss {
     pub pending_summon: Option<BossSummon>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum BossPhase {
     Opening,
+    MissileSalvos,
     Escalated,
+}
+
+impl BossPhase {
+    pub const COUNT: u8 = 3;
+
+    pub fn number(self) -> u8 {
+        match self {
+            Self::Opening => 1,
+            Self::MissileSalvos => 2,
+            Self::Escalated => 3,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BossAttackKind {
+    #[default]
+    Cannons,
+    Missiles,
+    Rings,
+}
+
+impl BossAttackKind {
+    pub fn warning_duration(self) -> f32 {
+        match self {
+            Self::Cannons => 0.85,
+            Self::Missiles => 1.05,
+            Self::Rings => 1.15,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct BossAttack {
+    pub kind: BossAttackKind,
+    pub remaining: f32,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -279,7 +325,7 @@ impl EnemyPowerUps {
         }
     }
 
-    fn activate_shield(&mut self, kind: ShieldKind, hp: f32, duration: f32) {
+    pub fn activate_shield(&mut self, kind: ShieldKind, hp: f32, duration: f32) {
         self.shield = Some(EnemyShield {
             kind,
             hp,
@@ -555,6 +601,7 @@ impl EnemyShip {
             EnemyType::Kamikaze => (18.0, 120.0, 1.5),
             EnemyType::Interceptor => (15.0, 210.0, 1.2),
             EnemyType::Heavy => (60.0, 75.0, 2.2),
+            EnemyType::Guardian => (105.0, 65.0, 2.6),
         };
         let speed_x = if from_left { speed } else { -speed };
         Self {
@@ -578,20 +625,63 @@ impl EnemyShip {
 
 impl Boss {
     pub fn new(pos: Vec2, summon_timer: f32) -> Self {
-        let max_health = 450.0;
         Self {
             pos,
-            vel: vec2(45.0, 25.0),
-            rotation: 0.0,
-            health: max_health,
-            max_health,
-            shoot_timer: 0.0,
-            burst_shots_left: 0,
+            vel: vec2(68.0, 24.0),
+            rotation: std::f32::consts::FRAC_PI_2,
+            health: BOSS_MAX_HEALTH,
+            max_health: BOSS_MAX_HEALTH,
+            shoot_timer: 1.0,
+            rings_left: 0,
+            next_attack: BossAttackKind::Cannons,
+            pending_attack: None,
+            shield_timer: 0.0,
             power_ups: EnemyPowerUps::default(),
             phase: BossPhase::Opening,
             summon_timer,
             pending_summon: None,
         }
+    }
+
+    pub fn attack_paths(
+        &self,
+        kind: BossAttackKind,
+        ring: u32,
+    ) -> impl Iterator<Item = (Vec2, Vec2)> {
+        fn direction(angle: f32) -> Vec2 {
+            vec2(angle.cos(), angle.sin())
+        }
+
+        let heading = self.rotation;
+        let center = self.pos;
+        let forward = direction(heading);
+        let right = forward.perp();
+        let count = match kind {
+            BossAttackKind::Cannons => 6,
+            BossAttackKind::Missiles => 2,
+            BossAttackKind::Rings => 12,
+        };
+        // Cannon and launcher offsets are measured in fractions of the sprite size.
+        (0..count).map(move |shot| match kind {
+            BossAttackKind::Cannons => {
+                let side = if shot < 3 { -1.0 } else { 1.0 };
+                let muzzle = center + (forward * 0.42 + right * side * 0.15) * BOSS_SIZE;
+                let offset = (shot % 3) as f32 - 1.0;
+                (muzzle, direction(heading + 0.17 * offset + 0.06 * side))
+            }
+            BossAttackKind::Missiles => {
+                let side = if shot == 0 { -1.0 } else { 1.0 };
+                let launcher = center + (forward * 0.06 + right * side * 0.32) * BOSS_SIZE;
+                (launcher, direction(heading + 0.48 * side))
+            }
+            BossAttackKind::Rings => {
+                let step = std::f32::consts::TAU / count as f32;
+                let ray = direction(
+                    heading + (shot as f32 + ring as f32 / BOSS_RING_COUNT as f32) * step,
+                );
+                (center + ray * BOSS_SIZE * 0.48, ray)
+            }
+        })
     }
 
     pub fn take_damage(&mut self, damage: f32) -> bool {

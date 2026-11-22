@@ -25,26 +25,31 @@ pub const SHIELD_CAPACITOR_HP: f32 = 45.0;
 pub const SHIELD_CAPACITOR_DURATION: f32 = 20.0;
 
 pub const BOSS_SHOOT_INTERVAL: f32 = 3.0;
+pub const BOSS_MISSILE_PHASE_SHOOT_INTERVAL: f32 = 2.5;
 pub const BOSS_ESCALATED_SHOOT_INTERVAL: f32 = 2.0;
-pub const BOSS_ESCALATION_HEALTH_RATIO: f32 = 0.5;
+pub const BOSS_MAX_HEALTH: f32 = 600.0;
+pub const BOSS_MISSILE_PHASE_HEALTH_RATIO: f32 = 2.0 / 3.0;
+pub const BOSS_ESCALATION_HEALTH_RATIO: f32 = 1.0 / 3.0;
 pub const BOSS_SUMMON_INTERVAL: f32 = 6.0;
+pub const BOSS_MISSILE_PHASE_SUMMON_INTERVAL: f32 = 5.25;
 pub const BOSS_ESCALATED_SUMMON_INTERVAL: f32 = 4.5;
 pub const BOSS_SUMMON_WARNING_DURATION: f32 = 1.0;
 pub const BOSS_REINFORCEMENT_LIMIT: usize = 4;
-pub const BOSS_BURST_SIZE: u32 = 4;
-pub const BOSS_BURST_DELAY: f32 = 0.12;
+pub const BOSS_FIRST_SHIELD_DELAY: f32 = 3.0;
+pub const BOSS_SHIELD_DURATION: f32 = 4.0;
+pub const BOSS_SHIELD_INTERVAL: f32 = 12.0;
+pub const BOSS_SHIELD_HEALTH: f32 = 55.0;
+pub const BOSS_ESCALATED_SHIELD_INTERVAL: f32 = 8.0;
+pub const BOSS_ESCALATED_SHIELD_HEALTH: f32 = 75.0;
+pub const BOSS_RING_COUNT: u32 = 3;
+pub const BOSS_RING_DELAY: f32 = 0.24;
 pub const BOSS_BULLET_SPEED: f32 = 290.0;
 pub const BOSS_BULLET_DAMAGE: f32 = 20.0;
-pub const BOSS_BORDER_MARGIN: f32 = 70.0;
-pub const BOSS_ROTATION_SPEED: f32 = 35.0;
-pub const BOSS_HITBOX_RADIUS: f32 = 55.0;
-
-pub const BOSS_VOLLEY_DIRS: [(f32, f32); 4] = [
-    (0.0, -1.0), // up
-    (0.0, 1.0),  // down
-    (-1.0, 0.0), // left
-    (1.0, 0.0),  // right
-];
+pub const BOSS_MISSILE_SPEED: f32 = 215.0;
+pub const BOSS_MISSILE_DAMAGE: f32 = 24.0;
+pub const BOSS_MISSILE_TURN_SPEED: f32 = 1.7;
+pub const BOSS_SIZE: f32 = 240.0;
+pub const BOSS_HITBOX_RADIUS: f32 = 95.0;
 
 // Entity sizes and collision radii
 pub const SHIP_RADIUS: f32 = 20.0;
@@ -52,6 +57,7 @@ pub const ENEMY_SMALL_RADIUS: f32 = 30.0;
 pub const KAMIKAZE_RADIUS: f32 = 22.5;
 pub const INTERCEPTOR_RADIUS: f32 = 24.0;
 pub const HEAVY_RADIUS: f32 = 36.0;
+pub const GUARDIAN_RADIUS: f32 = 44.0;
 pub const LARGE_ASTEROID_RADIUS: f32 = 40.0;
 pub const MIN_ASTEROID_FOR_FRAGMENTATION: f32 = 15.0;
 
