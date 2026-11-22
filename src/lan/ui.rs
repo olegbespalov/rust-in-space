@@ -221,7 +221,7 @@ impl SessionUi {
         match state.phase {
             Phase::Lobby => {
                 controls.action = lobby(state, slot, host, enter, res);
-                if !self.menu && button("lan_leave", lobby_offset(215.0), res) {
+                if !self.menu && lobby_button(res.lang.t("lan_leave"), 321.0, res) {
                     controls.leave = true;
                 }
             }
@@ -313,7 +313,10 @@ impl SessionUi {
             }
         }
 
-        if let Some(status) = host.and_then(|host| host.status) {
+        if let Some(status) = host
+            .filter(|_| state.phase != Phase::Lobby)
+            .and_then(|host| host.status)
+        {
             let top = if playing { 94.0 } else { 29.0 };
             draw_text_centered(
                 res.lang.t(status.key()),
@@ -397,7 +400,26 @@ fn battle_view(game: &Game, slot: usize) -> LanView {
 }
 
 fn lobby_offset(y: f32) -> f32 {
-    y * (screen_height() / 540.0).min(1.0)
+    y * (screen_height() / 720.0).min(1.0)
+}
+
+fn lobby_button(label: &str, y: f32, res: &Resources) -> bool {
+    centered_menu_button_with_height(
+        label,
+        lobby_offset(y),
+        lobby_offset(MENU_BUTTON_HEIGHT),
+        res,
+    )
+}
+
+fn lobby_label(text: &str, y: f32, height: f32, size: u16, color: Color, res: &Resources) {
+    let bounds = Rect::new(
+        0.0,
+        screen_height() / 2.0 + lobby_offset(y - height / 2.0),
+        screen_width(),
+        lobby_offset(height),
+    );
+    draw_menu_label(text, bounds, size, color, res);
 }
 
 fn lobby(
@@ -408,26 +430,21 @@ fn lobby(
     res: &Resources,
 ) -> Option<Action> {
     let is_host = host.is_some();
-    draw_text_centered(
-        res.lang.t("lan_lobby"),
-        lobby_offset(-212.0),
-        30,
-        ORANGE,
-        res,
-    );
+    lobby_label(res.lang.t("lan_lobby"), -280.0, 52.0, 30, ORANGE, res);
     let role = if is_host {
         "lan_you_host"
     } else {
         "lan_you_guest"
     };
     let pilots = state.game.pilot_count();
-    draw_text_centered(
+    lobby_label(
         &format!(
             "{} #{}    {pilots} / {MAX_PILOTS}",
             res.lang.t(role),
             slot + 1
         ),
-        lobby_offset(-163.0),
+        -229.0,
+        36.0,
         18,
         WHITE,
         res,
@@ -443,11 +460,12 @@ fn lobby(
         } else {
             addresses.join(" / ")
         };
-        draw_text_centered(&addresses, lobby_offset(-130.0), 14, SKYBLUE, res);
+        lobby_label(&addresses, -193.0, 32.0, 14, SKYBLUE, res);
         if !host.discovery_available() {
-            draw_text_centered(
+            lobby_label(
                 res.lang.t("lan_search_unavailable"),
-                lobby_offset(-103.0),
+                -160.0,
+                32.0,
                 12,
                 GOLD,
                 res,
@@ -458,13 +476,11 @@ fn lobby(
     let pilot = state.game.pilots[slot].as_ref()?;
     let active_kind = pilot.ship.kind;
     let can_choose_delta = res.ship_model(ShipKind::Delta).is_some();
+    let card_height = lobby_offset(SHIP_CARD_HEIGHT);
     let ship_clicked = render_ship_cards(
         active_kind,
-        vec2(
-            screen_width() / 2.0,
-            screen_height() / 2.0 + lobby_offset(-32.0),
-        ),
-        vec2((screen_width() * 0.43).min(180.0), lobby_offset(116.0)),
+        (screen_height() - card_height) / 2.0,
+        card_height,
         res,
     );
 
@@ -474,9 +490,9 @@ fn lobby(
         res.lang.t(difficulty_key(state.game.difficulty))
     );
     let difficulty_clicked = if is_host {
-        centered_menu_button(&difficulty, lobby_offset(57.0), res)
+        lobby_button(&difficulty, 153.0, res)
     } else {
-        draw_text_centered(&difficulty, lobby_offset(59.0), 16, WHITE, res);
+        lobby_label(&difficulty, 153.0, MENU_BUTTON_HEIGHT, 16, WHITE, res);
         false
     };
 
@@ -490,18 +506,22 @@ fn lobby(
             pilots - 1
         )
     };
-    draw_text_centered(&status, lobby_offset(116.0), 16, SKYBLUE, res);
+    let (status, color) = match host.and_then(|host| host.status) {
+        Some(notice) => (format!("{}  ·  {status}", res.lang.t(notice.key())), GOLD),
+        None => (status, SKYBLUE),
+    };
+    lobby_label(&status, 202.0, 28.0, 16, color, res);
     let start = if is_host {
         pilots > 1
             && state.guests_ready()
-            && (button("lan_start", lobby_offset(154.0), res) || enter)
+            && (lobby_button(res.lang.t("lan_start"), 251.0, res) || enter)
     } else {
         let key = if state.ready[1] {
             "lan_not_ready"
         } else {
             "lan_ready"
         };
-        button(key, lobby_offset(154.0), res) || enter
+        lobby_button(res.lang.t(key), 251.0, res) || enter
     };
 
     if let Some(kind) = ship_clicked.filter(|kind| *kind != active_kind) {

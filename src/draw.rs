@@ -822,7 +822,7 @@ fn draw_menu_button(bounds: Rect, selected: bool) -> bool {
     hovered && is_mouse_button_pressed(MouseButton::Left)
 }
 
-fn draw_menu_label(text: &str, bounds: Rect, size: u16, color: Color, res: &Resources) {
+pub fn draw_menu_label(text: &str, bounds: Rect, size: u16, color: Color, res: &Resources) {
     draw_menu_label_with_scale(text, bounds, size, color, 1.0, res);
 }
 
@@ -863,13 +863,24 @@ pub fn menu_button(text: &str, bounds: Rect, size: u16, selected: bool, res: &Re
 }
 
 pub fn centered_menu_button(text: &str, y_offset: f32, res: &Resources) -> bool {
+    centered_menu_button_with_height(text, y_offset, MENU_BUTTON_HEIGHT, res)
+}
+
+pub const MENU_BUTTON_HEIGHT: f32 = 52.0;
+
+pub fn centered_menu_button_with_height(
+    text: &str,
+    y_offset: f32,
+    height: f32,
+    res: &Resources,
+) -> bool {
     let width =
         (measure_text(text, res.font.as_ref(), 24, 1.0).width + 64.0).min(screen_width() * 0.94);
     let bounds = Rect::new(
         (screen_width() - width) / 2.0,
-        screen_height() / 2.0 + y_offset - 26.0,
+        screen_height() / 2.0 + y_offset - height / 2.0,
         width,
-        52.0,
+        height,
     );
     menu_button(text, bounds, 24, false, res)
 }
@@ -927,7 +938,8 @@ pub fn render_menu(
     );
 
     let start_y = screen_h * 0.39;
-    let row_step = ((screen_h * 0.61 - 30.0) / 8.0).clamp(1.0, 46.0);
+    let row_step = ((screen_h * 0.61 - 30.0) / 8.0).clamp(1.0, 56.0);
+    let row_height = (row_step * 0.8).min(42.0);
     let row_width = (screen_w * 0.94).min(420.0);
     let row_x = (screen_w - row_width) / 2.0;
     draw_menu_label(
@@ -999,7 +1011,7 @@ pub fn render_menu(
             row_x,
             start_y + index as f32 * row_step,
             row_width,
-            row_step * 0.88,
+            row_height,
         );
         let selected = selection == item;
         let label = res.lang.t(key);
@@ -1012,9 +1024,9 @@ pub fn render_menu(
             let side_width = (row_width * 0.16).min(48.0);
             let left = Rect::new(bounds.x, bounds.y, side_width, bounds.h);
             let center = Rect::new(
-                bounds.x + side_width + 4.0,
+                bounds.x + side_width + 8.0,
                 bounds.y,
-                bounds.w - (side_width + 4.0) * 2.0,
+                bounds.w - (side_width + 8.0) * 2.0,
                 bounds.h,
             );
             let right = Rect::new(bounds.right() - side_width, bounds.y, side_width, bounds.h);
@@ -1085,55 +1097,61 @@ pub enum ShipSelectionClick {
     Back,
 }
 
+pub const SHIP_CARD_HEIGHT: f32 = 218.0;
+
 pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<ShipSelectionClick> {
-    let center = vec2(screen_width() / 2.0, screen_height() / 2.0);
-    let card_width = (screen_width() * 0.43).min(260.0);
-    let card_height = (screen_height() * 0.4).min(218.0);
+    let screen_h = screen_height();
+    let card_height = (screen_h * 0.4).min(SHIP_CARD_HEIGHT);
+    let scale = (screen_h / 500.0).min(1.0);
+    let button_height = MENU_BUTTON_HEIGHT * scale;
+    let gap = 18.0 * scale;
     draw_text_centered(
         res.lang.t("ship_selection"),
-        -card_height / 2.0 - 40.0,
+        -card_height / 2.0 - 40.0 * scale,
         30,
         ORANGE,
         res,
     );
-    let click = render_ship_cards(selected, center, vec2(card_width, card_height), res);
-    if centered_menu_button(res.lang.t("ship_confirm"), card_height / 2.0 + 32.0, res) {
+    let click = render_ship_cards(selected, (screen_h - card_height) / 2.0, card_height, res);
+    let confirm_y = card_height / 2.0 + gap + button_height / 2.0;
+    if centered_menu_button_with_height(res.lang.t("ship_confirm"), confirm_y, button_height, res) {
         return Some(ShipSelectionClick::Confirm);
     }
-    if centered_menu_button(res.lang.t("ship_back"), card_height / 2.0 + 82.0, res) {
+    let back_y = confirm_y + button_height + gap;
+    if centered_menu_button_with_height(res.lang.t("ship_back"), back_y, button_height, res) {
         return Some(ShipSelectionClick::Back);
     }
     click.map(ShipSelectionClick::Select)
 }
 
+pub fn ship_card_row(count: usize, y: f32, height: f32) -> impl Iterator<Item = Rect> {
+    let screen_w = screen_width();
+    let gap = (screen_w * 0.022).min(28.0);
+    let gaps = gap * count.saturating_sub(1) as f32;
+    let width = ((screen_w * 0.94 - gaps) / count.max(1) as f32).min(260.0);
+    let left = (screen_w - width * count as f32 - gaps) / 2.0;
+    (0..count).map(move |index| Rect::new(left + index as f32 * (width + gap), y, width, height))
+}
+
 pub fn render_ship_cards(
     selected: ShipKind,
-    center: Vec2,
-    card_size: Vec2,
+    y: f32,
+    card_height: f32,
     res: &Resources,
 ) -> Option<ShipKind> {
-    let Vec2 {
-        x: card_width,
-        y: card_height,
-    } = card_size;
-    let gap = 18.0;
     let has_delta = res.ship_model(ShipKind::Delta).is_some();
-    let x = if has_delta {
-        center.x - card_width - gap / 2.0
-    } else {
-        center.x - card_width / 2.0
-    };
-    let y = center.y - card_height / 2.0;
+    let count = if has_delta { 2 } else { 1 };
+    let ships = [
+        (ShipKind::Alpha, "ship_alpha", "←"),
+        (ShipKind::Delta, "ship_delta", "→"),
+    ];
 
     let mut click = None;
-    for (kind, label, shortcut, x) in [
-        (ShipKind::Alpha, "ship_alpha", "←", x),
-        (ShipKind::Delta, "ship_delta", "→", x + card_width + gap),
-    ] {
-        if kind == ShipKind::Delta && !has_delta {
-            continue;
-        }
-        let card = Rect::new(x, y, card_width, card_height);
+    for ((kind, label, shortcut), card) in
+        ships.into_iter().zip(ship_card_row(count, y, card_height))
+    {
+        let x = card.x;
+        let card_width = card.w;
         if draw_menu_button(card, kind == selected) {
             click = Some(kind);
         }
