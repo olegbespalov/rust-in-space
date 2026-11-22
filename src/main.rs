@@ -12,7 +12,7 @@ mod systems;
 use macroquad::prelude::*;
 
 use audio::{AudioState, MusicTrack};
-use components::{GameState, MenuItem, ShipKind, DEFAULT_PLAYER_NAME};
+use components::{DevMenuItem, GameState, MenuItem, ShipKind, DEFAULT_PLAYER_NAME};
 use draw::*;
 use game::*;
 use localization::Language;
@@ -21,6 +21,7 @@ use systems::{load_save, save_data, save_file};
 
 const WINDOW_WIDTH: i32 = 1280;
 const WINDOW_HEIGHT: i32 = 720;
+const DEV_SHOP_RESOURCES: u32 = 999;
 
 fn window_conf() -> macroquad::conf::Conf {
     let window = Conf {
@@ -54,8 +55,9 @@ async fn main() {
     let mut saved = load_save(save_path.as_deref());
     let mut state = if dev_mode {
         GameState::DevMenu {
-            selection: 0,
+            selection: DevMenuItem::Level,
             level: 1,
+            ship: ShipKind::Alpha,
         }
     } else if saved
         .player_name
@@ -224,62 +226,67 @@ async fn main() {
             }
 
             GameState::DevMenu {
-                mut selection,
-                mut level,
+                ref mut selection,
+                ref mut level,
+                ref mut ship,
             } => {
                 audio.play_music(&resources.audio, MusicTrack::Menu);
+                let previous_ship = *ship;
                 if is_key_pressed(KeyCode::Up) {
-                    selection = (selection + 2) % 3;
+                    *selection = selection.shift(-1);
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                 }
                 if is_key_pressed(KeyCode::Down) {
-                    selection = (selection + 1) % 3;
+                    *selection = selection.shift(1);
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                 }
-                if selection == 0 {
+                if *selection == DevMenuItem::Level {
                     if is_key_pressed(KeyCode::Left) {
-                        level = level.saturating_sub(1).max(1);
+                        *level = level.saturating_sub(1).max(1);
                     } else if is_key_pressed(KeyCode::Right) {
-                        level = level.saturating_add(1);
+                        *level = level.saturating_add(1);
                     }
+                } else if *selection == DevMenuItem::Ship {
+                    *ship = keyboard_ship_selection(*ship, &resources);
                 }
 
-                draw_text_centered("DEVELOPER MENU", -100.0, 36, ORANGE, &resources);
-                let rows = [
-                    format!("Level: {level}   [Left/Right]"),
-                    "Start selected level".to_owned(),
-                    "Open shop (test resources)".to_owned(),
-                ];
-                for (index, row) in rows.iter().enumerate() {
-                    let color = if index == selection { YELLOW } else { WHITE };
-                    draw_text_centered(row, -40.0 + index as f32 * 55.0, 28, color, &resources);
+                let click = render_dev_menu(*selection, *level, *ship, &resources);
+                match click {
+                    Some(DevMenuClick::Level) => *selection = DevMenuItem::Level,
+                    Some(DevMenuClick::Ship(kind)) => {
+                        *selection = DevMenuItem::Ship;
+                        *ship = kind;
+                    }
+                    Some(DevMenuClick::Start) => *selection = DevMenuItem::Start,
+                    Some(DevMenuClick::Shop) => *selection = DevMenuItem::Shop,
+                    None => {}
                 }
-                draw_text_centered(
-                    "Up/Down: select   Enter: open   Esc: main menu",
-                    160.0,
-                    18,
-                    GRAY,
-                    &resources,
-                );
+                if *ship != previous_ship {
+                    audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
+                }
 
                 if is_key_pressed(KeyCode::Escape) {
                     state = GameState::Menu;
-                } else if is_key_pressed(KeyCode::Enter) {
-                    game.reset(ShipKind::Alpha, vec2(screen_width(), screen_height()));
-                    if selection == 1 {
-                        game.current_mission = systems::get_mission(level);
-                        state = GameState::Briefing;
-                    } else if selection == 2 {
-                        let ship = &mut game.solo_pilot_mut().ship;
-                        ship.scrap = 100;
-                        ship.rare_metal = 100;
-                        upgrade_selection = UpgradeSelection::default();
-                        state = GameState::UpgradeBay;
-                    } else {
-                        state = GameState::DevMenu { selection, level };
+                } else if is_key_pressed(KeyCode::Enter)
+                    || matches!(click, Some(DevMenuClick::Start | DevMenuClick::Shop))
+                {
+                    let bounds = vec2(screen_width(), screen_height());
+                    match selection {
+                        DevMenuItem::Start => {
+                            game.reset(*ship, bounds);
+                            game.current_mission = systems::get_mission(*level);
+                            state = GameState::Briefing;
+                        }
+                        DevMenuItem::Shop => {
+                            game.reset(*ship, bounds);
+                            let ship = &mut game.solo_pilot_mut().ship;
+                            ship.scrap = DEV_SHOP_RESOURCES;
+                            ship.rare_metal = DEV_SHOP_RESOURCES;
+                            upgrade_selection = UpgradeSelection::default();
+                            state = GameState::UpgradeBay;
+                        }
+                        DevMenuItem::Level | DevMenuItem::Ship => {}
                     }
-                } else {
-                    state = GameState::DevMenu { selection, level };
                 }
             }
 
@@ -434,8 +441,9 @@ async fn main() {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     if dev_mode {
                         state = GameState::DevMenu {
-                            selection: 0,
+                            selection: DevMenuItem::Level,
                             level: game.current_mission.level_id,
+                            ship: game.solo_pilot().ship.kind,
                         };
                     } else {
                         upgrade_selection = UpgradeSelection::default();
@@ -500,8 +508,9 @@ async fn main() {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     state = if dev_mode {
                         GameState::DevMenu {
-                            selection: 0,
+                            selection: DevMenuItem::Level,
                             level: game.current_mission.level_id,
+                            ship,
                         }
                     } else {
                         GameState::Menu

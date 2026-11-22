@@ -58,8 +58,9 @@ pub enum GameState {
     PlayerName(String),
     Menu,
     DevMenu {
-        selection: usize,
+        selection: DevMenuItem,
         level: u32,
+        ship: ShipKind,
     },
     EnemyCodex(usize),
     Lan(Box<crate::lan::LanMode>),
@@ -77,6 +78,26 @@ pub enum GameState {
         ship_rotation: f32,
         elapsed: f32,
     },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum DevMenuItem {
+    Level,
+    Ship,
+    Start,
+    Shop,
+}
+
+impl DevMenuItem {
+    pub fn shift(self, steps: isize) -> Self {
+        const ITEMS: [DevMenuItem; 4] = [
+            DevMenuItem::Level,
+            DevMenuItem::Ship,
+            DevMenuItem::Start,
+            DevMenuItem::Shop,
+        ];
+        ITEMS[(self as isize + steps).rem_euclid(ITEMS.len() as isize) as usize]
+    }
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -375,8 +396,53 @@ pub enum ShipKind {
     Vector,
 }
 
+#[derive(Clone, Copy)]
+pub struct CannonMount {
+    // Relative to the size of the nose-up hull sprite.
+    pub offset: Vec2,
+    pub rear_facing: bool,
+}
+
+impl CannonMount {
+    const fn forward(offset: Vec2) -> Self {
+        Self {
+            offset,
+            rear_facing: false,
+        }
+    }
+
+    const fn rear(offset: Vec2) -> Self {
+        Self {
+            offset,
+            rear_facing: true,
+        }
+    }
+}
+
 impl ShipKind {
     pub const ALL: [Self; 4] = [Self::Alpha, Self::Delta, Self::Specter, Self::Vector];
+    pub const SINGLE_CANNON: [CannonMount; 1] = [CannonMount::forward(Vec2::ZERO)];
+
+    pub fn dual_cannon_mounts(self) -> [CannonMount; 2] {
+        match self {
+            Self::Alpha => [
+                CannonMount::forward(vec2(-0.40, 0.09)),
+                CannonMount::forward(vec2(0.40, 0.09)),
+            ],
+            Self::Delta => [
+                CannonMount::forward(vec2(0.0, -0.45)),
+                CannonMount::rear(vec2(0.0, 0.44)),
+            ],
+            Self::Specter => [
+                CannonMount::forward(vec2(-0.20, -0.44)),
+                CannonMount::forward(vec2(0.20, -0.44)),
+            ],
+            Self::Vector => [
+                CannonMount::forward(vec2(0.0, -0.43)),
+                CannonMount::rear(vec2(0.0, 0.46)),
+            ],
+        }
+    }
 
     pub fn label(self) -> &'static str {
         match self {
@@ -435,6 +501,7 @@ pub enum UpgradeId {
     EngineOverdrive,
     MagnetArray,
     ShieldCapacitor,
+    DualCannons,
 }
 
 #[derive(Clone, Copy)]
@@ -450,6 +517,8 @@ pub struct UpgradeLevels {
     pub engine_overdrive: u8,
     pub magnet_array: u8,
     pub shield_capacitor: u8,
+    #[serde(default)]
+    pub dual_cannons: u8,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -800,6 +869,7 @@ impl UpgradeLevels {
             UpgradeId::EngineOverdrive => self.engine_overdrive,
             UpgradeId::MagnetArray => self.magnet_array,
             UpgradeId::ShieldCapacitor => self.shield_capacitor,
+            UpgradeId::DualCannons => self.dual_cannons,
         }
     }
 
@@ -810,6 +880,7 @@ impl UpgradeLevels {
             UpgradeId::EngineOverdrive => self.engine_overdrive = value,
             UpgradeId::MagnetArray => self.magnet_array = value,
             UpgradeId::ShieldCapacitor => self.shield_capacitor = value,
+            UpgradeId::DualCannons => self.dual_cannons = value,
         }
     }
 }

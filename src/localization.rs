@@ -200,6 +200,21 @@ impl Localization {
         ru.insert("upgrade_weapon_name", "Настройка оружия");
         en.insert("upgrade_weapon_desc", "+10% base bullet damage per level");
         ru.insert("upgrade_weapon_desc", "+10% к базовому урону за уровень");
+        en.insert("upgrade_cannon_name", "Dual Cannons");
+        ru.insert("upgrade_cannon_name", "Двойное орудие");
+        en.insert(
+            "upgrade_cannon_desc",
+            "Two wing cannons fire forward together",
+        );
+        ru.insert("upgrade_cannon_desc", "Два выстрела вперёд с крыльев");
+        en.insert(
+            "upgrade_cannon_rear_desc",
+            "Fire forward and backward together",
+        );
+        ru.insert(
+            "upgrade_cannon_rear_desc",
+            "Выстрелы вперёд и назад одновременно",
+        );
         en.insert("upgrade_engine_name", "Engine Overdrive");
         ru.insert("upgrade_engine_name", "Форсаж двигателя");
         en.insert("upgrade_engine_desc", "+8% acceleration per level");
@@ -333,6 +348,15 @@ impl Localization {
         de.insert("upgrade_hull_desc", "+20 max. LP pro Stufe");
         de.insert("upgrade_weapon_name", "Waffen-Tuning");
         de.insert("upgrade_weapon_desc", "+10% Grundschaden pro Stufe");
+        de.insert("upgrade_cannon_name", "Doppelkanone");
+        de.insert(
+            "upgrade_cannon_desc",
+            "Beide Flügelkanonen feuern nach vorn",
+        );
+        de.insert(
+            "upgrade_cannon_rear_desc",
+            "Feuert gleichzeitig nach vorn und hinten",
+        );
         de.insert("upgrade_engine_name", "Motor-Overdrive");
         de.insert("upgrade_engine_desc", "+8% Beschleunigung pro Stufe");
         de.insert("upgrade_magnet_name", "Magnet-Array");
@@ -363,6 +387,30 @@ impl Localization {
         de.insert("lang_german", "Deutsch");
 
         for (key, english, russian, german) in [
+            (
+                "dev_title",
+                "DEVELOPER MENU",
+                "МЕНЮ РАЗРАБОТЧИКА",
+                "ENTWICKLERMENÜ",
+            ),
+            (
+                "dev_start_level",
+                "Start selected level",
+                "Запустить выбранный уровень",
+                "Gewähltes Level starten",
+            ),
+            (
+                "dev_open_shop",
+                "Open test shop",
+                "Открыть тестовый магазин",
+                "Testshop öffnen",
+            ),
+            (
+                "dev_controls",
+                "↑/↓ Select  ←/→ Change  [Enter] Open  [Esc] Main menu",
+                "↑/↓ Выбрать  ←/→ Изменить  [Enter] Открыть  [Esc] Главное меню",
+                "↑/↓ Auswählen  ←/→ Ändern  [Enter] Öffnen  [Esc] Hauptmenü",
+            ),
             (
                 "enemy_codex",
                 "ENEMY ARCHIVE",

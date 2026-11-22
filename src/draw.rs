@@ -1,11 +1,11 @@
 use crate::components::{
-    Asteroid, AudioSettings, Boss, BossAttackKind, BossPhase, BulletStyle, Difficulty, EnemyShip,
-    EnemyType, Engine, Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective,
-    ShieldKind, Ship, ShipKind, DEFAULT_PLAYER_NAME,
+    Asteroid, AudioSettings, Boss, BossAttackKind, BossPhase, BulletStyle, DevMenuItem, Difficulty,
+    EnemyShip, EnemyType, Engine, Explosion, LootItem, LootType, MenuItem, Mission,
+    MissionObjective, ShieldKind, Ship, ShipKind, UpgradeId, DEFAULT_PLAYER_NAME,
 };
 use crate::game::constants::{
     BOSS_SIZE, ENEMY_SMALL_RADIUS, GUARDIAN_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS,
-    KAMIKAZE_RADIUS,
+    KAMIKAZE_RADIUS, PLAYER_SHIP_DRAW_SIZE,
 };
 use crate::game::{upgrade_definition, Game, Pilot, UpgradeSelection, MAX_PILOTS, UPGRADABLE_IDS};
 use crate::model_sprite::ModelSprite;
@@ -94,7 +94,7 @@ pub fn draw_ship(ship: &Ship, resources: &Resources) {
         WHITE
     };
 
-    let ship_size = 72.0 * SHIP_VISUAL_SCALE;
+    let ship_size = PLAYER_SHIP_DRAW_SIZE;
     draw_ship_hull(
         ship.kind,
         ship.pos,
@@ -1293,6 +1293,83 @@ pub enum ShipSelectionClick {
 
 pub const SHIP_CARD_HEIGHT: f32 = 218.0;
 
+pub enum DevMenuClick {
+    Level,
+    Ship(ShipKind),
+    Start,
+    Shop,
+}
+
+pub fn render_dev_menu(
+    selection: DevMenuItem,
+    level: u32,
+    ship: ShipKind,
+    res: &Resources,
+) -> Option<DevMenuClick> {
+    let width = screen_width();
+    let height = screen_height();
+    let band = |y, h| Rect::new(0.0, y * height, width, h * height);
+    let button = |center: f32| {
+        let w = (width * 0.9).min(650.0);
+        let h = (height * 0.085).min(MENU_BUTTON_HEIGHT);
+        Rect::new((width - w) / 2.0, height * center - h / 2.0, w, h)
+    };
+
+    draw_menu_label(res.lang.t("dev_title"), band(0.04, 0.12), 36, ORANGE, res);
+    let level_clicked = menu_button(
+        &format!("←  {} {level}  →", res.lang.t("level_cleared_prefix")),
+        button(0.22),
+        24,
+        selection == DevMenuItem::Level,
+        res,
+    );
+    let ship_color = if selection == DevMenuItem::Ship {
+        YELLOW
+    } else {
+        WHITE
+    };
+    draw_menu_label(
+        res.lang.t("ship_selection"),
+        band(0.27, 0.07),
+        22,
+        ship_color,
+        res,
+    );
+    let ship_clicked = render_ship_cards(
+        ship,
+        height * 0.35,
+        (height * 0.32).min(SHIP_CARD_HEIGHT),
+        res,
+    );
+    let start_clicked = menu_button(
+        res.lang.t("dev_start_level"),
+        button(0.73),
+        24,
+        selection == DevMenuItem::Start,
+        res,
+    );
+    let shop_clicked = menu_button(
+        res.lang.t("dev_open_shop"),
+        button(0.83),
+        24,
+        selection == DevMenuItem::Shop,
+        res,
+    );
+    draw_menu_label(
+        res.lang.t("dev_controls"),
+        band(0.89, 0.07),
+        16,
+        LIGHTGRAY,
+        res,
+    );
+
+    level_clicked
+        .then_some(DevMenuClick::Level)
+        .or(ship_clicked.map(DevMenuClick::Ship))
+        .or(start_clicked.then_some(DevMenuClick::Start))
+        .or(shop_clicked.then_some(DevMenuClick::Shop))
+}
+
 pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<ShipSelectionClick> {
     let screen_h = screen_height();
     let card_height = (screen_h * 0.4).min(SHIP_CARD_HEIGHT);
@@ -1802,15 +1879,25 @@ pub fn render_upgrade_bay(
     res: &Resources,
 ) -> Option<usize> {
     draw_background(&res.shop_background);
-    draw_rectangle(
-        0.0,
-        0.0,
-        screen_width(),
-        screen_height(),
-        Color::new(0.015, 0.02, 0.06, 0.62),
+    let width = screen_width();
+    let height = screen_height();
+    let start_y = (height * 0.5 - 130.0).max(height * 0.28);
+    draw_rectangle(0.0, 0.0, width, height, Color::new(0.015, 0.02, 0.06, 0.62));
+    let header_bounds = |top, height| Rect::new(0.0, top * start_y, width, height * start_y);
+    draw_menu_label(
+        res.lang.t("upgrade_bay_title"),
+        header_bounds(0.12, 0.25),
+        40,
+        ORANGE,
+        res,
     );
-    draw_text_centered(res.lang.t("upgrade_bay_title"), -260.0, 40, ORANGE, res);
-    draw_text_centered(res.lang.t("upgrade_bay_subtitle"), -220.0, 18, GRAY, res);
+    draw_menu_label(
+        res.lang.t("upgrade_bay_subtitle"),
+        header_bounds(0.43, 0.18),
+        18,
+        GRAY,
+        res,
+    );
 
     let resources_text = format!(
         "{} {} {} | {} {}",
@@ -1820,48 +1907,56 @@ pub fn render_upgrade_bay(
         res.lang.t("gold"),
         pilot.ship.rare_metal
     );
-    draw_text_centered(&resources_text, -175.0, 22, YELLOW, res);
+    draw_menu_label(&resources_text, header_bounds(0.61, 0.18), 22, YELLOW, res);
 
-    let start_y = screen_height() * 0.5 - 130.0;
-    let line_height = 52.0;
-    let row_width = (screen_width() * 0.58).min(680.0);
-    let row_x = screen_width() * 0.04;
+    let row_count = (UpgradeSelection::CONTINUE_INDEX + 1) as f32;
+    let line_height = ((height - start_y - 44.0) / row_count).clamp(1.0, 52.0);
+    let row_height = line_height * (46.0 / 52.0);
+    let row_width = (width * 0.58).min(680.0);
+    let row_x = width * 0.04;
     let mut clicked = None;
     let (mouse_x, mouse_y) = mouse_position();
     let hovered = UPGRADABLE_IDS.iter().enumerate().find_map(|(idx, _)| {
         let y = start_y + line_height * idx as f32;
-        Rect::new(row_x, y, row_width, 46.0)
+        Rect::new(row_x, y, row_width, row_height)
             .contains(vec2(mouse_x, mouse_y))
             .then_some(idx)
     });
-    let active_upgrade = hovered.unwrap_or(selection.0);
+    let active_index = hovered.unwrap_or(selection.0);
+    let active_upgrade = UPGRADABLE_IDS.get(active_index).copied();
 
-    // The preview uses the same ship model as gameplay. Upgrade locations are
-    // marked relative to the model so the preview remains useful across ships.
-    let ship_size = (screen_height() * 0.30).clamp(220.0, 340.0);
-    // The resources line is centered at screen center - 175. Keep the preview
-    // directly below it, using that same center-based layout at every size.
-    let ship_pos = vec2(screen_width() / 2.0, screen_height() / 2.0 + 25.0);
+    let preview_width = width - row_width - 2.0 * row_x;
+    let ship_size = (height * 0.35).min(preview_width * 0.86).min(340.0);
+    let ship_pos = vec2(
+        row_x + row_width + preview_width / 2.0,
+        start_y + line_height * row_count / 2.0,
+    );
     draw_ship_hull(pilot.ship.kind, ship_pos, ship_size, 0.0, 0.0, WHITE, res);
-    let (marker_offset, marker_color) = match UPGRADABLE_IDS.get(active_upgrade) {
-        Some(crate::components::UpgradeId::WeaponTuning) => (vec2(0.0, -0.30), ORANGE),
-        Some(crate::components::UpgradeId::ReinforcedHull) => (vec2(0.0, 0.0), SKYBLUE),
-        Some(crate::components::UpgradeId::EngineOverdrive) => (vec2(0.0, 0.31), YELLOW),
-        Some(crate::components::UpgradeId::MagnetArray) => (vec2(0.32, 0.04), GREEN),
-        Some(crate::components::UpgradeId::ShieldCapacitor) => (vec2(-0.32, 0.04), VIOLET),
-        _ => (Vec2::ZERO, GRAY),
+    let mark_mount = |offset: Vec2, color: Color| {
+        let marker = ship_pos + offset * ship_size;
+        draw_circle_lines(marker.x, marker.y, ship_size * 0.075, 3.0, color);
+        draw_circle(marker.x, marker.y, ship_size * 0.025, color);
     };
-    if active_upgrade < UPGRADABLE_IDS.len() {
-        let marker = ship_pos + marker_offset * ship_size;
-        draw_circle_lines(marker.x, marker.y, 25.0, 5.0, marker_color);
-        draw_circle(marker.x, marker.y, 9.0, marker_color);
+    let dual_mounts = pilot.ship.kind.dual_cannon_mounts();
+    match active_upgrade {
+        Some(UpgradeId::DualCannons) => {
+            for mount in &dual_mounts {
+                mark_mount(mount.offset, ORANGE);
+            }
+        }
+        Some(UpgradeId::WeaponTuning) => mark_mount(vec2(0.0, -0.30), ORANGE),
+        Some(UpgradeId::ReinforcedHull) => mark_mount(Vec2::ZERO, SKYBLUE),
+        Some(UpgradeId::EngineOverdrive) => mark_mount(vec2(0.0, 0.31), YELLOW),
+        Some(UpgradeId::MagnetArray) => mark_mount(vec2(0.32, 0.04), GREEN),
+        Some(UpgradeId::ShieldCapacitor) => mark_mount(vec2(-0.32, 0.04), VIOLET),
+        None => {}
     }
 
     for (idx, id) in UPGRADABLE_IDS.iter().copied().enumerate() {
         let def = upgrade_definition(id);
         let level = pilot.upgrade_level(id);
         let max_level = def.max_level;
-        let selected = active_upgrade == idx;
+        let selected = active_index == idx;
 
         let status_text = if level >= max_level {
             res.lang.t("upgrade_status_maxed").to_string()
@@ -1883,30 +1978,40 @@ pub fn render_upgrade_bay(
             )
         };
 
+        let (display_level, display_max, desc_key) = if id == UpgradeId::DualCannons {
+            let desc_key = if dual_mounts[1].rear_facing {
+                "upgrade_cannon_rear_desc"
+            } else {
+                def.desc_key
+            };
+            (level + 1, max_level + 1, desc_key)
+        } else {
+            (level, max_level, def.desc_key)
+        };
         let row_text = format!(
             "{}  [{} {}/{}]  {}",
             res.lang.t(def.name_key),
             res.lang.t("upgrade_level"),
-            level,
-            max_level,
+            display_level,
+            display_max,
             status_text
         );
 
         let y = start_y + line_height * idx as f32;
-        let bounds = Rect::new(row_x, y, row_width, 46.0);
+        let bounds = Rect::new(row_x, y, row_width, row_height);
         if draw_menu_button(bounds, selected) {
             clicked = Some(idx);
         }
         draw_menu_label(
             &row_text,
-            Rect::new(row_x, y, row_width, 26.0),
+            Rect::new(row_x, y, row_width, row_height * 0.56),
             20,
             WHITE,
             res,
         );
         draw_menu_label(
-            res.lang.t(def.desc_key),
-            Rect::new(row_x, y + 25.0, row_width, 18.0),
+            res.lang.t(desc_key),
+            Rect::new(row_x, y + row_height * 0.54, row_width, row_height * 0.40),
             14,
             LIGHTGRAY,
             res,
@@ -1918,7 +2023,7 @@ pub fn render_upgrade_bay(
         row_x,
         start_y + line_height * sell_idx as f32,
         row_width,
-        40.0,
+        row_height,
     );
     let sell_text = format!(
         "{} (10 {} = 1 {})",
@@ -1935,7 +2040,7 @@ pub fn render_upgrade_bay(
         row_x,
         start_y + line_height * continue_idx as f32,
         row_width,
-        40.0,
+        row_height,
     );
     if menu_button(
         res.lang.t(continue_key),
@@ -1947,18 +2052,12 @@ pub fn render_upgrade_bay(
         clicked = Some(continue_idx);
     }
 
-    let controls = res.lang.t("upgrade_controls");
-    let controls_width = measure_text(controls, res.font.as_ref(), 16, 1.0).width;
-    draw_text_ex(
-        controls,
-        row_x + (row_width - controls_width) / 2.0,
-        start_y + line_height * (continue_idx + 1) as f32 + 18.0,
-        TextParams {
-            font: res.font.as_ref(),
-            font_size: 16,
-            color: GRAY,
-            ..Default::default()
-        },
+    draw_menu_label(
+        res.lang.t("upgrade_controls"),
+        Rect::new(row_x, start_y + line_height * row_count, row_width, 28.0),
+        16,
+        GRAY,
+        res,
     );
     clicked
 }

@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 pub(super) const FIELD: Vec2 = vec2(1920.0, 1080.0);
 pub(super) const HOST: usize = 0;
-const VERSION: u16 = 11;
+const VERSION: u16 = 12;
 const MAX_NAME_CHARS: usize = 24;
 pub(super) const STEP: f64 = 1.0 / 60.0;
 const INPUT_PERIOD: Duration = Duration::from_nanos(33_333_334);
@@ -1206,7 +1206,7 @@ mod tests {
             game.mission_progress.asteroids_destroyed = 14;
             game.pilots[HOST].as_mut().unwrap().ship.rare_metal = 30;
             let guest_pilot = game.pilots[GUEST].as_mut().unwrap();
-            guest_pilot.ship.rare_metal = 40;
+            guest_pilot.ship.rare_metal = 60;
             guest_pilot.ship.health = 0.0;
             game.score = 850;
         }
@@ -1235,6 +1235,7 @@ mod tests {
         assert_eq!(host.campaign.game.solo_pilot().ship.rare_metal, 30);
         host_command(&mut host, Action::Buy(UpgradeId::ReinforcedHull));
         guest_command(&mut guest, Action::Buy(UpgradeId::WeaponTuning));
+        guest_command(&mut guest, Action::Buy(UpgradeId::DualCannons));
         guest_command(&mut guest, Action::Ready);
         wait_for(&mut host, &mut guest, |_, guest| {
             guest.state.as_ref().unwrap().ready[GUEST]
@@ -1243,10 +1244,12 @@ mod tests {
         let host_pilot = game.solo_pilot();
         let guest_pilot = game.pilots[GUEST].as_ref().unwrap();
         assert_eq!(host_pilot.ship.rare_metal, 18);
-        assert_eq!(guest_pilot.ship.rare_metal, 22);
+        assert_eq!(guest_pilot.ship.rare_metal, 12);
         assert_eq!(host_pilot.upgrade_level(UpgradeId::ReinforcedHull), 1);
         assert_eq!(guest_pilot.upgrade_level(UpgradeId::WeaponTuning), 1);
         assert_eq!(host_pilot.upgrade_level(UpgradeId::WeaponTuning), 0);
+        assert_eq!(guest_pilot.upgrade_level(UpgradeId::DualCannons), 1);
+        assert_eq!(host_pilot.upgrade_level(UpgradeId::DualCannons), 0);
 
         host_command(&mut host, Action::Advance);
         wait_for_phase(&mut host, &mut guest, Phase::Briefing);

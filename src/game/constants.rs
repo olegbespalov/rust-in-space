@@ -1,5 +1,6 @@
 pub const ROTATION_SPEED: f32 = 200.0;
 pub const ACCELERATION: f32 = 150.0;
+pub const PLAYER_SHIP_DRAW_SIZE: f32 = 90.0;
 pub const BULLET_SPEED: f32 = 400.0;
 pub const BULLET_LIFETIME: f32 = 2.0;
 pub const SHOOT_COOLDOWN: f32 = 0.3;

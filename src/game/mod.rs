@@ -23,9 +23,10 @@ const SPAWN_OFFSETS: [Vec2; MAX_PILOTS] = [
     vec2(0.0, 60.0),
 ];
 
-pub const UPGRADABLE_IDS: [UpgradeId; 5] = [
+pub const UPGRADABLE_IDS: [UpgradeId; 6] = [
     UpgradeId::ReinforcedHull,
     UpgradeId::WeaponTuning,
+    UpgradeId::DualCannons,
     UpgradeId::EngineOverdrive,
     UpgradeId::MagnetArray,
     UpgradeId::ShieldCapacitor,
@@ -55,6 +56,11 @@ pub fn upgrade_definition(id: UpgradeId) -> UpgradeDefinition {
             desc_key: "upgrade_weapon_desc",
             max_level: 3,
         },
+        UpgradeId::DualCannons => UpgradeDefinition {
+            name_key: "upgrade_cannon_name",
+            desc_key: "upgrade_cannon_desc",
+            max_level: 1,
+        },
         UpgradeId::EngineOverdrive => UpgradeDefinition {
             name_key: "upgrade_engine_name",
             desc_key: "upgrade_engine_desc",
@@ -82,6 +88,10 @@ pub fn upgrade_cost(id: UpgradeId, next_level: u8) -> UpgradeCost {
         UpgradeId::WeaponTuning => UpgradeCost {
             scrap: 0,
             rare_metal: 18 + 15 * (next_level as u32 - 1),
+        },
+        UpgradeId::DualCannons => UpgradeCost {
+            scrap: 0,
+            rare_metal: 30,
         },
         UpgradeId::EngineOverdrive => UpgradeCost {
             scrap: 0,
