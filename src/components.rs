@@ -135,9 +135,11 @@ impl EnemyType {
 pub struct Bullet {
     pub pos: Vec2,
     pub vel: Vec2,
+    #[serde(skip)]
     pub life_time: f32,
     pub style: BulletStyle,
     pub homing: bool,
+    #[serde(skip)]
     pub damage: f32, // Damage dealt by this bullet
     pub radius: f32, // Bullet radius (for collision and drawing)
 }
@@ -145,6 +147,7 @@ pub struct Bullet {
 #[derive(Serialize, Deserialize)]
 pub struct Asteroid {
     pub pos: Vec2,
+    #[serde(skip)]
     pub vel: Vec2,
     pub radius: f32,
     pub is_rare: bool,
@@ -153,7 +156,9 @@ pub struct Asteroid {
 #[derive(Serialize, Deserialize)]
 pub struct EnemyShip {
     pub pos: Vec2,
+    #[serde(skip)]
     pub vel: Vec2,
+    #[serde(skip)]
     pub shoot_timer: f32,
     pub rotation: f32,
     pub health: f32,     // Current health points
@@ -165,15 +170,19 @@ pub struct EnemyShip {
 #[derive(Serialize, Deserialize)]
 pub struct Boss {
     pub pos: Vec2,
+    #[serde(skip)]
     pub vel: Vec2,
     pub rotation: f32,
     pub health: f32,
     pub max_health: f32,
+    #[serde(skip)]
     pub shoot_timer: f32,
     /// How many shots left in current burst (0 = waiting for next burst).
+    #[serde(skip)]
     pub burst_shots_left: u32,
     pub power_ups: EnemyPowerUps,
     pub phase: BossPhase,
+    #[serde(skip)]
     pub summon_timer: f32,
     pub pending_summon: Option<BossSummon>,
 }
@@ -193,8 +202,11 @@ pub struct BossSummon {
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct EnemyPowerUps {
+    #[serde(skip)]
     pub rapid_fire_timer: f32,
+    #[serde(skip)]
     pub big_bullet_timer: f32,
+    #[serde(skip)]
     pub magnetic_ammo_timer: f32,
     pub shield: Option<EnemyShield>,
     invisibility_timer: f32,
@@ -205,6 +217,7 @@ pub struct EnemyShield {
     pub kind: ShieldKind,
     pub hp: f32,
     pub max_hp: f32,
+    #[serde(skip)]
     time_left: f32,
 }
 
@@ -298,11 +311,14 @@ pub enum ShipKind {
 pub struct Ship {
     pub kind: ShipKind,
     pub pos: Vec2,
+    #[serde(skip)]
     pub vel: Vec2,
     pub rotation: f32,
     pub health: f32,     // Current health points
     pub max_health: f32, // Maximum health points
+    #[serde(skip)]
     pub shoot_timer: f32,
+    #[serde(skip)]
     pub rapid_fire_timer: f32,
     pub engine: Engine,
 
@@ -318,15 +334,19 @@ pub struct Ship {
     pub invisibility_timer: f32,
 
     // Weapon boost timers
+    #[serde(skip)]
     pub magnetic_ammo_timer: f32,
+    #[serde(skip)]
     pub big_bullet_timer: f32, // Time remaining for big bullet boost (0 if inactive)
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Engine {
     pub current_thrust: f32, // Current thrust (0.0 - 1.0)
-    pub ramp_up: f32,        // Speed of thrust increase
-    pub decay: f32,          // Speed of decay
+    #[serde(skip)]
+    pub ramp_up: f32, // Speed of thrust increase
+    #[serde(skip)]
+    pub decay: f32, // Speed of decay
     pub offset: f32,         // Offset of the nozzles relative to the center of the ship
 }
 
@@ -458,13 +478,17 @@ mod loot_tests {
 #[derive(Serialize, Deserialize)]
 pub struct LootItem {
     pub pos: Vec2,
-    pub vel: Vec2,       // Initial explosion velocity (decays)
+    #[serde(skip)]
+    pub vel: Vec2, // Initial explosion velocity (decays)
+    #[serde(skip)]
     pub drift_vel: Vec2, // Slow constant drift in space
     pub item_type: LootType,
     pub time_left: f32,
     pub radius: f32,
+    #[serde(skip)]
     pub magnet_active: bool, // Is the magnet active?
-    pub rotation: f32,       // Rotation angle in radians
+    pub rotation: f32, // Rotation angle in radians
+    #[serde(skip)]
     pub rotation_speed: f32, // Rotation speed in radians per second (can be negative)
 }
 
@@ -669,10 +693,12 @@ impl UpgradeLevels {
 #[derive(Serialize, Deserialize)]
 pub struct Explosion {
     pub pos: Vec2,
-    pub timer: f32,        // Timer for frame change
+    #[serde(skip)]
+    pub timer: f32, // Timer for frame change
     pub frame: usize,      // Current frame (0, 1, 2...)
     pub max_frames: usize, // How many frames in the texture (e.g. 8)
-    pub frame_time: f32,   // Animation speed (e.g. 0.1 sec per frame)
+    #[serde(skip)]
+    pub frame_time: f32, // Animation speed (e.g. 0.1 sec per frame)
     pub scale: f32,        // Explosion size (for boss large, for enemy small)
 }
 

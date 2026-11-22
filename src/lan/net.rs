@@ -431,6 +431,8 @@ mod tests {
             compact.len()
         );
         assert!(compact.len() * 2 < json.len());
+        const V3_FRAME_BYTES: usize = 1890;
+        assert!(compact.len() * 5 <= V3_FRAME_BYTES * 4);
 
         let mut reader = FrameReader::new(SNAPSHOT_LIMIT);
         reader.bytes = compact;
@@ -438,7 +440,75 @@ mod tests {
         assert_eq!(received.phase, Phase::Playing);
         assert_eq!(received.game.bullets.len(), game.bullets.len());
         assert_eq!(received.game.asteroids.len(), game.asteroids.len());
-        assert_eq!(received.game.bullets[23].pos, game.bullets[23].pos);
+        let bullet = &received.game.bullets[23];
+        assert_eq!(bullet.pos, game.bullets[23].pos);
+        assert_eq!(bullet.vel, game.bullets[23].vel);
+        assert_eq!(bullet.radius, game.bullets[23].radius);
+        assert_eq!(bullet.life_time, 0.0);
+        assert_eq!(bullet.damage, 0.0);
+    }
+
+    #[test]
+    fn compact_game_state_preserves_visual_effects() {
+        use super::super::session::FIELD;
+        use crate::components::{
+            Boss, BossPhase, BossSummon, Explosion, LootItem, LootType, ShieldKind,
+        };
+        use crate::game::Game;
+        use macroquad::prelude::{vec2, Vec2};
+
+        let mut game = Game::new(FIELD);
+        let ship = &mut game.solo_pilot_mut().ship;
+        ship.activate_shield(ShieldKind::Golden, 30.0, 2.0);
+        ship.invisibility_timer = 1.25;
+        ship.engine.current_thrust = 0.75;
+        game.loot_items.push(LootItem {
+            pos: vec2(200.0, 100.0),
+            vel: Vec2::ZERO,
+            drift_vel: Vec2::ZERO,
+            item_type: LootType::Scrap(7),
+            time_left: 2.5,
+            radius: 8.0,
+            magnet_active: true,
+            rotation: 0.5,
+            rotation_speed: 1.0,
+        });
+        let mut explosion = Explosion::new(vec2(250.0, 100.0), 1.5);
+        explosion.frame = 3;
+        game.explosions.push(explosion);
+        let mut boss = Boss::new(vec2(400.0, 100.0), 2.0);
+        boss.phase = BossPhase::Escalated;
+        boss.pending_summon = Some(BossSummon {
+            from_left: true,
+            y: 150.0,
+            remaining: 0.75,
+        });
+        boss.power_ups.pick_up(
+            &LootType::Shield(ShieldKind::Golden, 30),
+            &mut boss.health,
+            boss.max_health,
+        );
+        game.boss = Some(boss);
+
+        let mut reader = FrameReader::new(SNAPSHOT_LIMIT);
+        reader.bytes = encode(&game, SNAPSHOT_LIMIT, true).unwrap();
+        let received = reader.next::<Game>().unwrap().unwrap();
+        let ship = &received.solo_pilot().ship;
+        assert!(ship.has_shield());
+        assert_eq!(ship.invisibility_timer, 1.25);
+        assert_eq!(ship.engine.current_thrust, 0.75);
+        assert_eq!(ship.engine.offset, game.solo_pilot().ship.engine.offset);
+        assert_eq!(received.loot_items[0].time_left, 2.5);
+        assert_eq!(received.loot_items[0].rotation, 0.5);
+        assert_eq!(received.explosions[0].frame, 3);
+        assert_eq!(
+            received.explosions[0].max_frames,
+            game.explosions[0].max_frames
+        );
+        let boss = received.boss.unwrap();
+        assert_eq!(boss.phase, BossPhase::Escalated);
+        assert_eq!(boss.pending_summon.unwrap().remaining, 0.75);
+        assert_eq!(boss.power_ups.shield.unwrap().hp, 30.0);
     }
 
     #[test]

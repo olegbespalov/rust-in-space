@@ -142,6 +142,8 @@ impl MissionProgress {
     }
 }
 
+// LAN guests use this state for display. Simulation-only fields can be skipped
+// here and on its entity types.
 #[derive(Serialize, Deserialize)]
 pub struct Game {
     pub pilots: [Option<Pilot>; MAX_PILOTS],
