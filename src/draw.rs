@@ -1813,15 +1813,42 @@ pub fn render_upgrade_bay(
 
     let start_y = screen_height() * 0.5 - 130.0;
     let line_height = 52.0;
-    let row_width = (screen_width() * 0.94).min(850.0);
-    let row_x = (screen_width() - row_width) / 2.0;
+    let row_width = (screen_width() * 0.58).min(680.0);
+    let row_x = screen_width() * 0.04;
     let mut clicked = None;
+    let (mouse_x, mouse_y) = mouse_position();
+    let hovered = UPGRADABLE_IDS.iter().enumerate().find_map(|(idx, _)| {
+        let y = start_y + line_height * idx as f32;
+        Rect::new(row_x, y, row_width, 46.0)
+            .contains(vec2(mouse_x, mouse_y))
+            .then_some(idx)
+    });
+    let active_upgrade = hovered.unwrap_or(selection.0);
+
+    // The preview uses the same ship model as gameplay. Upgrade locations are
+    // marked relative to the model so the preview remains useful across ships.
+    let ship_size = (screen_height() * 0.32).clamp(150.0, 250.0);
+    let ship_pos = vec2(screen_width() * 0.79, screen_height() * 0.30);
+    draw_ship_hull(pilot.ship.kind, ship_pos, ship_size, 0.0, 0.0, WHITE, res);
+    let (marker_offset, marker_color) = match UPGRADABLE_IDS.get(active_upgrade) {
+        Some(crate::components::UpgradeId::WeaponTuning) => (vec2(0.0, -0.30), ORANGE),
+        Some(crate::components::UpgradeId::ReinforcedHull) => (vec2(0.0, 0.0), SKYBLUE),
+        Some(crate::components::UpgradeId::EngineOverdrive) => (vec2(0.0, 0.31), YELLOW),
+        Some(crate::components::UpgradeId::MagnetArray) => (vec2(0.32, 0.04), GREEN),
+        Some(crate::components::UpgradeId::ShieldCapacitor) => (vec2(-0.32, 0.04), VIOLET),
+        _ => (Vec2::ZERO, GRAY),
+    };
+    if active_upgrade < UPGRADABLE_IDS.len() {
+        let marker = ship_pos + marker_offset * ship_size;
+        draw_circle_lines(marker.x, marker.y, 16.0, 3.0, marker_color);
+        draw_circle(marker.x, marker.y, 5.0, marker_color);
+    }
 
     for (idx, id) in UPGRADABLE_IDS.iter().copied().enumerate() {
         let def = upgrade_definition(id);
         let level = pilot.upgrade_level(id);
         let max_level = def.max_level;
-        let selected = selection.0 == idx;
+        let selected = active_upgrade == idx;
 
         let status_text = if level >= max_level {
             res.lang.t("upgrade_status_maxed").to_string()

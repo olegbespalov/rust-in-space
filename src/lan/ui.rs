@@ -572,6 +572,26 @@ fn lobby_slots(state: &SnapshotView<'_>, own_slot: usize, res: &Resources) {
             let ship_bounds = Rect::new(x, y + height * 0.83, width, height * 0.16);
             draw_menu_label(name, name_bounds, 16, WHITE, res);
             draw_menu_label(res.lang.t(kind.label()), ship_bounds, 12, SKYBLUE, res);
+            if state.ready[slot] {
+                let check = vec2(x + width - 17.0, y + 17.0);
+                draw_circle(check.x, check.y, 12.0, GREEN);
+                draw_line(
+                    check.x - 6.0,
+                    check.y,
+                    check.x - 1.5,
+                    check.y + 4.5,
+                    2.5,
+                    WHITE,
+                );
+                draw_line(
+                    check.x - 1.5,
+                    check.y + 4.5,
+                    check.x + 7.0,
+                    check.y - 5.0,
+                    2.5,
+                    WHITE,
+                );
+            }
         } else {
             let bounds = Rect::new(x, y + height * 0.22, width, height * 0.72);
             draw_menu_label(res.lang.t("lan_slot_empty"), bounds, 14, LIGHTGRAY, res);
