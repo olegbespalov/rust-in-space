@@ -30,6 +30,8 @@ mod tests {
             include_bytes!("../assets/models/enemy_interceptor.glb").as_slice(),
             include_bytes!("../assets/models/enemy_heavy.glb").as_slice(),
             include_bytes!("../assets/models/loot_scrap.glb").as_slice(),
+            include_bytes!("../assets/models/loot_scrap_medium.glb").as_slice(),
+            include_bytes!("../assets/models/loot_scrap_large.glb").as_slice(),
             include_bytes!("../assets/models/loot_gold.glb").as_slice(),
             include_bytes!("../assets/models/loot_health.glb").as_slice(),
             include_bytes!("../assets/models/loot_rapid_fire.glb").as_slice(),

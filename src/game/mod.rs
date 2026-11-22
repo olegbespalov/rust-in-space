@@ -76,23 +76,23 @@ pub fn upgrade_cost(id: UpgradeId, next_level: u8) -> UpgradeCost {
     match id {
         UpgradeId::ReinforcedHull => UpgradeCost {
             scrap: 0,
-            rare_metal: 20 + 25 * (next_level as u32 - 1),
+            rare_metal: 12 + 15 * (next_level as u32 - 1),
         },
         UpgradeId::WeaponTuning => UpgradeCost {
             scrap: 0,
-            rare_metal: 30 + 25 * (next_level as u32 - 1),
+            rare_metal: 18 + 15 * (next_level as u32 - 1),
         },
         UpgradeId::EngineOverdrive => UpgradeCost {
             scrap: 0,
-            rare_metal: 25 + 20 * (next_level as u32 - 1),
+            rare_metal: 15 + 12 * (next_level as u32 - 1),
         },
         UpgradeId::MagnetArray => UpgradeCost {
             scrap: 0,
-            rare_metal: 20 + 20 * (next_level as u32 - 1),
+            rare_metal: 12 + 12 * (next_level as u32 - 1),
         },
         UpgradeId::ShieldCapacitor => UpgradeCost {
             scrap: 0,
-            rare_metal: 60,
+            rare_metal: 36,
         },
     }
 }
@@ -478,7 +478,7 @@ impl Pilot {
     }
 
     pub fn sell_scrap(&mut self) -> u32 {
-        const SCRAP_PER_GOLD: u32 = 10;
+        const SCRAP_PER_GOLD: u32 = 7;
         let gold = self.ship.scrap / SCRAP_PER_GOLD;
         if gold > 0 {
             self.ship.scrap -= gold * SCRAP_PER_GOLD;

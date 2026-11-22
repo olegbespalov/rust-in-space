@@ -427,6 +427,8 @@ fn draw_loot(item: &LootItem, bounds: Vec2, res: &Resources) {
     let size = item.radius * 4.5;
     let sprite = match item.item_type {
         LootType::Scrap(_) => &res.loot_scrap,
+        LootType::MediumScrap(_) => &res.loot_medium_scrap,
+        LootType::LargeScrap(_) => &res.loot_large_scrap,
         LootType::RareMetal(_) => &res.loot_rare,
         LootType::HealthPack(_) => &res.loot_health,
         LootType::RapidFireBoost => &res.loot_rapid_fire,

@@ -309,7 +309,10 @@ impl EnemyPowerUps {
                     max_health,
                 );
             }
-            LootType::Scrap(_) | LootType::RareMetal(_) => {}
+            LootType::Scrap(_)
+            | LootType::MediumScrap(_)
+            | LootType::LargeScrap(_)
+            | LootType::RareMetal(_) => {}
         }
     }
 
@@ -462,7 +465,9 @@ impl ShieldKind {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum LootType {
     // Currencies
-    Scrap(u32),     // Scrap (ordinary resource)
+    Scrap(u32), // Scrap (ordinary resource)
+    MediumScrap(u32),
+    LargeScrap(u32),
     RareMetal(u32), // Rare metal/Gold (for big upgrades)
 
     // Buffs (applied immediately)
@@ -479,7 +484,7 @@ pub enum LootType {
 impl LootType {
     pub fn lifetime(&self) -> f32 {
         match self {
-            Self::Scrap(_) => 30.0,
+            Self::Scrap(_) | Self::MediumScrap(_) | Self::LargeScrap(_) => 30.0,
             Self::HealthPack(_) => 24.0,
             Self::RareMetal(_) => 18.0,
             Self::RapidFireBoost | Self::BigBulletBoost | Self::Shield(ShieldKind::Standard, _) => {

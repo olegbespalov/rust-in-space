@@ -159,7 +159,11 @@ pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> O
     let (item_type, radius) = match source {
         LootSource::Asteroid => {
             if roll < 40 {
-                (LootType::Scrap(gen_range(1, 4)), 10.0)
+                match gen_range(0, 3) {
+                    0 => (LootType::Scrap(gen_range(2, 5)), 10.0),
+                    1 => (LootType::MediumScrap(gen_range(6, 11)), 12.0),
+                    _ => (LootType::LargeScrap(gen_range(12, 21)), 15.0),
+                }
             }
             // If roll became less due to difficulty, RareMetal will drop less
             else if roll < 45 {
@@ -175,7 +179,11 @@ pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> O
             }
             // 30% chance of rare metal
             else if roll < 45 {
-                (LootType::Scrap(gen_range(5, 10)), 10.0)
+                match gen_range(0, 3) {
+                    0 => (LootType::Scrap(gen_range(4, 8)), 10.0),
+                    1 => (LootType::MediumScrap(gen_range(10, 17)), 12.0),
+                    _ => (LootType::LargeScrap(gen_range(18, 31)), 15.0),
+                }
             }
             // 15% chance of scrap
             else if roll < 70 {
@@ -193,7 +201,11 @@ pub fn generate_loot(pos: Vec2, source: LootSource, difficulty: Difficulty) -> O
         }
         LootSource::EnemySmall => {
             if roll < 30 {
-                (LootType::Scrap(gen_range(5, 10)), 10.0)
+                match gen_range(0, 3) {
+                    0 => (LootType::Scrap(gen_range(4, 8)), 10.0),
+                    1 => (LootType::MediumScrap(gen_range(10, 17)), 12.0),
+                    _ => (LootType::LargeScrap(gen_range(18, 31)), 15.0),
+                }
             }
             // 30% chance of scrap
             else if roll < 55 {

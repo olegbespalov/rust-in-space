@@ -1110,8 +1110,8 @@ mod tests {
         let game = &guest.state.as_ref().unwrap().game;
         let host_pilot = game.solo_pilot();
         let guest_pilot = game.pilots[GUEST].as_ref().unwrap();
-        assert_eq!(host_pilot.ship.rare_metal, 10);
-        assert_eq!(guest_pilot.ship.rare_metal, 10);
+        assert_eq!(host_pilot.ship.rare_metal, 18);
+        assert_eq!(guest_pilot.ship.rare_metal, 22);
         assert_eq!(host_pilot.upgrade_level(UpgradeId::ReinforcedHull), 1);
         assert_eq!(guest_pilot.upgrade_level(UpgradeId::WeaponTuning), 1);
         assert_eq!(host_pilot.upgrade_level(UpgradeId::WeaponTuning), 0);
@@ -1292,12 +1292,12 @@ mod tests {
         wait_for(&mut host, &mut guest, |host, _| host.campaign.ready[GUEST]);
         assert!(host.campaign.ready[HOST]);
         host_command(&mut host, Action::Buy(UpgradeId::ReinforcedHull));
-        assert_eq!(host.campaign.game.solo_pilot().ship.rare_metal, 35);
+        assert_eq!(host.campaign.game.solo_pilot().ship.rare_metal, 43);
 
         drop(guest);
         wait_until_guest_leaves(&mut host);
         host_command(&mut host, Action::Buy(UpgradeId::WeaponTuning));
-        assert_eq!(host.campaign.game.solo_pilot().ship.rare_metal, 5);
+        assert_eq!(host.campaign.game.solo_pilot().ship.rare_metal, 25);
         host_command(&mut host, Action::Advance);
         assert_eq!(host.campaign.phase, Phase::Briefing);
 
@@ -1370,7 +1370,7 @@ mod tests {
         let pilot = campaign.game.solo_pilot();
         assert!(pilot.is_alive());
         assert_eq!(pilot.ship.health, pilot.ship.max_health);
-        assert_eq!(pilot.ship.rare_metal, 1);
+        assert_eq!(pilot.ship.rare_metal, 9);
         assert_eq!(pilot.upgrade_level(UpgradeId::ReinforcedHull), 1);
     }
 

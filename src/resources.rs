@@ -38,6 +38,8 @@ pub struct Resources {
     pub bullet: Texture2D,
     pub enemy_bullet: ModelSprite,
     pub loot_scrap: ModelSprite,
+    pub loot_medium_scrap: ModelSprite,
+    pub loot_large_scrap: ModelSprite,
     pub loot_rare: ModelSprite,
     pub loot_health: ModelSprite,
     pub loot_rapid_fire: ModelSprite,
@@ -188,6 +190,20 @@ impl Resources {
             48,
         )
         .await;
+        let loot_medium_scrap = ModelSprite::load(
+            "assets/loot/resources/rust_pile.png",
+            "assets/models/loot_scrap_medium.glb",
+            vec3(0.0, 2.0, 1.8),
+            48,
+        )
+        .await;
+        let loot_large_scrap = ModelSprite::load(
+            "assets/loot/resources/rust_pile.png",
+            "assets/models/loot_scrap_large.glb",
+            vec3(0.0, 2.0, 1.8),
+            48,
+        )
+        .await;
         let loot_rare = ModelSprite::load(
             "assets/loot/resources/gold.png",
             "assets/models/loot_gold.glb",
@@ -323,6 +339,8 @@ impl Resources {
             bullet,
             enemy_bullet,
             loot_scrap,
+            loot_medium_scrap,
+            loot_large_scrap,
             loot_rare,
             loot_health,
             loot_rapid_fire,

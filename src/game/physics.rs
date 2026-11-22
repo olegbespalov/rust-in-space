@@ -227,6 +227,13 @@ fn apply_pickup(
             progress.scrap_collected += amount;
             cues.push(AudioCue::PickupScrap);
         }
+        LootType::MediumScrap(amount) | LootType::LargeScrap(amount) => {
+            let credited = amount.min(scrap_target.saturating_sub(progress.scrap_collected));
+            pilot.mission_points += credited as f32;
+            ship.scrap += amount;
+            progress.scrap_collected += amount;
+            cues.push(AudioCue::PickupScrap);
+        }
         LootType::RareMetal(amount) => {
             ship.rare_metal += amount;
             cues.push(AudioCue::PickupScrap);
