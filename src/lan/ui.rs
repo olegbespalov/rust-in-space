@@ -9,8 +9,11 @@ use macroquad::prelude::*;
 use std::net::{Ipv4Addr, SocketAddrV4};
 
 const HOSTS_VISIBLE: usize = 4;
-const VIEW_SIZE: Vec2 = vec2(1280.0, 720.0);
 const VICTORY_DURATION: f64 = 2.4;
+
+fn view_size(bounds: Vec2) -> Vec2 {
+    vec2(screen_width().max(1.0), screen_height().max(1.0)).min(bounds)
+}
 
 pub(super) enum BrowserAction {
     Stay,
@@ -404,18 +407,28 @@ impl SessionUi {
 
     fn battle(&mut self, state: &SnapshotView<'_>, slot: usize, res: &Resources) {
         let game = state.game;
+        let view_size = view_size(game.bounds);
         let switch = !self.menu && is_key_pressed(KeyCode::Tab);
         let focus = battle_focus(game, slot, self.followed_slot, switch);
         self.followed_slot = Some(focus);
         let view = LanView {
             slot,
             focus,
-            area: battle_area(game, focus),
+            area: battle_area(game, focus, view_size),
             names: std::array::from_fn(|index| state.player_name(index)),
         };
         let target = self
             .field
-            .get_or_insert_with(|| render_target(VIEW_SIZE.x as u32, VIEW_SIZE.y as u32));
+            .take()
+            .filter(|target| {
+                target.texture.width() == view_size.x && target.texture.height() == view_size.y
+            })
+            .unwrap_or_else(|| render_target(view_size.x as u32, view_size.y as u32));
+        self.field = Some(target);
+        let target = self
+            .field
+            .as_ref()
+            .expect("render target was just assigned");
         let mut camera = Camera2D::from_display_rect(view.area);
         camera.render_target = Some(target.clone());
         set_camera(&camera);
@@ -423,13 +436,13 @@ impl SessionUi {
         draw_background_in(&res.background, game.bounds);
         render_battle_world(game, Some(view), res);
 
-        camera.target = VIEW_SIZE / 2.0;
+        camera.target = view_size / 2.0;
         set_camera(&camera);
         render_battle_hud(game, Some(view), res);
         set_default_camera();
 
         let window = vec2(screen_width(), screen_height());
-        let size = VIEW_SIZE * (window / VIEW_SIZE).min_element();
+        let size = view_size * (window / view_size).min_element();
         let offset = (window - size) / 2.0;
         draw_texture_ex(
             &target.texture,
@@ -467,12 +480,12 @@ fn battle_focus(game: &Game, local: usize, followed: Option<usize>, switch: bool
     current
 }
 
-fn battle_area(game: &Game, slot: usize) -> Rect {
+fn battle_area(game: &Game, slot: usize, view_size: Vec2) -> Rect {
     let focus = game.pilots[slot]
         .as_ref()
         .map_or(game.bounds / 2.0, |pilot| pilot.ship.pos);
-    let origin = (focus - VIEW_SIZE / 2.0).clamp(Vec2::ZERO, game.bounds - VIEW_SIZE);
-    Rect::new(origin.x, origin.y, VIEW_SIZE.x, VIEW_SIZE.y)
+    let origin = (focus - view_size / 2.0).clamp(Vec2::ZERO, game.bounds - view_size);
+    Rect::new(origin.x, origin.y, view_size.x, view_size.y)
 }
 
 fn lobby_offset(y: f32) -> f32 {
@@ -665,13 +678,14 @@ mod tests {
         let local = game.pilots[slot].as_mut().unwrap();
         local.ship.pos = FIELD;
         assert_eq!(battle_focus(&game, slot, Some(HOST), true), slot);
-        assert_eq!(battle_area(&game, slot).point(), FIELD - VIEW_SIZE);
+        let viewport = vec2(1280.0, 720.0);
+        assert_eq!(battle_area(&game, slot, viewport).point(), FIELD - viewport);
 
         game.pilots[slot].as_mut().unwrap().ship.health = 0.0;
         game.solo_pilot_mut().ship.pos = Vec2::ZERO;
         let focus = battle_focus(&game, slot, Some(slot), false);
         assert_eq!(focus, HOST);
-        assert_eq!(battle_area(&game, focus).point(), Vec2::ZERO);
+        assert_eq!(battle_area(&game, focus, viewport).point(), Vec2::ZERO);
     }
 
     #[test]
