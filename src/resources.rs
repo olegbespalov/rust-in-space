@@ -48,6 +48,7 @@ pub struct Resources {
     pub rare_asteroid: ModelSprite,
     pub explosion: Texture2D,
     pub boss_1: ModelSprite,
+    pub boss_2: ModelSprite,
 }
 
 #[allow(dead_code)]
@@ -141,6 +142,13 @@ impl Resources {
         let boss_1 = ModelSprite::load(
             "assets/boss_1.png",
             "assets/models/enemy_guardian.glb",
+            overhead,
+            72,
+        )
+        .await;
+        let boss_2 = ModelSprite::load(
+            "assets/boss_2.png",
+            "assets/models/enemy_guardian_escalated.glb",
             overhead,
             72,
         )
@@ -309,6 +317,7 @@ impl Resources {
             rare_asteroid,
             explosion,
             boss_1,
+            boss_2,
         }
     }
 }

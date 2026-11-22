@@ -6,26 +6,8 @@ use macroquad::prelude::*;
 const TARGET_ENEMY_SPAWN_PERIOD: u32 = 4;
 
 pub fn update_enemies(game: &mut Game, dt: f32) {
-    use macroquad::rand::gen_range;
-
-    // On Nebula, show the hint before spawning the ship.
-    if let Some((from_left, spawn_y, hint_at)) = game.pending_enemy_hint {
-        if get_time() - hint_at >= ENEMY_HINT_DELAY {
-            spawn_enemy(game, from_left, spawn_y);
-            game.pending_enemy_hint = None;
-        }
-        // While pending, don't decrement timer or start a new spawn
-    } else {
-        game.enemy_spawn_timer -= dt;
-        if game.enemy_spawn_timer <= 0.0 {
-            let from_left = gen_range(0, 2) == 0;
-            let y = gen_range(50.0, screen_height() - 50.0);
-            if game.difficulty == Difficulty::Nebula {
-                game.pending_enemy_hint = Some((from_left, y, get_time()));
-            } else {
-                spawn_enemy(game, from_left, y);
-            }
-        }
+    if game.boss.is_none() {
+        update_scheduled_enemy_spawn(game, dt);
     }
 
     let player_visible = !game.ship.is_invisible();
@@ -66,6 +48,30 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
     }
     game.enemy_ships
         .retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
+}
+
+fn update_scheduled_enemy_spawn(game: &mut Game, dt: f32) {
+    use macroquad::rand::gen_range;
+
+    // On Nebula, show the hint before spawning the ship.
+    if let Some((from_left, spawn_y, hint_at)) = game.pending_enemy_hint {
+        if get_time() - hint_at >= ENEMY_HINT_DELAY {
+            spawn_enemy(game, from_left, spawn_y);
+            game.pending_enemy_hint = None;
+        }
+        // While pending, don't decrement timer or start a new spawn
+    } else {
+        game.enemy_spawn_timer -= dt;
+        if game.enemy_spawn_timer <= 0.0 {
+            let from_left = gen_range(0, 2) == 0;
+            let y = gen_range(50.0, screen_height() - 50.0);
+            if game.difficulty == Difficulty::Nebula {
+                game.pending_enemy_hint = Some((from_left, y, get_time()));
+            } else {
+                spawn_enemy(game, from_left, y);
+            }
+        }
+    }
 }
 
 fn enemy_bullet(pos: Vec2, vel: Vec2, base_damage: f32, power_ups: &EnemyPowerUps) -> Bullet {
@@ -159,6 +165,94 @@ mod tests {
     use super::*;
     use crate::game::MissionProgress;
     use crate::systems::get_mission;
+
+    fn advance(boss: &mut Boss, enemy_count: usize, dt: f32) -> Option<BossSummon> {
+        advance_boss_encounter(boss, Difficulty::Supernova, enemy_count, dt, || {
+            (true, 160.0)
+        })
+    }
+
+    fn opening_boss() -> Boss {
+        Boss::new(
+            Vec2::ZERO,
+            boss_summon_delay(BossPhase::Opening, Difficulty::Supernova),
+        )
+    }
+
+    #[test]
+    fn boss_escalates_once_at_half_health_and_replaces_the_pending_wave() {
+        let mut boss = opening_boss();
+        boss.health = 226.0;
+        assert!(advance(&mut boss, 0, 5.0).is_none());
+        assert_eq!(boss.phase, BossPhase::Opening);
+        assert!(boss.pending_summon.is_some());
+
+        boss.take_damage(1.0);
+        boss.shoot_timer = BossPhase::Opening.shot_interval();
+        assert!(advance(&mut boss, 0, 1.0).is_none());
+        assert_eq!(boss.phase, BossPhase::Escalated);
+        assert_eq!(boss.shoot_timer, 2.0);
+        assert_eq!(boss.summon_timer, 3.5);
+        assert!(boss.pending_summon.is_none());
+
+        boss.health = boss.max_health;
+        advance(&mut boss, 0, 1.0);
+        boss.take_damage(boss.max_health / 2.0);
+        advance(&mut boss, 0, 1.0);
+        assert_eq!(boss.phase, BossPhase::Escalated);
+        assert_eq!(boss.summon_timer, 1.5);
+    }
+
+    #[test]
+    fn boss_warns_before_each_wave_and_only_announces_waves_that_fit() {
+        let mut boss = opening_boss();
+        assert!(advance(&mut boss, 0, 4.75).is_none());
+        assert!(boss.pending_summon.is_none());
+        assert!(advance(&mut boss, 0, 0.25).is_none());
+        assert_eq!(boss.pending_summon.unwrap().remaining, 1.0);
+        assert!(advance(&mut boss, 0, 0.75).is_none());
+        let first_wave = advance(&mut boss, 0, 0.25).unwrap();
+        assert!(first_wave
+            .arrivals(boss.phase)
+            .eq([(true, 160.0, EnemyType::Regular)]));
+        assert_eq!(boss.summon_timer, 5.0);
+
+        boss.health = boss.max_health / 2.0;
+        advance(&mut boss, 3, 0.0);
+        assert!(advance(&mut boss, 3, 3.5).is_none());
+        assert!(boss.pending_summon.is_none());
+        assert!(advance(&mut boss, 2, 0.0).is_none());
+        assert_eq!(boss.pending_summon.unwrap().remaining, 1.0);
+        let second_wave = advance(&mut boss, 2, 1.0).unwrap();
+        assert!(second_wave.arrivals(boss.phase).eq([
+            (true, 160.0, EnemyType::Interceptor),
+            (false, 160.0, EnemyType::Kamikaze),
+        ]));
+        assert_eq!(boss.summon_timer, 3.5);
+    }
+
+    #[test]
+    fn boss_summon_interval_scales_with_difficulty_before_the_fixed_warning() {
+        assert_eq!(
+            boss_summon_delay(BossPhase::Opening, Difficulty::Nebula),
+            6.5
+        );
+        assert_eq!(
+            boss_summon_delay(BossPhase::Escalated, Difficulty::BlackHole),
+            4.5 / 1.3 - 1.0
+        );
+    }
+
+    #[test]
+    fn lethal_damage_cancels_the_pending_boss_wave() {
+        let mut boss = opening_boss();
+        advance(&mut boss, 0, 5.0);
+        assert!(boss.pending_summon.is_some());
+        assert!(boss.take_damage(boss.max_health));
+        assert!(advance(&mut boss, 0, 1.0).is_none());
+        assert!(boss.pending_summon.is_none());
+        assert_eq!(boss.phase, BossPhase::Opening);
+    }
 
     #[test]
     fn enemy_weapon_pickups_change_new_shots_until_the_boosts_expire() {
@@ -261,7 +355,7 @@ pub fn update_boss(game: &mut Game, dt: f32) {
             boss.shoot_timer = if boss.burst_shots_left > 0 {
                 BOSS_BURST_DELAY
             } else {
-                enemy_shot_delay(BOSS_SHOOT_INTERVAL, &boss.power_ups)
+                enemy_shot_delay(boss.phase.shot_interval(), &boss.power_ups)
             };
             game.audio_cues.push(crate::audio::AudioCue::EnemyShot);
             for (dx, dy) in BOSS_VOLLEY_DIRS {
@@ -274,6 +368,117 @@ pub fn update_boss(game: &mut Game, dt: f32) {
             }
         }
     }
+}
+
+impl BossPhase {
+    fn shot_interval(self) -> f32 {
+        match self {
+            Self::Opening => BOSS_SHOOT_INTERVAL,
+            Self::Escalated => BOSS_ESCALATED_SHOOT_INTERVAL,
+        }
+    }
+
+    fn summon_types(self) -> &'static [EnemyType] {
+        match self {
+            Self::Opening => &[EnemyType::Regular],
+            Self::Escalated => &[EnemyType::Interceptor, EnemyType::Kamikaze],
+        }
+    }
+}
+
+impl BossSummon {
+    pub fn arrivals(self, phase: BossPhase) -> impl Iterator<Item = (bool, f32, EnemyType)> {
+        phase
+            .summon_types()
+            .iter()
+            .enumerate()
+            .map(move |(index, &enemy_type)| {
+                let from_left = if index == 0 {
+                    self.from_left
+                } else {
+                    !self.from_left
+                };
+                (from_left, self.y, enemy_type)
+            })
+    }
+}
+
+pub(super) fn boss_summon_delay(phase: BossPhase, difficulty: Difficulty) -> f32 {
+    let interval = match phase {
+        BossPhase::Opening => BOSS_SUMMON_INTERVAL,
+        BossPhase::Escalated => BOSS_ESCALATED_SUMMON_INTERVAL,
+    };
+    interval / difficulty.spawn_rate_mult() - BOSS_SUMMON_WARNING_DURATION
+}
+
+pub fn update_boss_encounter(game: &mut Game, dt: f32) {
+    let Some(boss) = game.boss.as_mut() else {
+        return;
+    };
+    let wave = advance_boss_encounter(boss, game.difficulty, game.enemy_ships.len(), dt, || {
+        use macroquad::rand::gen_range;
+        let height = screen_height();
+        let margin = 50.0_f32.min(height / 2.0);
+        let y = if height > 2.0 * margin {
+            gen_range(margin, height - margin)
+        } else {
+            height / 2.0
+        };
+        (gen_range(0, 2) == 0, y)
+    });
+    if let Some(wave) = wave {
+        game.enemy_ships
+            .extend(wave.arrivals(boss.phase).map(|(from_left, y, enemy_type)| {
+                EnemyShip::new_at_side(from_left, y, enemy_type)
+            }));
+    }
+}
+
+fn advance_boss_encounter(
+    boss: &mut Boss,
+    difficulty: Difficulty,
+    enemy_count: usize,
+    dt: f32,
+    choose_entry: impl FnOnce() -> (bool, f32),
+) -> Option<BossSummon> {
+    if boss.health <= 0.0 {
+        boss.pending_summon = None;
+        return None;
+    }
+
+    if boss.phase == BossPhase::Opening
+        && boss.health <= boss.max_health * BOSS_ESCALATION_HEALTH_RATIO
+    {
+        boss.phase = BossPhase::Escalated;
+        if boss.burst_shots_left == 0 {
+            let new_delay = enemy_shot_delay(boss.phase.shot_interval(), &boss.power_ups);
+            boss.shoot_timer = boss.shoot_timer.min(new_delay);
+        }
+        boss.pending_summon = None;
+        boss.summon_timer = boss_summon_delay(boss.phase, difficulty);
+        return None;
+    }
+
+    if let Some(wave) = boss.pending_summon.as_mut() {
+        wave.remaining -= dt;
+        if wave.remaining <= 0.0 {
+            boss.summon_timer = boss_summon_delay(boss.phase, difficulty) + wave.remaining;
+            return boss.pending_summon.take();
+        }
+    } else {
+        boss.summon_timer = (boss.summon_timer - dt).max(0.0);
+        if boss.summon_timer == 0.0
+            && enemy_count + boss.phase.summon_types().len() <= BOSS_REINFORCEMENT_LIMIT
+        {
+            let (from_left, y) = choose_entry();
+            boss.pending_summon = Some(BossSummon {
+                from_left,
+                y,
+                remaining: BOSS_SUMMON_WARNING_DURATION,
+            });
+        }
+    }
+    None
 }
 
 fn keep_boss_in_bounds(boss: &mut Boss) {

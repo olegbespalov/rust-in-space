@@ -163,6 +163,22 @@ pub struct Boss {
     /// How many shots left in current burst (0 = waiting for next burst).
     pub burst_shots_left: u32,
     pub power_ups: EnemyPowerUps,
+    pub phase: BossPhase,
+    pub summon_timer: f32,
+    pub pending_summon: Option<BossSummon>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BossPhase {
+    Opening,
+    Escalated,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct BossSummon {
+    pub from_left: bool,
+    pub y: f32,
+    pub remaining: f32,
 }
 
 #[derive(Default)]
@@ -526,10 +542,10 @@ impl EnemyShip {
 }
 
 impl Boss {
-    pub fn new() -> Self {
+    pub fn new(pos: Vec2, summon_timer: f32) -> Self {
         let max_health = 450.0;
         Self {
-            pos: vec2(screen_width() / 2.0, 80.0),
+            pos,
             vel: vec2(45.0, 25.0),
             rotation: 0.0,
             health: max_health,
@@ -537,6 +553,9 @@ impl Boss {
             shoot_timer: 0.0,
             burst_shots_left: 0,
             power_ups: EnemyPowerUps::default(),
+            phase: BossPhase::Opening,
+            summon_timer,
+            pending_summon: None,
         }
     }
 

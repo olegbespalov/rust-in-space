@@ -150,6 +150,8 @@ impl Localization {
 
         en.insert("boss_hp", "Boss HP:");
         ru.insert("boss_hp", "Босс ЗД:");
+        en.insert("boss_phase", "Phase");
+        ru.insert("boss_phase", "Фаза");
 
         en.insert("boss_defeated", "Boss Defeated!");
         ru.insert("boss_defeated", "Босс повержен!");
@@ -296,6 +298,7 @@ impl Localization {
         de.insert("rust", "Rost:");
         de.insert("gold", "Gold:");
         de.insert("boss_hp", "Boss LP:");
+        de.insert("boss_phase", "Phase");
         de.insert("boss_defeated", "Boss besiegt!");
         de.insert("resources", "Ressourcen:");
         de.insert("upgrade_bay_title", "UPGRADE-BAU");

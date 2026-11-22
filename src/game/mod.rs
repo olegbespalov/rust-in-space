@@ -9,7 +9,7 @@ use crate::systems::get_mission;
 use constants::*;
 use macroquad::prelude::*;
 
-pub use npc::{update_boss, update_enemies};
+pub use npc::{update_boss, update_boss_encounter, update_enemies};
 pub use physics::{update_collisions, update_loot, update_physics, update_timers};
 pub use player::create_ship;
 pub use player::{update_ship_movement, update_ship_shooting};
@@ -212,7 +212,12 @@ impl Game {
             .current_mission
             .objectives
             .contains(&MissionObjective::DefeatBoss)
-            .then(Boss::new);
+            .then(|| {
+                Boss::new(
+                    vec2(screen_width() / 2.0, 80.0),
+                    npc::boss_summon_delay(BossPhase::Opening, self.difficulty),
+                )
+            });
         self.asteroids = (0..self.current_mission.asteroid_count)
             .map(|_| Asteroid::new_large())
             .collect();
@@ -387,6 +392,11 @@ mod tests {
         for _ in 0..6 {
             progress.record_enemy_defeat(EnemyType::Regular);
         }
+        assert!(progress.completes(&get_mission(3)));
+
+        progress.boss_defeated = false;
+        assert!(!progress.completes(&get_mission(3)));
+        progress.boss_defeated = true;
         assert!(progress.completes(&get_mission(3)));
 
         let mut progress = MissionProgress {

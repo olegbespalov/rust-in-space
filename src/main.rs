@@ -225,6 +225,9 @@ async fn main() {
                         update_physics(&mut game, dt);
                         ship_destroyed = update_collisions(&mut game);
                     }
+                    if !ship_destroyed {
+                        update_boss_encounter(&mut game, dt);
+                    }
 
                     if ship_destroyed {
                         audio.set_engine_active(&resources.audio, false, 0.0);

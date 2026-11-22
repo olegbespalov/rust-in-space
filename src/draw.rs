@@ -1,6 +1,7 @@
 use crate::components::{
-    Asteroid, AudioSettings, Boss, BulletStyle, Difficulty, EnemyShip, EnemyType, Engine,
-    Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective, ShieldKind, Ship, ShipKind,
+    Asteroid, AudioSettings, Boss, BossPhase, BulletStyle, Difficulty, EnemyShip, EnemyType,
+    Engine, Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective, ShieldKind, Ship,
+    ShipKind,
 };
 use crate::game::constants::{
     ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, KAMIKAZE_RADIUS,
@@ -276,7 +277,11 @@ pub fn draw_boss(boss: &Boss, res: &Resources) {
         WHITE
     };
 
-    res.boss_1.draw_tinted(boss.pos, size, boss.rotation, tint);
+    let model = match boss.phase {
+        BossPhase::Opening => &res.boss_1,
+        BossPhase::Escalated => &res.boss_2,
+    };
+    model.draw_tinted(boss.pos, size, boss.rotation, tint);
     if let Some(shield) = &boss.power_ups.shield {
         draw_active_shield(
             boss.pos,
@@ -375,14 +380,13 @@ pub fn draw_explosion(expl: &Explosion, res: &Resources) {
     );
 }
 
-pub fn draw_enemy_direction_hint(from_left: bool, spawn_y: f32) {
-    let t = get_time() as f32;
+fn draw_enemy_direction_hint(from_left: bool, spawn_y: f32, t: f32) {
     let blink = 0.4 + 0.6 * (t * 2.5).sin().mul_add(0.5, 0.5);
     let color = Color::new(0.2, 1.0, 0.4, blink);
 
     let w = screen_width();
     let h = screen_height();
-    let margin = 50.0;
+    let margin = 50.0_f32.min(h / 2.0);
     let cy = spawn_y.clamp(margin, h - margin);
     let edge_x = if from_left { 28.0 } else { w - 28.0 };
     let dir: f32 = if from_left { 1.0 } else { -1.0 };
@@ -511,12 +515,19 @@ pub fn render_game(game: &Game, resources: &Resources) {
         let complete = game.mission_progress.meets(objective);
         let status = match objective {
             MissionObjective::DefeatBoss => match &game.boss {
-                Some(boss) => format!(
-                    "{} {:.0}/{:.0}",
-                    resources.lang.t("boss_hp"),
-                    boss.health.ceil(),
-                    boss.max_health
-                ),
+                Some(boss) => {
+                    let phase = match boss.phase {
+                        BossPhase::Opening => 1,
+                        BossPhase::Escalated => 2,
+                    };
+                    format!(
+                        "{} {:.0}/{:.0}  {} {phase}/2",
+                        resources.lang.t("boss_hp"),
+                        boss.health.ceil(),
+                        boss.max_health,
+                        resources.lang.t("boss_phase")
+                    )
+                }
                 None => resources.lang.t("boss_defeated").to_string(),
             },
             _ => format!(
@@ -555,9 +566,15 @@ pub fn render_game(game: &Game, resources: &Resources) {
         resources,
     );
 
-    if game.difficulty == Difficulty::Nebula {
+    if let Some(boss) = &game.boss {
+        if let Some(wave) = boss.pending_summon {
+            for (from_left, y, _) in wave.arrivals(boss.phase) {
+                draw_enemy_direction_hint(from_left, y, -wave.remaining);
+            }
+        }
+    } else if game.difficulty == Difficulty::Nebula {
         if let Some((from_left, spawn_y, _)) = game.pending_enemy_hint {
-            draw_enemy_direction_hint(from_left, spawn_y);
+            draw_enemy_direction_hint(from_left, spawn_y, get_time() as f32);
         }
     }
 }

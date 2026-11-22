@@ -23,6 +23,7 @@ mod tests {
             include_bytes!("../assets/models/enemy_regular.glb").as_slice(),
             include_bytes!("../assets/models/enemy_kamikaze.glb").as_slice(),
             include_bytes!("../assets/models/enemy_guardian.glb").as_slice(),
+            include_bytes!("../assets/models/enemy_guardian_escalated.glb").as_slice(),
             include_bytes!("../assets/models/enemy_projectile.glb").as_slice(),
             include_bytes!("../assets/models/enemy_interceptor.glb").as_slice(),
             include_bytes!("../assets/models/enemy_heavy.glb").as_slice(),
