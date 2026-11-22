@@ -906,9 +906,22 @@ fn draw_lan_minimap(game: &Game, view: LanView<'_>, res: &Resources) {
             };
             let row = Rect::new(origin.x, row_y, WIDTH, 23.0);
             draw_rectangle(row.x, row.y, row.w, row.h, Color::new(0.0, 0.0, 0.0, 0.65));
+            let mut name_bounds = row;
+            if slot != view.slot {
+                const HP_WIDTH: f32 = 66.0;
+                name_bounds.w -= HP_WIDTH;
+                let ship = &pilot.ship;
+                draw_menu_label(
+                    &format!("{:.0}/{:.0}", ship.health.max(0.0), ship.max_health),
+                    Rect::new(name_bounds.right(), row.y, HP_WIDTH, row.h),
+                    15,
+                    color,
+                    res,
+                );
+            }
             draw_menu_label(
                 &format!("{} · {}", slot + 1, view.names[slot]),
-                row,
+                name_bounds,
                 15,
                 color,
                 res,
