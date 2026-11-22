@@ -243,10 +243,6 @@ impl Game {
                 }
                 boss
             });
-        self.asteroids = (0..self.current_mission.asteroid_count)
-            .map(|_| Asteroid::new_large(self.bounds))
-            .collect();
-
         self.mission_progress = MissionProgress::default();
         self.enemy_spawn_timer = self.current_mission.enemy_spawn_interval;
         self.enemy_spawn_count = 0;
@@ -263,6 +259,29 @@ impl Game {
                 pilot.start_mission(self.bounds / 2.0 + offset);
             }
         }
+
+        let pilot_positions: Vec<Vec2> = self
+            .pilots
+            .iter()
+            .flatten()
+            .filter(|pilot| pilot.is_alive())
+            .map(|pilot| pilot.ship.pos)
+            .collect();
+        self.asteroids = (0..self.current_mission.asteroid_count)
+            .map(|_| {
+                let mut asteroid = Asteroid::new_large(self.bounds);
+                for _ in 0..32 {
+                    if pilot_positions
+                        .iter()
+                        .all(|&pos| (asteroid.pos - pos).length() >= asteroid.radius + 80.0)
+                    {
+                        break;
+                    }
+                    asteroid = Asteroid::new_large(self.bounds);
+                }
+                asteroid
+            })
+            .collect();
     }
 
     pub fn next_mission(&mut self) {
