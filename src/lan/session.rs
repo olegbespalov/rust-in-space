@@ -1058,9 +1058,9 @@ mod tests {
             }];
             game.mission_progress.enemies_defeated = 12;
             game.mission_progress.asteroids_destroyed = 14;
-            game.pilots[HOST].as_mut().unwrap().ship.scrap = 30;
+            game.pilots[HOST].as_mut().unwrap().ship.rare_metal = 30;
             let guest_pilot = game.pilots[GUEST].as_mut().unwrap();
-            guest_pilot.ship.scrap = 40;
+            guest_pilot.ship.rare_metal = 40;
             guest_pilot.ship.health = 0.0;
             game.score = 850;
         }
@@ -1086,7 +1086,7 @@ mod tests {
         host_command(&mut host, Action::Advance);
         assert_eq!(host.campaign.phase, Phase::UpgradeBay);
         host.command(stale_revision, Action::Buy(UpgradeId::ReinforcedHull));
-        assert_eq!(host.campaign.game.solo_pilot().ship.scrap, 30);
+        assert_eq!(host.campaign.game.solo_pilot().ship.rare_metal, 30);
         host_command(&mut host, Action::Buy(UpgradeId::ReinforcedHull));
         guest_command(&mut guest, Action::Buy(UpgradeId::WeaponTuning));
         guest_command(&mut guest, Action::Ready);
@@ -1096,8 +1096,8 @@ mod tests {
         let game = &guest.state.as_ref().unwrap().game;
         let host_pilot = game.solo_pilot();
         let guest_pilot = game.pilots[GUEST].as_ref().unwrap();
-        assert_eq!(host_pilot.ship.scrap, 10);
-        assert_eq!(guest_pilot.ship.scrap, 10);
+        assert_eq!(host_pilot.ship.rare_metal, 10);
+        assert_eq!(guest_pilot.ship.rare_metal, 10);
         assert_eq!(host_pilot.upgrade_level(UpgradeId::ReinforcedHull), 1);
         assert_eq!(guest_pilot.upgrade_level(UpgradeId::WeaponTuning), 1);
         assert_eq!(host_pilot.upgrade_level(UpgradeId::WeaponTuning), 0);
@@ -1265,19 +1265,19 @@ mod tests {
         let mut host = create_host();
         let mut guest = connect(&mut host);
         host.campaign.transition(Phase::UpgradeBay);
-        host.campaign.game.solo_pilot_mut().ship.scrap = 55;
+        host.campaign.game.solo_pilot_mut().ship.rare_metal = 55;
         host_command(&mut host, Action::Ready);
         wait_for_phase(&mut host, &mut guest, Phase::UpgradeBay);
         guest_command(&mut guest, Action::Ready);
         wait_for(&mut host, &mut guest, |host, _| host.campaign.ready[GUEST]);
         assert!(host.campaign.ready[HOST]);
         host_command(&mut host, Action::Buy(UpgradeId::ReinforcedHull));
-        assert_eq!(host.campaign.game.solo_pilot().ship.scrap, 35);
+        assert_eq!(host.campaign.game.solo_pilot().ship.rare_metal, 35);
 
         drop(guest);
         wait_until_guest_leaves(&mut host);
         host_command(&mut host, Action::Buy(UpgradeId::WeaponTuning));
-        assert_eq!(host.campaign.game.solo_pilot().ship.scrap, 5);
+        assert_eq!(host.campaign.game.solo_pilot().ship.rare_metal, 5);
         host_command(&mut host, Action::Advance);
         assert_eq!(host.campaign.phase, Phase::Briefing);
 
@@ -1322,7 +1322,7 @@ mod tests {
     fn surviving_pilot_can_finish_and_destroyed_pilot_respawns() {
         let mut campaign = Campaign::new(Difficulty::Nebula, "Host");
         campaign.add_guest(GUEST, "Guest");
-        campaign.game.solo_pilot_mut().ship.scrap = 21;
+        campaign.game.solo_pilot_mut().ship.rare_metal = 21;
         assert!(matches!(
             campaign
                 .game
@@ -1347,7 +1347,7 @@ mod tests {
         let pilot = campaign.game.solo_pilot();
         assert!(pilot.is_alive());
         assert_eq!(pilot.ship.health, pilot.ship.max_health);
-        assert_eq!(pilot.ship.scrap, 1);
+        assert_eq!(pilot.ship.rare_metal, 1);
         assert_eq!(pilot.upgrade_level(UpgradeId::ReinforcedHull), 1);
     }
 

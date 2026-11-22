@@ -160,20 +160,22 @@ impl Localization {
         ru.insert("resources", "Ресурсы:");
 
         // --- UPGRADES ---
-        en.insert("upgrade_bay_title", "UPGRADE BAY");
-        ru.insert("upgrade_bay_title", "ОТСЕК УЛУЧШЕНИЙ");
+        en.insert("upgrade_bay_title", "MERCENARY MARKET");
+        ru.insert("upgrade_bay_title", "РЫНОК НАЁМНИКОВ");
         en.insert(
             "upgrade_bay_subtitle",
-            "Spend resources before the next mission",
+            "Trade salvage and gear up for the next contract",
         );
         ru.insert(
             "upgrade_bay_subtitle",
-            "Потрать ресурсы перед следующей миссией",
+            "Обменяй лом и подготовься к следующему контракту",
         );
         en.insert("upgrade_level", "Lvl");
         ru.insert("upgrade_level", "Ур");
         en.insert("upgrade_cost", "Cost");
         ru.insert("upgrade_cost", "Цена");
+        en.insert("sell_scrap", "Sell scrap");
+        ru.insert("sell_scrap", "Продать лом");
         en.insert("upgrade_status_maxed", "MAXED");
         ru.insert("upgrade_status_maxed", "МАКС");
         en.insert("upgrade_status_buy", "Ready");
@@ -311,13 +313,14 @@ impl Localization {
         de.insert("boss_phase", "Phase");
         de.insert("boss_defeated", "Boss besiegt!");
         de.insert("resources", "Ressourcen:");
-        de.insert("upgrade_bay_title", "UPGRADE-BAU");
+        de.insert("upgrade_bay_title", "SÖLDNERMARKT");
         de.insert(
             "upgrade_bay_subtitle",
-            "Gib Ressourcen vor der nächsten Mission aus",
+            "Tausche Schrott und rüste dich für den nächsten Auftrag aus",
         );
         de.insert("upgrade_level", "Stufe");
         de.insert("upgrade_cost", "Kosten");
+        de.insert("sell_scrap", "Schrott verkaufen");
         de.insert("upgrade_status_maxed", "MAX");
         de.insert("upgrade_status_buy", "Kaufbar");
         de.insert("upgrade_status_lack", "Nicht genug");

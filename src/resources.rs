@@ -21,6 +21,7 @@ pub(crate) fn macos_bundle_resources(executable: &Path) -> Option<std::path::Pat
 pub struct Resources {
     pub logo: Texture2D,
     pub background: Texture2D,
+    pub shop_background: Texture2D,
     pub font: Option<Font>,
     pub lang: Localization,
     pub audio: AudioAssets,
@@ -108,6 +109,8 @@ impl Resources {
 
         let background = load_texture("assets/space_bg.png").await.unwrap();
         background.set_filter(FilterMode::Nearest);
+        let shop_background = load_texture("assets/mercenary_port.png").await.unwrap();
+        shop_background.set_filter(FilterMode::Linear);
 
         let bullet: Texture2D = load_texture("assets/bullet.png").await.unwrap();
         bullet.set_filter(FilterMode::Nearest);
@@ -304,6 +307,7 @@ impl Resources {
         Self {
             logo,
             background,
+            shop_background,
             font,
             lang: Localization::new(),
             audio,

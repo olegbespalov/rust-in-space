@@ -1628,6 +1628,14 @@ pub fn render_upgrade_bay(
     continue_key: &str,
     res: &Resources,
 ) -> Option<usize> {
+    draw_background(&res.shop_background);
+    draw_rectangle(
+        0.0,
+        0.0,
+        screen_width(),
+        screen_height(),
+        Color::new(0.015, 0.02, 0.06, 0.62),
+    );
     draw_text_centered(res.lang.t("upgrade_bay_title"), -260.0, 40, ORANGE, res);
     draw_text_centered(res.lang.t("upgrade_bay_subtitle"), -220.0, 18, GRAY, res);
 
@@ -1665,10 +1673,8 @@ pub fn render_upgrade_bay(
                 res.lang.t("upgrade_status_lack")
             };
             format!(
-                "{}: {} {} {} {} ({})",
+                "{}: {} {} ({})",
                 res.lang.t("upgrade_cost"),
-                res.lang.t("rust"),
-                cost.scrap,
                 res.lang.t("gold"),
                 cost.rare_metal,
                 buy_state
@@ -1705,7 +1711,24 @@ pub fn render_upgrade_bay(
         );
     }
 
-    let continue_idx = UPGRADABLE_IDS.len();
+    let sell_idx = UpgradeSelection::SELL_SCRAP_INDEX;
+    let sell_bounds = Rect::new(
+        row_x,
+        start_y + line_height * sell_idx as f32,
+        row_width,
+        40.0,
+    );
+    let sell_text = format!(
+        "{} (10 {} = 1 {})",
+        res.lang.t("sell_scrap"),
+        res.lang.t("rust"),
+        res.lang.t("gold")
+    );
+    if menu_button(&sell_text, sell_bounds, 20, selection.0 == sell_idx, res) {
+        clicked = Some(sell_idx);
+    }
+
+    let continue_idx = UpgradeSelection::CONTINUE_INDEX;
     let bounds = Rect::new(
         row_x,
         start_y + line_height * continue_idx as f32,

@@ -75,24 +75,24 @@ pub fn upgrade_definition(id: UpgradeId) -> UpgradeDefinition {
 pub fn upgrade_cost(id: UpgradeId, next_level: u8) -> UpgradeCost {
     match id {
         UpgradeId::ReinforcedHull => UpgradeCost {
-            scrap: 20 + 25 * (next_level as u32 - 1),
-            rare_metal: 0,
+            scrap: 0,
+            rare_metal: 20 + 25 * (next_level as u32 - 1),
         },
         UpgradeId::WeaponTuning => UpgradeCost {
-            scrap: 30 + 25 * (next_level as u32 - 1),
-            rare_metal: if next_level >= 3 { 2 } else { 0 },
+            scrap: 0,
+            rare_metal: 30 + 25 * (next_level as u32 - 1),
         },
         UpgradeId::EngineOverdrive => UpgradeCost {
-            scrap: 25 + 20 * (next_level as u32 - 1),
-            rare_metal: 0,
+            scrap: 0,
+            rare_metal: 25 + 20 * (next_level as u32 - 1),
         },
         UpgradeId::MagnetArray => UpgradeCost {
-            scrap: 20 + 20 * (next_level as u32 - 1),
-            rare_metal: next_level as u32 - 1,
+            scrap: 0,
+            rare_metal: 20 + 20 * (next_level as u32 - 1),
         },
         UpgradeId::ShieldCapacitor => UpgradeCost {
             scrap: 0,
-            rare_metal: 3,
+            rare_metal: 60,
         },
     }
 }
@@ -366,16 +366,19 @@ fn lan_mission(mut mission: Mission, cooperative: bool) -> Mission {
 pub struct UpgradeSelection(pub usize);
 
 impl UpgradeSelection {
+    pub const SELL_SCRAP_INDEX: usize = UPGRADABLE_IDS.len();
+    pub const CONTINUE_INDEX: usize = UPGRADABLE_IDS.len() + 1;
+
     pub fn selected(&self) -> Option<UpgradeId> {
         UPGRADABLE_IDS.get(self.0).copied()
     }
 
     pub fn next(&mut self) {
-        self.0 = (self.0 + 1) % (UPGRADABLE_IDS.len() + 1);
+        self.0 = (self.0 + 1) % (UPGRADABLE_IDS.len() + 2);
     }
 
     pub fn prev(&mut self) {
-        self.0 = (self.0 + UPGRADABLE_IDS.len()) % (UPGRADABLE_IDS.len() + 1);
+        self.0 = (self.0 + UPGRADABLE_IDS.len() + 1) % (UPGRADABLE_IDS.len() + 2);
     }
 }
 
@@ -453,6 +456,16 @@ impl Pilot {
         self.upgrade_levels.set(id, current_level + 1);
         self.apply_permanent_upgrades();
         BuyUpgradeResult::Bought
+    }
+
+    pub fn sell_scrap(&mut self) -> u32 {
+        const SCRAP_PER_GOLD: u32 = 10;
+        let gold = self.ship.scrap / SCRAP_PER_GOLD;
+        if gold > 0 {
+            self.ship.scrap -= gold * SCRAP_PER_GOLD;
+            self.ship.rare_metal += gold;
+        }
+        gold
     }
 
     fn apply_permanent_upgrades(&mut self) {

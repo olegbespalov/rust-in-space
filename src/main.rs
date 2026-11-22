@@ -365,12 +365,14 @@ async fn main() {
                 }
 
                 if clicked.is_some() || is_key_pressed(KeyCode::Enter) {
-                    if let Some(id) = upgrade_selection.selected() {
-                        let _ = game.solo_pilot_mut().buy_upgrade(id);
-                    } else {
+                    if upgrade_selection.0 == UpgradeSelection::SELL_SCRAP_INDEX {
+                        let _ = game.solo_pilot_mut().sell_scrap();
+                    } else if upgrade_selection.0 == UpgradeSelection::CONTINUE_INDEX {
                         game.next_mission();
                         audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                         state = GameState::Briefing;
+                    } else if let Some(id) = upgrade_selection.selected() {
+                        let _ = game.solo_pilot_mut().buy_upgrade(id);
                     }
                 }
             }
