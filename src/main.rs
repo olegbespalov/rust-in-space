@@ -169,6 +169,12 @@ async fn main() {
                             state = GameState::Lan(Box::new(lan::LanMode::new(game.difficulty)));
                         }
                     }
+                    MenuItem::EnemyCodex => {
+                        if enter || activate {
+                            audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
+                            state = GameState::EnemyCodex(0);
+                        }
+                    }
                     MenuItem::Difficulty => {
                         if left || right || activate {
                             game.cycle_difficulty();
@@ -208,6 +214,23 @@ async fn main() {
                             }
                         }
                     }
+                }
+            }
+
+            GameState::EnemyCodex(selected) => {
+                let mut selected = selected;
+                if is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::Left) {
+                    selected = (selected + 4) % 5;
+                    audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
+                } else if is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::Right) {
+                    selected = (selected + 1) % 5;
+                    audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
+                }
+                render_enemy_codex(selected, &resources);
+                if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::Enter) {
+                    state = GameState::Menu;
+                } else {
+                    state = GameState::EnemyCodex(selected);
                 }
             }
 

@@ -8,6 +8,7 @@ use crate::game::constants::{
     KAMIKAZE_RADIUS,
 };
 use crate::game::{upgrade_definition, Game, Pilot, UpgradeSelection, MAX_PILOTS, UPGRADABLE_IDS};
+use crate::model_sprite::ModelSprite;
 use crate::resources::Resources;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
@@ -1087,8 +1088,8 @@ pub fn render_menu(
         },
     );
 
-    let start_y = screen_h * 0.39;
-    let row_step = ((screen_h * 0.61 - 30.0) / 8.0).clamp(1.0, 56.0);
+    let start_y = screen_h * 0.37;
+    let row_step = ((screen_h * 0.63 - 30.0) / 9.0).clamp(1.0, 48.0);
     let row_height = (row_step * 0.8).min(42.0);
     let row_width = (screen_w * 0.94).min(420.0);
     let row_x = (screen_w - row_width) / 2.0;
@@ -1152,6 +1153,7 @@ pub fn render_menu(
             "menu_audio_mute",
             Some(res.lang.t(audio_status).to_owned()),
         ),
+        (MenuItem::EnemyCodex, "enemy_codex", None),
     ];
 
     let row_count = rows.len();
@@ -1382,7 +1384,118 @@ pub fn render_briefing(
         draw_text_centered(&text, 60.0 + row as f32 * 32.0, 24, WHITE, res);
     }
 
-    launch && centered_menu_button(res.lang.t("press_space"), 190.0, res)
+    let mut possible = vec![EnemyType::Regular, EnemyType::Kamikaze];
+    if mission.level_id >= 2 {
+        possible.push(EnemyType::Interceptor);
+    }
+    if mission.level_id >= 4 {
+        possible.extend([EnemyType::Heavy, EnemyType::Guardian]);
+    }
+    draw_text_centered(res.lang.t("briefing_threats"), 130.0, 18, ORANGE, res);
+    let slot_width = screen_width() / possible.len() as f32;
+    for (index, enemy) in possible.into_iter().enumerate() {
+        let x = slot_width * (index as f32 + 0.5);
+        enemy_sprite(enemy, res).draw(vec2(x, screen_height() / 2.0 + 155.0), 48.0, 0.0);
+        draw_menu_label(
+            res.lang.t(enemy_name_key(enemy)),
+            Rect::new(
+                x - slot_width * 0.48,
+                screen_height() / 2.0 + 180.0,
+                slot_width * 0.96,
+                24.0,
+            ),
+            11,
+            WHITE,
+            res,
+        );
+    }
+
+    launch && centered_menu_button(res.lang.t("press_space"), 230.0, res)
+}
+
+pub fn render_enemy_codex(selected: usize, res: &Resources) {
+    let entries = [
+        EnemyType::Regular,
+        EnemyType::Kamikaze,
+        EnemyType::Interceptor,
+        EnemyType::Heavy,
+        EnemyType::Guardian,
+    ];
+    draw_text_centered(res.lang.t("enemy_codex"), -275.0, 30, ORANGE, res);
+    let list_x = screen_width() * 0.04;
+    let list_width = screen_width() * 0.35;
+    for (index, enemy) in entries.into_iter().enumerate() {
+        let y = screen_height() * 0.28 + index as f32 * 52.0;
+        let color = if index == selected { YELLOW } else { LIGHTGRAY };
+        draw_menu_label(
+            res.lang.t(enemy_name_key(enemy)),
+            Rect::new(list_x, y, list_width, 38.0),
+            15,
+            color,
+            res,
+        );
+    }
+    let selected_enemy = entries[selected.min(entries.len() - 1)];
+    enemy_sprite(selected_enemy, res).draw(
+        vec2(screen_width() * 0.54, screen_height() * 0.52),
+        210.0,
+        0.0,
+    );
+    draw_menu_label(
+        res.lang.t(enemy_name_key(selected_enemy)),
+        Rect::new(
+            screen_width() * 0.69,
+            screen_height() * 0.36,
+            screen_width() * 0.28,
+            40.0,
+        ),
+        20,
+        YELLOW,
+        res,
+    );
+    draw_menu_label(
+        res.lang.t(enemy_lore_key(selected_enemy)),
+        Rect::new(
+            screen_width() * 0.68,
+            screen_height() * 0.43,
+            screen_width() * 0.29,
+            150.0,
+        ),
+        12,
+        WHITE,
+        res,
+    );
+    draw_text_centered(res.lang.t("codex_controls"), 280.0, 14, GRAY, res);
+}
+
+fn enemy_name_key(enemy: EnemyType) -> &'static str {
+    match enemy {
+        EnemyType::Regular => "enemy_regular",
+        EnemyType::Kamikaze => "enemy_kamikaze",
+        EnemyType::Interceptor => "enemy_interceptor",
+        EnemyType::Heavy => "enemy_heavy",
+        EnemyType::Guardian => "enemy_guardian",
+    }
+}
+
+fn enemy_lore_key(enemy: EnemyType) -> &'static str {
+    match enemy {
+        EnemyType::Regular => "lore_regular",
+        EnemyType::Kamikaze => "lore_kamikaze",
+        EnemyType::Interceptor => "lore_interceptor",
+        EnemyType::Heavy => "lore_heavy",
+        EnemyType::Guardian => "lore_guardian",
+    }
+}
+
+fn enemy_sprite(enemy: EnemyType, res: &Resources) -> &ModelSprite {
+    match enemy {
+        EnemyType::Regular => &res.enemy_small,
+        EnemyType::Kamikaze => &res.enemy_kamikaze,
+        EnemyType::Interceptor => &res.enemy_interceptor,
+        EnemyType::Heavy => &res.enemy_heavy,
+        EnemyType::Guardian => &res.enemy_guardian,
+    }
 }
 
 pub fn render_mission_success(mission: &Mission, advance: bool, res: &Resources) -> bool {

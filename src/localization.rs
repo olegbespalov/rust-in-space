@@ -361,6 +361,71 @@ impl Localization {
 
         for (key, english, russian, german) in [
             (
+                "enemy_codex",
+                "ENEMY ARCHIVE",
+                "АРХИВ ВРАГОВ",
+                "FEINDARCHIV",
+            ),
+            (
+                "briefing_threats",
+                "POSSIBLE ENEMIES:",
+                "ВОЗМОЖНЫЕ ВРАГИ:",
+                "MÖGLICHE FEINDE:",
+            ),
+            ("enemy_regular", "Raider", "Рейдер", "Plünderer"),
+            ("enemy_kamikaze", "Kamikaze", "Камикадзе", "Kamikaze"),
+            (
+                "enemy_interceptor",
+                "Interceptor",
+                "Перехватчик",
+                "Abfangjäger",
+            ),
+            ("enemy_heavy", "Heavy", "Тяжёлый", "Schwerer Jäger"),
+            ("enemy_guardian", "Guardian", "Страж", "Wächter"),
+            (
+                "lore_regular",
+                "Frontier raiders strip wrecks for parts and strike passing convoys.",
+                "Пираты окраин разбирают обломки на детали и нападают на караваны.",
+                "Grenzräuber zerlegen Wracks und überfallen vorbeiziehende Konvois.",
+            ),
+            (
+                "lore_kamikaze",
+                "Fanatics weld their ships into volatile rams; they never plan to return.",
+                "Фанатики превращают корабли в летающие бомбы и не собираются возвращаться.",
+                "Fanatiker bauen ihre Schiffe zu fliegenden Bomben um und kehren nie zurück.",
+            ),
+            (
+                "lore_interceptor",
+                "Fast pursuit craft hunt lone pilots before the fleet arrives.",
+                "Быстрые перехватчики выслеживают одиночные корабли до прибытия флота.",
+                "Schnelle Jäger verfolgen einzelne Piloten, bevor die Flotte eintrifft.",
+            ),
+            (
+                "lore_heavy",
+                "Armored gunships carry enough firepower to hold a whole corridor.",
+                "Бронированные канонерки способны перекрыть целый коридор огнём.",
+                "Gepanzerte Kanonenboote können einen ganzen Korridor unter Beschuss halten.",
+            ),
+            (
+                "lore_guardian",
+                "Ancient sentinels awaken near the front and shield the raider armada.",
+                "Древние стражи пробуждаются у фронта и прикрывают пиратскую армаду.",
+                "Uralte Wächter erwachen an der Front und schützen die Piratenarmada.",
+            ),
+            (
+                "codex_controls",
+                "UP/DOWN or LEFT/RIGHT: Browse    ENTER/ESC: Back",
+                "ВВЕРХ/ВНИЗ или ВЛЕВО/ВПРАВО: выбор    ENTER/ESC: назад",
+                "PFEILE: Blättern    ENTER/ESC: Zurück",
+            ),
+        ] {
+            en.insert(key, english);
+            ru.insert(key, russian);
+            de.insert(key, german);
+        }
+
+        for (key, english, russian, german) in [
+            (
                 "lan_menu",
                 "Local Network",
                 "Локальная сеть",

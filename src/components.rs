@@ -57,6 +57,7 @@ impl MissionObjective {
 pub enum GameState {
     PlayerName(String),
     Menu,
+    EnemyCodex(usize),
     Lan(Box<crate::lan::LanMode>),
     ShipSelection(ShipKind),
     Briefing, // briefing screen before the mission
@@ -78,6 +79,7 @@ pub enum MenuItem {
     MusicVolume,
     SfxVolume,
     AudioMute,
+    EnemyCodex,
 }
 
 impl MenuItem {
@@ -90,13 +92,15 @@ impl MenuItem {
             MenuItem::MasterVolume => MenuItem::MusicVolume,
             MenuItem::MusicVolume => MenuItem::SfxVolume,
             MenuItem::SfxVolume => MenuItem::AudioMute,
-            MenuItem::AudioMute => MenuItem::Start,
+            MenuItem::AudioMute => MenuItem::EnemyCodex,
+            MenuItem::EnemyCodex => MenuItem::Start,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            MenuItem::Start => MenuItem::AudioMute,
+            MenuItem::Start => MenuItem::EnemyCodex,
+            MenuItem::EnemyCodex => MenuItem::AudioMute,
             MenuItem::Difficulty => MenuItem::Lan,
             MenuItem::Lan => MenuItem::Start,
             MenuItem::Language => MenuItem::Difficulty,
