@@ -24,6 +24,7 @@ use systems::{load_save, save_data, save_file};
 const WINDOW_WIDTH: i32 = 1280;
 const WINDOW_HEIGHT: i32 = 720;
 const DEV_SHOP_RESOURCES: u32 = 999;
+const HIGH_SCORE_SAVE_DELAY: f32 = 0.25;
 const VERSION: &str = match option_env!("RUST_IN_SPACE_RELEASE_TAG") {
     Some(tag) => tag,
     None => concat!("v", env!("CARGO_PKG_VERSION")),
@@ -98,10 +99,11 @@ async fn main() {
     #[cfg(target_os = "linux")]
     let startup_resize_deadline = get_time() + 2.0;
 
+    prevent_quit();
     loop {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         update.poll();
-        let mut quit = false;
+        let mut quit = is_quit_requested();
 
         #[cfg(target_os = "linux")]
         if startup_resize_pending
@@ -443,7 +445,7 @@ async fn main() {
 
                     if game.score > saved.high_score {
                         saved.high_score = game.score;
-                        save_timer = Some(0.0);
+                        save_timer.get_or_insert(HIGH_SCORE_SAVE_DELAY);
                     }
 
                     for cue in game.drain_audio_cues() {
