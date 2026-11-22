@@ -49,9 +49,15 @@ fn window_conf() -> macroquad::conf::Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    let dev_mode = std::env::args().any(|arg| arg == "--dev");
     let save_path = save_file();
     let mut saved = load_save(save_path.as_deref());
-    let mut state = if saved
+    let mut state = if dev_mode {
+        GameState::DevMenu {
+            selection: 0,
+            level: 1,
+        }
+    } else if saved
         .player_name
         .as_deref()
         .is_none_or(|name| name.trim().is_empty())
@@ -217,6 +223,66 @@ async fn main() {
                 }
             }
 
+            GameState::DevMenu {
+                mut selection,
+                mut level,
+            } => {
+                audio.play_music(&resources.audio, MusicTrack::Menu);
+                if is_key_pressed(KeyCode::Up) {
+                    selection = (selection + 2) % 3;
+                    audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
+                }
+                if is_key_pressed(KeyCode::Down) {
+                    selection = (selection + 1) % 3;
+                    audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
+                }
+                if selection == 0 {
+                    if is_key_pressed(KeyCode::Left) {
+                        level = level.saturating_sub(1).max(1);
+                    } else if is_key_pressed(KeyCode::Right) {
+                        level = level.saturating_add(1);
+                    }
+                }
+
+                draw_text_centered("DEVELOPER MENU", -100.0, 36, ORANGE, &resources);
+                let rows = [
+                    format!("Level: {level}   [Left/Right]"),
+                    "Start selected level".to_owned(),
+                    "Open shop (test resources)".to_owned(),
+                ];
+                for (index, row) in rows.iter().enumerate() {
+                    let color = if index == selection { YELLOW } else { WHITE };
+                    draw_text_centered(row, -40.0 + index as f32 * 55.0, 28, color, &resources);
+                }
+                draw_text_centered(
+                    "Up/Down: select   Enter: open   Esc: main menu",
+                    160.0,
+                    18,
+                    GRAY,
+                    &resources,
+                );
+
+                if is_key_pressed(KeyCode::Escape) {
+                    state = GameState::Menu;
+                } else if is_key_pressed(KeyCode::Enter) {
+                    game.reset(ShipKind::Alpha, vec2(screen_width(), screen_height()));
+                    if selection == 1 {
+                        game.current_mission = systems::get_mission(level);
+                        state = GameState::Briefing;
+                    } else if selection == 2 {
+                        let ship = &mut game.solo_pilot_mut().ship;
+                        ship.scrap = 100;
+                        ship.rare_metal = 100;
+                        upgrade_selection = UpgradeSelection::default();
+                        state = GameState::UpgradeBay;
+                    } else {
+                        state = GameState::DevMenu { selection, level };
+                    }
+                } else {
+                    state = GameState::DevMenu { selection, level };
+                }
+            }
+
             GameState::EnemyCodex(selected) => {
                 let mut selected = selected;
                 if is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::Left) {
@@ -360,8 +426,15 @@ async fn main() {
 
                 if upgrades || is_key_pressed(KeyCode::Enter) {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
-                    upgrade_selection = UpgradeSelection::default();
-                    state = GameState::UpgradeBay;
+                    if dev_mode {
+                        state = GameState::DevMenu {
+                            selection: 0,
+                            level: game.current_mission.level_id,
+                        };
+                    } else {
+                        upgrade_selection = UpgradeSelection::default();
+                        state = GameState::UpgradeBay;
+                    }
                 }
             }
 
@@ -403,7 +476,14 @@ async fn main() {
 
                 if main_menu || is_key_pressed(KeyCode::Enter) {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
-                    state = GameState::Menu;
+                    state = if dev_mode {
+                        GameState::DevMenu {
+                            selection: 0,
+                            level: game.current_mission.level_id,
+                        }
+                    } else {
+                        GameState::Menu
+                    };
                 }
             }
         }

@@ -1,4 +1,4 @@
-.PHONY: help check fmt clippy build build-release test run run-release clean ci install-hooks
+.PHONY: help check fmt clippy build build-release test run run-dev run-release clean ci install-hooks
 
 # Default target
 help:
@@ -11,6 +11,7 @@ help:
 	@echo "  make build-release - Build the project (release)"
 	@echo "  make test       - Run tests"
 	@echo "  make run        - Run the game (debug)"
+	@echo "  make run-dev    - Run the developer menu (levels and shop)"
 	@echo "  make run-release - Run the game (release)"
 	@echo "  make clean      - Clean build artifacts"
 	@echo "  make ci         - Run CI checks (same as CI pipeline)"
@@ -53,6 +54,11 @@ test:
 run:
 	@echo "Running the game (debug)..."
 	cargo run
+
+# Run the game with developer tools
+run-dev:
+	@echo "Running the game (developer menu)..."
+	cargo run -- --dev
 
 # Run the game (release)
 run-release:

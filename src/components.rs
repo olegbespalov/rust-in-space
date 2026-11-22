@@ -57,6 +57,7 @@ impl MissionObjective {
 pub enum GameState {
     PlayerName(String),
     Menu,
+    DevMenu { selection: usize, level: u32 },
     EnemyCodex(usize),
     Lan(Box<crate::lan::LanMode>),
     ShipSelection(ShipKind),
