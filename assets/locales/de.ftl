@@ -23,6 +23,7 @@ mission_complete = MISSION ERFOLGREICH!
 level_cleared_prefix = Level
 next_mission = Verbesserungen [ENTER]
 game_over = SPIEL VORBEI
+restart_run = Neuer Versuch [R]
 return_to_menu = Hauptmenü [ENTER]
 final_score_prefix = Endpunktzahl:
 high_score = REKORD:

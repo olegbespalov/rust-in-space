@@ -23,6 +23,7 @@ mission_complete = 任务完成！
 level_cleared_prefix = 关卡
 next_mission = 升级 [ENTER]
 game_over = 游戏结束
+restart_run = 重新开始 [R]
 return_to_menu = 主菜单 [ENTER]
 final_score_prefix = 最终得分：
 high_score = 最高分：

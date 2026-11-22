@@ -12,6 +12,8 @@ After each successful mission, enter the Mercenary Market and spend scrap and ra
 
 Purchased upgrades, remaining resources, active shields, and pickup timers carry between missions during the run. Health is fully restored to the ship's current maximum at the start of each mission. The base maximum is 150 HP.
 
+In solo play, the first defeat offers one quick retry. Press R or select **New Run** to return to the first briefing with the same ship and difficulty. The new run starts with zero score, resources, and upgrades. Press Enter to return to the main menu after either defeat.
+
 ## Difficulty
 
 - **Nebula (Easy)** applies a 0.8× damage multiplier and slower enemy spawns. An indicator shows where enemies will enter.

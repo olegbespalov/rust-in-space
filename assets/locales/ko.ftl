@@ -23,6 +23,7 @@ mission_complete = 임무 완료!
 level_cleared_prefix = 레벨
 next_mission = 업그레이드 [ENTER]
 game_over = 게임 오버
+restart_run = 새로 시작 [R]
 return_to_menu = 메인 메뉴 [ENTER]
 final_score_prefix = 최종 점수:
 high_score = 최고 점수:

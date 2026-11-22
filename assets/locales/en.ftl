@@ -23,6 +23,7 @@ mission_complete = MISSION COMPLETE!
 level_cleared_prefix = Level
 next_mission = Upgrades [ENTER]
 game_over = GAME OVER
+restart_run = New Run [R]
 return_to_menu = Main Menu [ENTER]
 final_score_prefix = Final Score:
 high_score = HIGH SCORE:

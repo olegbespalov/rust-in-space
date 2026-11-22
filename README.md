@@ -28,7 +28,7 @@ See the [installation guide](docs/installation.md) for platform-specific setup.
 - **In flight**. Use ← / → to rotate, ↑ to thrust, Space to shoot, and Esc to pause in solo play.
 - **Paused**. Press Enter to resume or Esc to return to the main menu.
 - **After a mission**. Press Enter to open the **Mercenary Market**. Use ↑ / ↓ to choose an upgrade, then Enter to buy it or continue to the next briefing.
-- **Game over**. Press Enter to return to the main menu.
+- **Solo game over**. Press R to start a fresh run with the same ship and difficulty, once per campaign. Press Enter to return to the main menu.
 
 The current source supports English, Russian, German, Spanish, Japanese, Simplified Chinese, and Korean. Available game languages depend on the release.
 

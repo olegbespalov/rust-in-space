@@ -82,6 +82,7 @@ async fn main() {
     let mut save_timer = None;
     audio.play_music(&resources.audio, MusicTrack::Menu);
     let mut game = Game::new(vec2(screen_width(), screen_height()));
+    let mut retry_available = false;
     let mut menu_selection = MenuItem::Start;
     let mut upgrade_selection = UpgradeSelection::default();
 
@@ -358,6 +359,7 @@ async fn main() {
                     || is_key_pressed(KeyCode::Enter)
                 {
                     game.reset(selected_ship, vec2(screen_width(), screen_height()));
+                    retry_available = !dev_mode;
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     state = GameState::Briefing;
                 }
@@ -426,13 +428,7 @@ async fn main() {
                     if matches!(outcome, BattleOutcome::Defeat) {
                         audio.set_engine_active(&resources.audio, false, 0.0);
                         audio.play_sfx(&resources.audio, audio::AudioCue::GameOver);
-                        state = GameState::GameOver {
-                            score: game.score,
-                            ship: game.solo_pilot().ship.kind,
-                            ship_pos: game.solo_pilot().ship.pos,
-                            ship_rotation: game.solo_pilot().ship.rotation,
-                            elapsed: 0.0,
-                        };
+                        state = GameState::GameOver { elapsed: 0.0 };
                     } else if matches!(outcome, BattleOutcome::Success) {
                         audio.set_engine_active(&resources.audio, false, 0.0);
                         audio.play_sfx(&resources.audio, audio::AudioCue::MissionSuccess);
@@ -520,24 +516,18 @@ async fn main() {
                 }
             }
 
-            GameState::GameOver {
-                score,
-                ship,
-                ship_pos,
-                ship_rotation,
-                mut elapsed,
-            } => {
+            GameState::GameOver { mut elapsed } => {
                 elapsed += frame_dt;
                 audio.set_paused(&resources.audio, false);
                 audio.play_music(&resources.audio, MusicTrack::Menu);
                 render_game(&game, &resources);
-                let main_menu = render_game_over(
-                    score,
+                let ship = &game.solo_pilot().ship;
+                let (retry, main_menu) = render_game_over(
+                    game.score,
                     saved.high_score,
                     ship,
-                    ship_pos,
-                    ship_rotation,
                     elapsed,
+                    retry_available,
                     &resources,
                 );
 
@@ -547,19 +537,18 @@ async fn main() {
                         GameState::DevMenu {
                             selection: DevMenuItem::Level,
                             level: game.current_mission.level_id,
-                            ship,
+                            ship: ship.kind,
                         }
                     } else {
                         GameState::Menu
                     };
+                } else if retry_available && (retry || is_key_pressed(KeyCode::R)) {
+                    retry_available = false;
+                    game.reset(ship.kind, vec2(screen_width(), screen_height()));
+                    audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
+                    state = GameState::Briefing;
                 } else {
-                    state = GameState::GameOver {
-                        score,
-                        ship,
-                        ship_pos,
-                        ship_rotation,
-                        elapsed,
-                    };
+                    state = GameState::GameOver { elapsed };
                 }
             }
         }

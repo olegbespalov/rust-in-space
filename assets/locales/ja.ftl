@@ -23,6 +23,7 @@ mission_complete = ミッション完了！
 level_cleared_prefix = レベル
 next_mission = 強化 [ENTER]
 game_over = ゲームオーバー
+restart_run = 最初からやり直す [R]
 return_to_menu = メインメニュー [ENTER]
 final_score_prefix = 最終スコア：
 high_score = ハイスコア：

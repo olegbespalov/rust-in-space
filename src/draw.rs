@@ -2207,14 +2207,13 @@ pub fn render_upgrade_bay(
 pub fn render_game_over(
     score: u32,
     high_score: u32,
-    ship: ShipKind,
-    ship_pos: Vec2,
-    ship_rotation: f32,
+    ship: &Ship,
     elapsed: f32,
+    retry_available: bool,
     res: &Resources,
-) -> bool {
+) -> (bool, bool) {
     let window = vec2(screen_width(), screen_height());
-    let center = ship_pos;
+    let center = ship.pos;
     let scale = (window / vec2(960.0, 620.0)).min_element().min(1.2);
     let fade = ((elapsed - 0.85) / 0.65).clamp(0.0, 1.0);
 
@@ -2228,10 +2227,10 @@ pub fn render_game_over(
 
     if elapsed < 0.3 {
         draw_ship_hull(
-            ship,
+            ship.kind,
             center,
             90.0,
-            ship_rotation.to_radians() + std::f32::consts::FRAC_PI_2,
+            ship.rotation.to_radians() + std::f32::consts::FRAC_PI_2,
             0.0,
             WHITE,
             res,
@@ -2275,9 +2274,11 @@ pub fn render_game_over(
         res,
     );
     if fade >= 1.0 {
-        centered_menu_button(&res.lang.t("return_to_menu"), 115.0, res)
+        let retry = retry_available && centered_menu_button(&res.lang.t("restart_run"), 55.0, res);
+        let main_menu = centered_menu_button(&res.lang.t("return_to_menu"), 115.0, res);
+        (retry, main_menu)
     } else {
-        false
+        (false, false)
     }
 }
 

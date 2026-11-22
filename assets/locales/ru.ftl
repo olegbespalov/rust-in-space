@@ -23,6 +23,7 @@ mission_complete = МИССИЯ ВЫПОЛНЕНА!
 level_cleared_prefix = Уровень
 next_mission = Улучшения [ENTER]
 game_over = ИГРА ОКОНЧЕНА
+restart_run = Новая попытка [R]
 return_to_menu = Главное меню [ENTER]
 final_score_prefix = Итоговый счет:
 high_score = РЕКОРД:

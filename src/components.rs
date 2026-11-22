@@ -73,10 +73,6 @@ pub enum GameState {
     MissionSuccess, // level completed
     UpgradeBay,     // intermission upgrades screen
     GameOver {
-        score: u32,
-        ship: ShipKind,
-        ship_pos: Vec2,
-        ship_rotation: f32,
         elapsed: f32,
     },
 }
