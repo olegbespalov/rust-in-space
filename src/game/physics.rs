@@ -1,11 +1,13 @@
 use crate::audio::AudioCue;
 use crate::components::*;
 use crate::game::constants::*;
-use crate::game::{nearest_pilot, Game};
+use crate::game::{nearest_pilot, Game, Pilot};
 use crate::systems::{generate_loot, spawn_loot, spawn_shield_loot, wrap_around, LootSource};
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
 use std::collections::HashSet;
+
+const ASTEROID_MISSION_POINTS: f32 = 10.0;
 
 pub fn update_timers(game: &mut Game, dt: f32) {
     game.mission_progress.elapsed_seconds += f64::from(dt);
@@ -134,6 +136,15 @@ pub fn update_physics(game: &mut Game, dt: f32) {
 }
 
 pub fn update_loot(game: &mut Game, dt: f32) {
+    let scrap_target = game
+        .current_mission
+        .objectives
+        .iter()
+        .find_map(|objective| match objective {
+            MissionObjective::CollectScrap(target) => Some(*target),
+            _ => None,
+        })
+        .unwrap_or_default();
     game.loot_items.retain_mut(|item| {
         if !game.pilots.iter().flatten().any(super::Pilot::is_alive) {
             return true;
@@ -173,9 +184,10 @@ pub fn update_loot(game: &mut Game, dt: f32) {
         .and_then(|slot| game.pilots[slot].as_mut())
         {
             apply_pickup(
-                &mut pilot.ship,
+                pilot,
                 &item.item_type,
                 &mut game.mission_progress,
+                scrap_target,
                 &mut game.audio_cues,
             );
             return false;
@@ -200,13 +212,17 @@ pub fn update_loot(game: &mut Game, dt: f32) {
 }
 
 fn apply_pickup(
-    ship: &mut Ship,
+    pilot: &mut Pilot,
     kind: &LootType,
     progress: &mut super::MissionProgress,
+    scrap_target: u32,
     cues: &mut Vec<AudioCue>,
 ) {
+    let ship = &mut pilot.ship;
     match *kind {
         LootType::Scrap(amount) => {
+            let credited = amount.min(scrap_target.saturating_sub(progress.scrap_collected));
+            pilot.mission_points += credited as f32;
             ship.scrap += amount;
             progress.scrap_collected += amount;
             cues.push(AudioCue::PickupScrap);
@@ -370,11 +386,13 @@ fn handle_player_bullet_collisions(game: &mut Game) {
             return true;
         }
         let mut hit = false;
+        let mut points = 0.0;
 
         // Asteroids
         for i in (0..game.asteroids.len()).rev() {
             if (b.pos - game.asteroids[i].pos).length() < game.asteroids[i].radius + b.radius {
                 game.score += 100;
+                points += ASTEROID_MISSION_POINTS;
                 let asteroid = game.asteroids.remove(i);
                 game.mission_progress.asteroids_destroyed += 1;
                 game.audio_cues.push(crate::audio::AudioCue::ExplosionSmall);
@@ -402,6 +420,7 @@ fn handle_player_bullet_collisions(game: &mut Game) {
             game.enemy_ships.retain_mut(|e| {
                 if (b.pos - e.pos).length() < e.enemy_type.projectile_hitbox_radius() + b.radius {
                     hit = true;
+                    points += effective_damage(b.damage, e.health, &e.power_ups);
                     if e.take_damage(b.damage) {
                         game.score += (e.max_health as u32) * SCORE_PER_ENEMY_HP;
                         drop_small_enemy_loot(&mut game.loot_items, e.pos, game.difficulty);
@@ -423,6 +442,7 @@ fn handle_player_bullet_collisions(game: &mut Game) {
             if let Some(ref mut boss) = game.boss {
                 if (b.pos - boss.pos).length() < BOSS_HITBOX_RADIUS + b.radius {
                     hit = true;
+                    points += effective_damage(b.damage, boss.health, &boss.power_ups);
                     let pos = boss.pos;
                     let max_health = boss.max_health;
                     if boss.take_damage(b.damage) {
@@ -432,6 +452,9 @@ fn handle_player_bullet_collisions(game: &mut Game) {
             }
         }
 
+        if let Some(pilot) = b.owner.and_then(|slot| game.pilots[slot].as_mut()) {
+            pilot.mission_points += points;
+        }
         !hit
     });
 
@@ -439,6 +462,10 @@ fn handle_player_bullet_collisions(game: &mut Game) {
         finish_boss_defeat(game, pos, max_health);
     }
     game.asteroids.extend(new_asteroids);
+}
+
+fn effective_damage(damage: f32, health: f32, power_ups: &EnemyPowerUps) -> f32 {
+    damage.min(health.max(0.0) + power_ups.shield.as_ref().map_or(0.0, |shield| shield.hp))
 }
 
 fn finish_boss_defeat(game: &mut Game, pos: Vec2, max_health: f32) {
@@ -536,6 +563,7 @@ mod tests {
     fn overlapping_pilots_collect_once_with_slot_order_breaking_a_tie() {
         let mut game = Game::new(vec2(1280.0, 720.0));
         game.set_pilot(1, ShipKind::Delta);
+        game.current_mission.objectives = vec![MissionObjective::CollectScrap(10)];
         let pos = game.solo_pilot().ship.pos;
         game.loot_items
             .push(spawn_loot(pos, LootType::Scrap(15), 15.0));
@@ -544,6 +572,39 @@ mod tests {
         assert_eq!(game.solo_pilot().ship.scrap, 15);
         assert_eq!(game.pilots[1].as_ref().unwrap().ship.scrap, 0);
         assert_eq!(game.mission_progress.scrap_collected, 15);
+        assert_eq!(game.solo_pilot().mission_points(), 10);
+        assert_eq!(game.pilots[1].as_ref().unwrap().mission_points(), 0);
+    }
+
+    #[test]
+    fn enemy_damage_credits_both_pilots_and_caps_overkill() {
+        let mut game = Game::new(vec2(1280.0, 720.0));
+        game.set_pilot(1, ShipKind::Delta);
+        let mut enemy = EnemyShip::new_at_side(true, 100.0, EnemyType::Regular, game.bounds.x);
+        enemy.health = 7.0;
+        enemy
+            .power_ups
+            .activate_shield(ShieldKind::Standard, 12.0, 5.0);
+        let pos = enemy.pos;
+        game.enemy_ships.push(enemy);
+
+        for (owner, damage) in [(0, 12.0), (1, 25.0)] {
+            game.bullets.push(Bullet {
+                pos,
+                vel: Vec2::ZERO,
+                owner: Some(owner),
+                life_time: 2.0,
+                style: BulletStyle::Player,
+                homing: false,
+                damage,
+                radius: PLAYER_BULLET_RADIUS,
+            });
+        }
+        update_collisions(&mut game);
+
+        assert!(game.enemy_ships.is_empty());
+        assert_eq!(game.solo_pilot().mission_points(), 12);
+        assert_eq!(game.pilots[1].as_ref().unwrap().mission_points(), 7);
     }
 
     #[test]
@@ -555,6 +616,7 @@ mod tests {
         game.bullets.push(Bullet {
             pos,
             vel: Vec2::ZERO,
+            owner: None,
             life_time: 2.0,
             style: BulletStyle::Enemy,
             homing: false,
@@ -577,6 +639,7 @@ mod tests {
         game.bullets.push(Bullet {
             pos,
             vel: Vec2::X * BOSS_MISSILE_SPEED,
+            owner: None,
             life_time: 3.0,
             style: BulletStyle::BossMissile,
             homing: true,
@@ -591,6 +654,7 @@ mod tests {
         game.bullets.push(Bullet {
             pos: missile.pos,
             vel: Vec2::ZERO,
+            owner: Some(0),
             life_time: 1.0,
             style: BulletStyle::Player,
             homing: false,

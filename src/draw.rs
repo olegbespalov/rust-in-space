@@ -7,7 +7,7 @@ use crate::game::constants::{
     BOSS_SIZE, ENEMY_SMALL_RADIUS, GUARDIAN_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS,
     KAMIKAZE_RADIUS,
 };
-use crate::game::{upgrade_definition, Game, Pilot, UpgradeSelection, UPGRADABLE_IDS};
+use crate::game::{upgrade_definition, Game, Pilot, UpgradeSelection, MAX_PILOTS, UPGRADABLE_IDS};
 use crate::resources::Resources;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
@@ -142,7 +142,7 @@ fn draw_active_shield(
     );
 }
 
-fn draw_ship_hull(
+pub fn draw_ship_hull(
     kind: ShipKind,
     position: Vec2,
     size: f32,
@@ -523,9 +523,23 @@ fn draw_enemy_direction_hint(from_left: bool, spawn_y: f32, t: f32, bounds: Vec2
 }
 
 #[derive(Clone, Copy)]
-pub struct LanView {
+pub struct LanView<'a> {
     pub slot: usize,
+    pub focus: usize,
     pub area: Rect,
+    pub names: [&'a str; MAX_PILOTS],
+}
+
+impl LanView<'_> {
+    fn pilot_color(self, slot: usize) -> Color {
+        if slot == self.slot {
+            SKYBLUE
+        } else if slot == self.focus {
+            GREEN
+        } else {
+            GOLD
+        }
+    }
 }
 
 pub fn render_game(game: &Game, resources: &Resources) {
@@ -533,7 +547,7 @@ pub fn render_game(game: &Game, resources: &Resources) {
     render_battle_hud(game, None, resources);
 }
 
-pub fn render_battle_world(game: &Game, lan: Option<LanView>, resources: &Resources) {
+pub fn render_battle_world(game: &Game, lan: Option<LanView<'_>>, resources: &Resources) {
     let bounds = if lan.is_some() {
         game.bounds
     } else {
@@ -639,23 +653,25 @@ pub fn render_battle_world(game: &Game, lan: Option<LanView>, resources: &Resour
             .filter(|pilot| pilot.is_alive() && visible(pilot.ship.pos, 100.0))
         {
             draw_ship(&pilot.ship, resources);
-            if let Some(view) = lan {
-                let pos = pilot.ship.pos;
-                let color = if slot == view.slot { SKYBLUE } else { GOLD };
-                draw_text_with_font(
-                    &(slot + 1).to_string(),
-                    pos.x - 7.0,
-                    pos.y + 37.0,
-                    14.0,
-                    color,
-                    resources,
-                );
+            let pos = pilot.ship.pos;
+            if let Some(view) = lan.filter(|view| view.area.contains(pos)) {
+                let label = format!("{} · {}", slot + 1, view.names[slot]);
+                let x = (pos.x - 110.0).clamp(view.area.left(), view.area.right() - 220.0);
+                let y = if pos.y + 55.0 <= view.area.bottom() {
+                    pos.y + 30.0
+                } else {
+                    pos.y - 55.0
+                };
+                let bounds = Rect::new(x, y, 220.0, 25.0);
+                let shadow = Rect::new(bounds.x + 1.0, bounds.y + 1.0, bounds.w, bounds.h);
+                draw_menu_label(&label, shadow, 16, BLACK, resources);
+                draw_menu_label(&label, bounds, 16, view.pilot_color(slot), resources);
             }
         }
     }
 }
 
-pub fn render_battle_hud(game: &Game, lan: Option<LanView>, resources: &Resources) {
+pub fn render_battle_hud(game: &Game, lan: Option<LanView<'_>>, resources: &Resources) {
     let bounds = lan.map_or_else(
         || vec2(screen_width(), screen_height()),
         |view| vec2(view.area.w, view.area.h),
@@ -674,6 +690,13 @@ pub fn render_battle_hud(game: &Game, lan: Option<LanView>, resources: &Resource
         ship.health.max(0.0),
         ship.max_health
     );
+    if lan.is_some() {
+        status_text = format!(
+            "{} {}  ·  {status_text}",
+            resources.lang.t("mission"),
+            game.current_mission.level_id
+        );
+    }
     if ship.has_shield() {
         status_text.push_str(&format!(
             "  {} {:.0}/{:.0}",
@@ -683,15 +706,24 @@ pub fn render_battle_hud(game: &Game, lan: Option<LanView>, resources: &Resource
         ));
     }
     draw_text_with_font(&status_text, 20.0, 30.0, 24.0, WHITE, resources);
-    if lan.is_some() && !pilot.is_alive() {
-        draw_text_with_font(
+    if let Some(view) = lan.filter(|_| !pilot.is_alive()) {
+        let mut label = format!(
+            "{} · {}",
             resources.lang.t("lan_spectating"),
-            20.0,
-            60.0,
-            20.0,
-            GOLD,
-            resources,
+            view.names[view.focus],
         );
+        if game
+            .pilots
+            .iter()
+            .flatten()
+            .filter(|pilot| pilot.is_alive())
+            .count()
+            > 1
+        {
+            label.push_str("   ");
+            label.push_str(resources.lang.t("lan_switch_pilot"));
+        }
+        draw_text_with_font(&label, 20.0, 60.0, 20.0, GOLD, resources);
     } else if ship.is_invisible() {
         let cloak_text = format!(
             "{} {:.0}",
@@ -769,11 +801,11 @@ pub fn render_battle_hud(game: &Game, lan: Option<LanView>, resources: &Resource
     }
 
     if let Some(view) = lan {
-        draw_lan_minimap(game, view);
+        draw_lan_minimap(game, view, resources);
     }
 }
 
-fn draw_lan_minimap(game: &Game, view: LanView) {
+fn draw_lan_minimap(game: &Game, view: LanView<'_>, res: &Resources) {
     const WIDTH: f32 = 168.0;
     let scale = WIDTH / game.bounds.x;
     let height = game.bounds.y * scale;
@@ -814,13 +846,34 @@ fn draw_lan_minimap(game: &Game, view: LanView) {
     {
         dot(boss.pos, 3.5, RED);
     }
+    let mut row_y = origin.y + height + 4.0;
     for (slot, pilot) in game.pilots.iter().enumerate() {
-        if let Some(pilot) = pilot.as_ref().filter(|pilot| pilot.is_alive()) {
-            dot(
-                pilot.ship.pos,
-                3.0,
-                if slot == view.slot { SKYBLUE } else { GOLD },
+        if let Some(pilot) = pilot {
+            let color = if pilot.is_alive() {
+                let color = view.pilot_color(slot);
+                let pos = origin + pilot.ship.pos.clamp(Vec2::ZERO, game.bounds) * scale;
+                draw_circle(pos.x, pos.y, 8.0, color);
+                draw_menu_label(
+                    &(slot + 1).to_string(),
+                    Rect::new(pos.x - 10.0, pos.y - 12.0, 20.0, 24.0),
+                    12,
+                    BLACK,
+                    res,
+                );
+                color
+            } else {
+                LIGHTGRAY
+            };
+            let row = Rect::new(origin.x, row_y, WIDTH, 23.0);
+            draw_rectangle(row.x, row.y, row.w, row.h, Color::new(0.0, 0.0, 0.0, 0.65));
+            draw_menu_label(
+                &format!("{} · {}", slot + 1, view.names[slot]),
+                row,
+                15,
+                color,
+                res,
             );
+            row_y += row.h;
         }
     }
 }
@@ -1321,19 +1374,126 @@ pub fn render_briefing(
 
 pub fn render_mission_success(mission: &Mission, advance: bool, res: &Resources) -> bool {
     draw_text_centered(res.lang.t("mission_complete"), -50.0, 40, GREEN, res);
-    draw_text_centered(
-        &format!(
-            "{} {} {}",
-            res.lang.t("level_cleared_prefix"),
-            mission.level_id,
-            res.lang.t("level_cleared_suffix")
-        ),
-        10.0,
-        24,
+    draw_text_centered(&level_cleared_label(mission, res), 10.0, 24, WHITE, res);
+    advance && centered_menu_button(res.lang.t("next_mission"), 100.0, res)
+}
+
+fn level_cleared_label(mission: &Mission, res: &Resources) -> String {
+    format!(
+        "{} {} {}",
+        res.lang.t("level_cleared_prefix"),
+        mission.level_id,
+        res.lang.t("level_cleared_suffix")
+    )
+}
+
+pub fn render_lan_victory(
+    mission: &Mission,
+    kind: ShipKind,
+    player_name: &str,
+    points: u32,
+    progress: f32,
+    res: &Resources,
+) {
+    let window = vec2(screen_width(), screen_height());
+    let scale = (window / vec2(960.0, 620.0)).min_element().min(1.2);
+    let center = vec2(window.x * 0.5, window.y * 0.47);
+    let flight = (progress / 0.72).min(1.0);
+    let approach = (1.0 - flight).powi(3);
+    let reveal = ((progress - 0.42) / 0.35).clamp(0.0, 1.0);
+
+    draw_rectangle(
+        0.0,
+        0.0,
+        window.x,
+        window.y,
+        Color::new(0.0, 0.03, 0.08, 0.46),
+    );
+    for i in 0..24 {
+        let angle = i as f32 * std::f32::consts::TAU / 24.0;
+        let direction = vec2(angle.cos(), angle.sin());
+        let distance = (i as f32 * 0.37 + progress * 1.6).fract();
+        let start = center + direction * (80.0 + 240.0 * distance) * scale;
+        let end = start + direction * (8.0 + 26.0 * distance) * scale;
+        let alpha = (1.0 - distance) * 0.7 * (1.0 - progress);
+        draw_line(
+            start.x,
+            start.y,
+            end.x,
+            end.y,
+            2.0 * scale,
+            Color {
+                a: alpha,
+                ..SKYBLUE
+            },
+        );
+    }
+    let ring_radius = (84.0 + 38.0 * reveal) * scale;
+    draw_circle(
+        center.x,
+        center.y,
+        ring_radius,
+        Color::new(0.06, 0.14, 0.25, 0.8 * reveal),
+    );
+    draw_circle_lines(
+        center.x,
+        center.y,
+        ring_radius,
+        2.0 * scale,
+        Color {
+            a: 0.65 * reveal,
+            ..GOLD
+        },
+    );
+
+    draw_ship_hull(
+        kind,
+        center + vec2(-0.26, 0.58) * window * approach,
+        (222.0 - 128.0 * approach) * scale,
+        0.54 * approach,
+        approach,
         WHITE,
         res,
     );
-    advance && centered_menu_button(res.lang.t("next_mission"), 100.0, res)
+
+    let label_bounds = |y, h| Rect::new(0.0, window.y * y, window.x, window.y * h);
+    let title_alpha = (progress * 4.0).min(1.0);
+    draw_menu_label(
+        res.lang.t("mission_complete"),
+        label_bounds(0.11, 0.09),
+        40,
+        Color {
+            a: title_alpha,
+            ..GREEN
+        },
+        res,
+    );
+    draw_menu_label(
+        &level_cleared_label(mission, res),
+        label_bounds(0.20, 0.07),
+        22,
+        Color {
+            a: title_alpha,
+            ..WHITE
+        },
+        res,
+    );
+    let gold = Color { a: reveal, ..GOLD };
+    draw_menu_label(
+        res.lang.t("lan_mvp"),
+        label_bounds(0.673, 0.045),
+        17,
+        gold,
+        res,
+    );
+    draw_menu_label(player_name, label_bounds(0.716, 0.077), 34, gold, res);
+    draw_menu_label(
+        &format!("{} {points}", res.lang.t("lan_mvp_points")),
+        label_bounds(0.793, 0.042),
+        15,
+        Color { a: reveal, ..WHITE },
+        res,
+    );
 }
 
 pub fn render_upgrade_bay(

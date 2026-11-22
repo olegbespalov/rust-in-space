@@ -1,9 +1,10 @@
 use super::net::{self, Advertiser, Connection, Frame, COMMAND_LIMIT, SNAPSHOT_LIMIT};
 use crate::audio::AudioCue;
-use crate::components::{Difficulty, ShipKind, UpgradeId};
+use crate::components::{Difficulty, ShipKind, UpgradeId, DEFAULT_PLAYER_NAME};
 use crate::game::{BattleOutcome, Game, PilotInput, MAX_PILOTS};
 use macroquad::prelude::{vec2, Vec2};
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 use std::io::{self, ErrorKind};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -11,7 +12,8 @@ use std::time::{Duration, Instant};
 
 pub(super) const FIELD: Vec2 = vec2(1920.0, 1080.0);
 pub(super) const HOST: usize = 0;
-const VERSION: u16 = 6;
+const VERSION: u16 = 8;
+const MAX_NAME_CHARS: usize = 24;
 const STEP: f64 = 1.0 / 60.0;
 const INPUT_PERIOD: Duration = Duration::from_nanos(33_333_334);
 const HEARTBEAT_PERIOD: Duration = Duration::from_secs(1);
@@ -69,14 +71,43 @@ impl Status {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) struct Snapshot<G> {
+pub(super) struct Snapshot<G, N = PlayerNames> {
     pub game: G,
     pub phase: Phase,
     pub revision: u64,
     pub ready: [bool; MAX_PILOTS],
+    pub names: N,
+    pub mvp: Option<MatchMvp>,
 }
 
-impl Snapshot<&Game> {
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(super) struct MatchMvp {
+    pub name: String,
+    pub ship: ShipKind,
+    pub points: u32,
+}
+
+type PlayerNames = [Option<String>; MAX_PILOTS];
+pub(super) type SnapshotView<'a> = Snapshot<&'a Game, &'a PlayerNames>;
+
+impl Snapshot<Game> {
+    pub fn view(&self) -> SnapshotView<'_> {
+        Snapshot {
+            game: &self.game,
+            phase: self.phase,
+            revision: self.revision,
+            ready: self.ready,
+            names: &self.names,
+            mvp: self.mvp.clone(),
+        }
+    }
+}
+
+impl SnapshotView<'_> {
+    pub fn player_name(&self, slot: usize) -> &str {
+        self.names[slot].as_deref().unwrap_or(DEFAULT_PLAYER_NAME)
+    }
+
     pub fn ready_guests(&self) -> usize {
         self.game.pilots[1..]
             .iter()
@@ -92,16 +123,18 @@ impl Snapshot<&Game> {
 
 #[derive(Serialize, Deserialize)]
 enum FromClient {
+    // Recognize old handshakes so older clients get a version mismatch.
     Hello(u16),
     Input { revision: u64, keys: PilotInput },
     Command { revision: u64, action: Action },
+    Join { version: u16, name: String },
 }
 
 #[derive(Serialize, Deserialize)]
-enum FromHost<G> {
+enum FromHost<G, N = PlayerNames> {
     Welcome { version: u16, slot: usize },
     Reject(Status),
-    State(Box<Snapshot<G>>),
+    State(Box<Snapshot<G, N>>),
     Audio(Vec<AudioCue>),
 }
 
@@ -110,36 +143,49 @@ pub(super) struct Campaign {
     phase: Phase,
     revision: u64,
     ready: [bool; MAX_PILOTS],
+    names: PlayerNames,
+    mvp: Option<MatchMvp>,
     needs_snapshot: bool,
     pending_time: f64,
     simulation_time: f64,
 }
 
 impl Campaign {
-    fn new(difficulty: Difficulty) -> Self {
+    fn new(difficulty: Difficulty, name: &str) -> Self {
         let mut game = Game::new(FIELD);
         game.difficulty = difficulty;
+        let mut names = PlayerNames::default();
+        names[HOST] = Some(lan_name(name));
         Self {
             game,
             phase: Phase::Lobby,
             revision: 0,
             ready: [false; MAX_PILOTS],
+            names,
+            mvp: None,
             needs_snapshot: false,
             pending_time: 0.0,
             simulation_time: 0.0,
         }
     }
 
-    pub fn snapshot(&self) -> Snapshot<&Game> {
+    pub fn snapshot(&self) -> SnapshotView<'_> {
         Snapshot {
             game: &self.game,
             phase: self.phase,
             revision: self.revision,
             ready: self.ready,
+            names: &self.names,
+            mvp: self.mvp.clone(),
         }
     }
 
     fn transition(&mut self, phase: Phase) {
+        self.mvp = if phase == Phase::Success {
+            self.choose_mvp()
+        } else {
+            None
+        };
         self.phase = phase;
         self.revision += 1;
         self.ready = [false; MAX_PILOTS];
@@ -147,14 +193,33 @@ impl Campaign {
         self.pending_time = 0.0;
     }
 
-    fn add_guest(&mut self, slot: usize) {
+    fn choose_mvp(&self) -> Option<MatchMvp> {
+        self.game
+            .pilots
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, pilot)| pilot.as_ref().map(|pilot| (slot, pilot)))
+            .max_by_key(|&(slot, pilot)| (pilot.mission_points(), pilot.is_alive(), Reverse(slot)))
+            .map(|(slot, pilot)| MatchMvp {
+                name: self.names[slot]
+                    .as_deref()
+                    .unwrap_or(DEFAULT_PLAYER_NAME)
+                    .to_owned(),
+                ship: pilot.ship.kind,
+                points: pilot.mission_points(),
+            })
+    }
+
+    fn add_guest(&mut self, slot: usize, name: &str) {
         self.game.set_pilot(slot, ShipKind::Alpha);
+        self.names[slot] = Some(lan_name(name));
         self.ready[slot] = false;
         self.needs_snapshot = true;
     }
 
     fn remove_guest(&mut self, slot: usize) {
         self.game.pilots[slot] = None;
+        self.names[slot] = None;
         self.ready[slot] = false;
         self.needs_snapshot = true;
         if self.phase == Phase::Briefing {
@@ -251,6 +316,21 @@ impl Campaign {
     }
 }
 
+fn lan_name(name: &str) -> String {
+    let name: String = name
+        .trim()
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(MAX_NAME_CHARS)
+        .collect();
+    let name = name.trim();
+    if name.is_empty() {
+        DEFAULT_PLAYER_NAME.to_owned()
+    } else {
+        name.to_owned()
+    }
+}
+
 struct Handshake {
     peer: Connection,
     rejecting: bool,
@@ -317,11 +397,16 @@ pub(super) struct Host {
 }
 
 impl Host {
-    pub fn new(difficulty: Difficulty, now: Instant) -> Result<Self, Status> {
-        Self::listen(net::endpoint(Ipv4Addr::UNSPECIFIED), difficulty, now)
+    pub fn new(difficulty: Difficulty, name: &str, now: Instant) -> Result<Self, Status> {
+        Self::listen(net::endpoint(Ipv4Addr::UNSPECIFIED), difficulty, name, now)
     }
 
-    fn listen(address: SocketAddrV4, difficulty: Difficulty, now: Instant) -> Result<Self, Status> {
+    fn listen(
+        address: SocketAddrV4,
+        difficulty: Difficulty,
+        name: &str,
+        now: Instant,
+    ) -> Result<Self, Status> {
         let listener = net::listen(address).map_err(|error| match error.kind() {
             ErrorKind::AddrInUse => Status::PortBusy,
             _ => Status::HostFailed,
@@ -331,14 +416,14 @@ impl Host {
             advertiser: Advertiser::new(address).ok(),
             pending: Vec::new(),
             guests: std::array::from_fn(|_| None),
-            campaign: Campaign::new(difficulty),
+            campaign: Campaign::new(difficulty, name),
             next_heartbeat: now,
             status: None,
             addresses: net::local_addresses(),
         })
     }
 
-    pub fn snapshot(&self) -> Snapshot<&Game> {
+    pub fn snapshot(&self) -> SnapshotView<'_> {
         self.campaign.snapshot()
     }
 
@@ -417,7 +502,9 @@ impl Host {
                 FromClient::Command { revision, action } => {
                     self.campaign.command(slot, revision, action)
                 }
-                FromClient::Hello(_) => return Err(ErrorKind::InvalidData.into()),
+                FromClient::Hello(_) | FromClient::Join { .. } => {
+                    return Err(ErrorKind::InvalidData.into());
+                }
             }
         }
         Ok(())
@@ -485,29 +572,33 @@ impl Host {
             }
 
             let messages = handshake.peer.receive::<FromClient>(now);
-            let version = match messages.as_deref() {
+            let (version, name) = match messages.as_deref() {
                 Ok([]) => {
                     index += 1;
                     continue;
                 }
-                Ok([FromClient::Hello(version)]) => *version,
+                Ok([FromClient::Hello(version)]) => (*version, None),
+                Ok([FromClient::Join { version, name }]) => (*version, Some(name.as_str())),
                 _ => {
                     self.pending.swap_remove(index);
                     continue;
                 }
             };
 
-            let admission = if version != VERSION {
-                Err(Status::Incompatible)
-            } else if self.campaign.phase != Phase::Lobby {
-                Err(Status::Full)
-            } else {
-                (1..MAX_PILOTS)
-                    .find(|&slot| self.guests[slot].is_none())
-                    .ok_or(Status::Full)
-            };
-            let slot = match admission {
-                Ok(slot) => slot,
+            let admission = name
+                .filter(|_| version == VERSION)
+                .ok_or(Status::Incompatible)
+                .and_then(|name| {
+                    if self.campaign.phase != Phase::Lobby {
+                        return Err(Status::Full);
+                    }
+                    (1..MAX_PILOTS)
+                        .find(|&slot| self.guests[slot].is_none())
+                        .map(|slot| (slot, name))
+                        .ok_or(Status::Full)
+                });
+            let (slot, name) = match admission {
+                Ok(admission) => admission,
                 Err(status) => {
                     let result = handshake.peer.queue_handshake(
                         &FromHost::<()>::Reject(status),
@@ -535,7 +626,7 @@ impl Host {
                 )
                 .is_ok()
             {
-                self.campaign.add_guest(slot);
+                self.campaign.add_guest(slot, name);
                 self.status = None;
                 self.guests[slot] = Some(GuestPeer {
                     peer,
@@ -550,7 +641,7 @@ impl Host {
 }
 
 enum GuestConnection {
-    Connecting(Receiver<io::Result<TcpStream>>),
+    Connecting(Receiver<io::Result<TcpStream>>, String),
     Peer(Connection),
 }
 
@@ -564,10 +655,10 @@ pub(super) struct Guest {
 }
 
 impl Guest {
-    pub fn new(address: SocketAddrV4, now: Instant) -> Result<Self, Status> {
+    pub fn new(address: SocketAddrV4, name: &str, now: Instant) -> Result<Self, Status> {
         let receiver = net::connect(address).map_err(|_| Status::ConnectFailed)?;
         Ok(Self {
-            connection: GuestConnection::Connecting(receiver),
+            connection: GuestConnection::Connecting(receiver, lan_name(name)),
             slot: None,
             state: None,
             next_input: now,
@@ -577,7 +668,7 @@ impl Guest {
     }
 
     pub fn poll(&mut self, now: Instant) -> Result<Vec<AudioCue>, Status> {
-        if let GuestConnection::Connecting(receiver) = &self.connection {
+        if let GuestConnection::Connecting(receiver, name) = &mut self.connection {
             let stream = match receiver.try_recv() {
                 Err(TryRecvError::Empty) => return Ok(Vec::new()),
                 Ok(Ok(stream)) => stream,
@@ -585,7 +676,11 @@ impl Guest {
             };
             let mut peer =
                 Connection::new(stream, SNAPSHOT_LIMIT, now).map_err(|_| Status::ConnectFailed)?;
-            peer.queue_handshake(&FromClient::Hello(VERSION), COMMAND_LIMIT, now)
+            let join = FromClient::Join {
+                version: VERSION,
+                name: std::mem::take(name),
+            };
+            peer.queue_handshake(&join, COMMAND_LIMIT, now)
                 .map_err(|_| Status::ConnectFailed)?;
             self.connection = GuestConnection::Peer(peer);
         }
@@ -672,7 +767,7 @@ impl Guest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components::MissionObjective;
+    use crate::components::{Asteroid, MissionObjective};
     use crate::systems::get_mission;
     use std::net::SocketAddr;
 
@@ -682,6 +777,7 @@ mod tests {
         Host::listen(
             SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0),
             Difficulty::Nebula,
+            "Host",
             Instant::now(),
         )
         .unwrap()
@@ -709,7 +805,11 @@ mod tests {
     }
 
     fn connect(host: &mut Host) -> Guest {
-        let mut guest = Guest::new(address(host), Instant::now()).unwrap();
+        connect_as(host, "Guest")
+    }
+
+    fn connect_as(host: &mut Host, name: &str) -> Guest {
+        let mut guest = Guest::new(address(host), name, Instant::now()).unwrap();
         wait_for(host, &mut guest, |_, guest| {
             guest
                 .state
@@ -736,6 +836,64 @@ mod tests {
                 .as_ref()
                 .is_some_and(|state| state.phase == phase)
         });
+    }
+
+    #[test]
+    fn lobby_keeps_names_and_selected_ships_in_their_slots() {
+        let mut host = create_host();
+        host_command(&mut host, Action::SelectShip(ShipKind::Delta));
+        let mut first = connect_as(&mut host, "Ирина");
+        let mut second = connect_as(&mut host, "Sam");
+        guest_command(&mut first, Action::SelectShip(ShipKind::Delta));
+        guest_command(&mut first, Action::Ready);
+        wait_for(&mut host, &mut second, |_, guest| {
+            guest.state.as_ref().unwrap().ready[1]
+        });
+
+        assert_eq!(second.slot, Some(2));
+        let state = second.state.as_ref().unwrap();
+        assert_eq!(
+            state.names.each_ref().map(Option::as_deref),
+            [Some("Host"), Some("Ирина"), Some("Sam"), None]
+        );
+        assert_eq!(state.game.solo_pilot().ship.kind, ShipKind::Delta);
+        assert_eq!(
+            state.game.pilots[1].as_ref().unwrap().ship.kind,
+            ShipKind::Delta
+        );
+        assert!(!state.ready[2]);
+
+        drop(first);
+        wait_for(&mut host, &mut second, |_, guest| {
+            let state = guest.state.as_ref().unwrap();
+            state.names[1].is_none() && state.game.pilots[1].is_none()
+        });
+        let mut replacement = connect_as(&mut host, "  Alex\n  ");
+        assert_eq!(replacement.slot, Some(1));
+        let state = replacement.state.as_ref().unwrap();
+        assert_eq!(state.names[1].as_deref(), Some("Alex"));
+        assert_eq!(state.names[2].as_deref(), Some("Sam"));
+        assert!(!state.ready[1]);
+        assert_eq!(
+            state.game.pilots[1].as_ref().unwrap().ship.kind,
+            ShipKind::Alpha
+        );
+
+        guest_command(&mut replacement, Action::Ready);
+        guest_command(&mut second, Action::SelectShip(ShipKind::Delta));
+        guest_command(&mut second, Action::Ready);
+        wait_for(&mut host, &mut second, |host, _| {
+            host.snapshot().guests_ready()
+        });
+        host_command(&mut host, Action::Advance);
+        wait_for_phase(&mut host, &mut second, Phase::Briefing);
+        let state = second.state.as_ref().unwrap();
+        assert_eq!(state.game.solo_pilot().ship.kind, ShipKind::Delta);
+        assert_eq!(
+            state.game.pilots[2].as_ref().unwrap().ship.kind,
+            ShipKind::Delta
+        );
+        assert_eq!(state.names[2].as_deref(), Some("Sam"));
     }
 
     #[test]
@@ -884,19 +1042,46 @@ mod tests {
         });
         {
             let game = &mut host.campaign.game;
+            let pos = vec2(200.0, 300.0);
+            let shot = game
+                .bullets
+                .iter_mut()
+                .find(|bullet| bullet.owner == Some(GUEST))
+                .unwrap();
+            shot.pos = pos;
+            shot.vel = Vec2::ZERO;
+            game.asteroids = vec![Asteroid {
+                pos,
+                vel: Vec2::ZERO,
+                radius: 10.0,
+                is_rare: false,
+            }];
             game.mission_progress.enemies_defeated = 12;
-            game.mission_progress.asteroids_destroyed = 15;
+            game.mission_progress.asteroids_destroyed = 14;
             game.pilots[HOST].as_mut().unwrap().ship.scrap = 30;
-            game.pilots[GUEST].as_mut().unwrap().ship.scrap = 40;
-            game.score = 950;
+            let guest_pilot = game.pilots[GUEST].as_mut().unwrap();
+            guest_pilot.ship.scrap = 40;
+            guest_pilot.ship.health = 0.0;
+            game.score = 850;
         }
         wait_for_phase(&mut host, &mut guest, Phase::Success);
-        let game = &guest.state.as_ref().unwrap().game;
+        let state = guest.state.as_ref().unwrap();
+        let game = &state.game;
         assert_eq!(game.mission_progress.enemies_defeated, 12);
         assert_eq!(game.score, 950);
+        assert_eq!(state.mvp, host.snapshot().mvp);
+        assert_eq!(
+            state.mvp,
+            Some(MatchMvp {
+                name: "Guest".to_owned(),
+                ship: ShipKind::Delta,
+                points: 10,
+            })
+        );
         let stale_revision = host.campaign.revision;
         host_command(&mut host, Action::Advance);
         wait_for_phase(&mut host, &mut guest, Phase::UpgradeBay);
+        assert!(guest.state.as_ref().unwrap().mvp.is_none());
 
         host_command(&mut host, Action::Advance);
         assert_eq!(host.campaign.phase, Phase::UpgradeBay);
@@ -1012,7 +1197,7 @@ mod tests {
     fn loopback_declines_extra_guest_and_incompatible_protocol() {
         let mut host = create_host();
         let guests: [_; MAX_PILOTS - 1] = std::array::from_fn(|_| connect(&mut host));
-        let mut extra = Guest::new(address(&host), Instant::now()).unwrap();
+        let mut extra = Guest::new(address(&host), "Extra", Instant::now()).unwrap();
         let wrong = TcpStream::connect(address(&host)).unwrap();
         let mut incompatible = Connection::new(wrong, SNAPSHOT_LIMIT, Instant::now()).unwrap();
         let now = Instant::now();
@@ -1135,8 +1320,8 @@ mod tests {
 
     #[test]
     fn surviving_pilot_can_finish_and_destroyed_pilot_respawns() {
-        let mut campaign = Campaign::new(Difficulty::Nebula);
-        campaign.add_guest(GUEST);
+        let mut campaign = Campaign::new(Difficulty::Nebula, "Host");
+        campaign.add_guest(GUEST, "Guest");
         campaign.game.solo_pilot_mut().ship.scrap = 21;
         assert!(matches!(
             campaign
@@ -1153,6 +1338,7 @@ mod tests {
         campaign.game.mission_progress.asteroids_destroyed = 100;
         campaign.simulate(0.05, || [PilotInput::default(); MAX_PILOTS]);
         assert_eq!(campaign.phase, Phase::Success);
+        assert_eq!(campaign.snapshot().mvp.as_ref().unwrap().name, "Guest");
 
         campaign.command(HOST, campaign.revision, Action::Advance);
         campaign.command(GUEST, campaign.revision, Action::Ready);
@@ -1166,15 +1352,28 @@ mod tests {
     }
 
     #[test]
+    fn mvp_stays_on_the_victory_screen_after_the_winner_disconnects() {
+        let mut campaign = Campaign::new(Difficulty::Nebula, "Host");
+        campaign.add_guest(GUEST, "Guest");
+        campaign.game.solo_pilot_mut().ship.health = 0.0;
+        campaign.transition(Phase::Success);
+
+        let mvp = campaign.snapshot().mvp.unwrap();
+        assert_eq!(mvp.name, "Guest");
+        campaign.remove_guest(GUEST);
+        assert_eq!(campaign.snapshot().mvp, Some(mvp));
+    }
+
+    #[test]
     fn dreadnought_health_scales_but_its_wave_schedule_does_not() {
-        let mut campaign = Campaign::new(Difficulty::Supernova);
+        let mut campaign = Campaign::new(Difficulty::Supernova, "Host");
         campaign.game.current_mission = get_mission(5);
         campaign.game.start_mission();
         let (hp, delay) = {
             let boss = campaign.game.boss.as_ref().unwrap();
             (boss.max_health, boss.summon_timer)
         };
-        campaign.add_guest(GUEST);
+        campaign.add_guest(GUEST, "Guest");
         campaign.game.prepare_lan_mission();
         campaign.game.start_mission();
         let boss = campaign.game.boss.as_ref().unwrap();

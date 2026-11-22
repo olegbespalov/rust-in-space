@@ -457,18 +457,9 @@ impl Localization {
                 "Du hast die Sitzung verlassen.",
             ),
             ("lan_lobby", "LAN lobby", "Лобби LAN", "LAN-Lobby"),
-            (
-                "lan_you_host",
-                "You are the host",
-                "Вы хост",
-                "Du bist der Host",
-            ),
-            (
-                "lan_you_guest",
-                "You are the guest",
-                "Вы гость",
-                "Du bist der Gast",
-            ),
+            ("lan_slot_host", "Host", "Хост", "Host"),
+            ("lan_slot_you", "You", "Вы", "Du"),
+            ("lan_slot_empty", "Open slot", "Свободно", "Freier Platz"),
             (
                 "lan_no_ip",
                 "No local IPv4 address found.",
@@ -518,6 +509,18 @@ impl Localization {
                 "Warte auf die Werkstatt...",
             ),
             (
+                "lan_mvp",
+                "Player of the Match",
+                "Игрок матча",
+                "Spieler des Matches",
+            ),
+            (
+                "lan_mvp_points",
+                "Contribution",
+                "Очки вклада",
+                "Beitragspunkte",
+            ),
+            (
                 "lan_next_briefing",
                 "Next briefing [Enter]",
                 "К брифингу [Enter]",
@@ -547,11 +550,12 @@ impl Localization {
                 "Отметьте готовность после покупок.",
                 "Nach dem Kauf Bereitschaft melden.",
             ),
+            ("lan_spectating", "Spectating", "Наблюдение", "Zuschauen"),
             (
-                "lan_spectating",
-                "Spectating until the next mission",
-                "Наблюдение до следующей миссии",
-                "Zuschauen bis zur nächsten Mission",
+                "lan_switch_pilot",
+                "[Tab] Switch pilot",
+                "[Tab] Сменить пилота",
+                "[Tab] Pilot wechseln",
             ),
             (
                 "lan_session_menu",

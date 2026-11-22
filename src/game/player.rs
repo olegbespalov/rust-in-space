@@ -68,7 +68,7 @@ fn update_ship_movement(pilot: &mut Pilot, input: PilotInput, bounds: Vec2, dt: 
     wrap_around(&mut pilot.ship.pos, bounds);
 }
 
-fn player_shot(pilot: &mut Pilot, input: PilotInput) -> Option<Bullet> {
+fn player_shot(pilot: &mut Pilot, slot: usize, input: PilotInput) -> Option<Bullet> {
     let current_cooldown = if pilot.ship.rapid_fire_timer > 0.0 {
         SHOOT_COOLDOWN / 3.0
     } else {
@@ -90,6 +90,7 @@ fn player_shot(pilot: &mut Pilot, input: PilotInput) -> Option<Bullet> {
         return Some(Bullet {
             pos: pilot.ship.pos,
             vel: ship_dir * BULLET_SPEED + pilot.ship.vel,
+            owner: Some(slot),
             life_time: BULLET_LIFETIME,
             style: BulletStyle::Player,
             homing: pilot.ship.magnetic_ammo_timer > 0.0,
@@ -101,10 +102,10 @@ fn player_shot(pilot: &mut Pilot, input: PilotInput) -> Option<Bullet> {
 }
 
 pub(super) fn update_pilots(game: &mut super::Game, inputs: [PilotInput; MAX_PILOTS], dt: f32) {
-    for (pilot, input) in game.pilots.iter_mut().zip(inputs) {
+    for (slot, (pilot, input)) in game.pilots.iter_mut().zip(inputs).enumerate() {
         if let Some(pilot) = pilot.as_mut().filter(|pilot| pilot.is_alive()) {
             update_ship_movement(pilot, input, game.bounds, dt);
-            if let Some(bullet) = player_shot(pilot, input) {
+            if let Some(bullet) = player_shot(pilot, slot, input) {
                 game.bullets.push(bullet);
                 game.audio_cues.push(AudioCue::PlayerShot);
             }

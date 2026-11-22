@@ -141,6 +141,8 @@ pub struct Bullet {
     pub pos: Vec2,
     pub vel: Vec2,
     #[serde(skip)]
+    pub owner: Option<usize>,
+    #[serde(skip)]
     pub life_time: f32,
     pub style: BulletStyle,
     pub homing: bool,
@@ -347,10 +349,19 @@ impl EnemyPowerUps {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ShipKind {
     Alpha,
     Delta,
+}
+
+impl ShipKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Alpha => "ship_alpha",
+            Self::Delta => "ship_delta",
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]

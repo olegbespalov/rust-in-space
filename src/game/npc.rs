@@ -98,6 +98,7 @@ fn enemy_bullet(pos: Vec2, vel: Vec2, base_damage: f32, power_ups: &EnemyPowerUp
     Bullet {
         pos,
         vel,
+        owner: None,
         life_time: 4.0,
         style: BulletStyle::Enemy,
         homing: power_ups.magnetic_ammo_timer > 0.0,

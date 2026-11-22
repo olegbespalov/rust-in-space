@@ -410,6 +410,7 @@ mod tests {
             game.bullets.push(Bullet {
                 pos: vec2(180.25 + 30.0 * index as f32, 250.5),
                 vel: vec2(480.0, 90.0),
+                owner: Some(0),
                 life_time: 1.5,
                 style: BulletStyle::Player,
                 homing: false,
@@ -422,6 +423,13 @@ mod tests {
             phase: Phase::Playing,
             revision: 2,
             ready: [false; MAX_PILOTS],
+            names: [
+                Some("Host".to_owned()),
+                Some("Guest".to_owned()),
+                None,
+                None,
+            ],
+            mvp: None,
         };
         let json = encode(&state, SNAPSHOT_LIMIT, false).unwrap();
         let compact = encode(&state, SNAPSHOT_LIMIT, true).unwrap();
@@ -497,6 +505,7 @@ mod tests {
         game.bullets.push(Bullet {
             pos: vec2(400.0, 220.0),
             vel: vec2(20.0, 200.0),
+            owner: None,
             life_time: 3.0,
             style: BulletStyle::BossMissile,
             homing: true,

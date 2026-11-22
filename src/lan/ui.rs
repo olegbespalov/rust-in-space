@@ -1,5 +1,5 @@
 use super::net;
-use super::session::{Action, Host, Phase, Snapshot, Status};
+use super::session::{Action, Host, Phase, SnapshotView, Status, HOST};
 use super::Browser;
 use crate::audio::{AudioState, MusicTrack};
 use crate::components::ShipKind;
@@ -11,6 +11,7 @@ use std::net::{Ipv4Addr, SocketAddrV4};
 
 const HOSTS_VISIBLE: usize = 4;
 const VIEW_SIZE: Vec2 = vec2(1280.0, 720.0);
+const VICTORY_DURATION: f64 = 2.4;
 
 pub(super) enum BrowserAction {
     Stay,
@@ -165,6 +166,8 @@ pub(super) fn connecting(address: &str, res: &Resources) -> bool {
 pub(super) struct SessionUi {
     field: Option<RenderTarget>,
     revision: Option<u64>,
+    phase_started_at: f64,
+    followed_slot: Option<usize>,
     selection: UpgradeSelection,
     menu: bool,
 }
@@ -179,22 +182,24 @@ pub(super) struct Controls {
 impl SessionUi {
     pub fn reset(&mut self) {
         self.revision = None;
+        self.followed_slot = None;
         self.selection = UpgradeSelection::default();
         self.menu = false;
     }
 
     pub fn session(
         &mut self,
-        state: &Snapshot<&Game>,
+        state: &SnapshotView<'_>,
         slot: usize,
         host: Option<&Host>,
-        player_name: &str,
         res: &Resources,
         audio: &mut AudioState,
     ) -> Controls {
         if self.revision != Some(state.revision) {
             self.selection = UpgradeSelection::default();
             self.revision = Some(state.revision);
+            self.phase_started_at = get_time();
+            self.followed_slot = None;
         }
         let playing = state.phase == Phase::Playing;
         if is_key_pressed(KeyCode::Escape) {
@@ -227,8 +232,12 @@ impl SessionUi {
             }
             Phase::Briefing => {
                 let may_launch = host.is_some() && !self.menu;
-                let launch =
-                    render_briefing(&state.game.current_mission, player_name, may_launch, res);
+                let launch = render_briefing(
+                    &state.game.current_mission,
+                    state.player_name(slot),
+                    may_launch,
+                    res,
+                );
                 if may_launch && (launch || is_key_pressed(KeyCode::Space)) {
                     controls.action = Some(Action::Advance);
                 } else if host.is_none() {
@@ -236,18 +245,45 @@ impl SessionUi {
                 }
             }
             Phase::Playing => {
-                self.battle(state.game, slot, res);
+                self.battle(state, slot, res);
                 if !self.menu && pilot.is_alive() {
                     controls.input = PilotInput::keyboard();
                 }
             }
             Phase::Success => {
-                let may_advance = host.is_some() && !self.menu;
-                let advance = render_mission_success(&state.game.current_mission, may_advance, res);
-                if may_advance && (advance || enter) {
-                    controls.action = Some(Action::Advance);
-                } else if host.is_none() {
-                    draw_text_centered(res.lang.t("lan_wait_workshop"), 110.0, 14, SKYBLUE, res);
+                let progress = ((get_time() - self.phase_started_at) / VICTORY_DURATION)
+                    .clamp(0.0, 1.0) as f32;
+                if let Some(mvp) = &state.mvp {
+                    render_lan_victory(
+                        &state.game.current_mission,
+                        mvp.ship,
+                        &mvp.name,
+                        mvp.points,
+                        progress,
+                        res,
+                    );
+                }
+                if progress >= 1.0 {
+                    let height = screen_height();
+                    let button_height = MENU_BUTTON_HEIGHT.min(height * 0.075);
+                    if host.is_none() {
+                        draw_menu_label(
+                            res.lang.t("lan_wait_workshop"),
+                            Rect::new(0.0, height * 0.85, screen_width(), height * 0.08),
+                            14,
+                            SKYBLUE,
+                            res,
+                        );
+                    } else if !self.menu
+                        && (centered_menu_button_with_height(
+                            res.lang.t("next_mission"),
+                            height * 0.39,
+                            button_height,
+                            res,
+                        ) || enter)
+                    {
+                        controls.action = Some(Action::Advance);
+                    }
                 }
             }
             Phase::UpgradeBay => {
@@ -351,11 +387,20 @@ impl SessionUi {
         controls
     }
 
-    fn battle(&mut self, game: &Game, slot: usize, res: &Resources) {
+    fn battle(&mut self, state: &SnapshotView<'_>, slot: usize, res: &Resources) {
+        let game = state.game;
+        let switch = !self.menu && is_key_pressed(KeyCode::Tab);
+        let focus = battle_focus(game, slot, self.followed_slot, switch);
+        self.followed_slot = Some(focus);
+        let view = LanView {
+            slot,
+            focus,
+            area: battle_area(game, focus),
+            names: std::array::from_fn(|index| state.player_name(index)),
+        };
         let target = self
             .field
             .get_or_insert_with(|| render_target(VIEW_SIZE.x as u32, VIEW_SIZE.y as u32));
-        let view = battle_view(game, slot);
         let mut camera = Camera2D::from_display_rect(view.area);
         camera.render_target = Some(target.clone());
         set_camera(&camera);
@@ -385,18 +430,34 @@ impl SessionUi {
     }
 }
 
-fn battle_view(game: &Game, slot: usize) -> LanView {
-    let local = game.pilots[slot].as_ref();
-    let focus = local
-        .filter(|pilot| pilot.is_alive())
-        .or_else(|| game.pilots.iter().flatten().find(|pilot| pilot.is_alive()))
-        .or(local)
+fn battle_focus(game: &Game, local: usize, followed: Option<usize>, switch: bool) -> usize {
+    let alive = |slot: usize| {
+        game.pilots[slot]
+            .as_ref()
+            .is_some_and(|pilot| pilot.is_alive())
+    };
+    if alive(local) {
+        return local;
+    }
+    let current = followed
+        .filter(|&slot| alive(slot))
+        .or_else(|| (0..MAX_PILOTS).find(|&slot| alive(slot)))
+        .unwrap_or(local);
+    if switch && followed == Some(current) {
+        return (1..MAX_PILOTS)
+            .map(|offset| (current + offset) % MAX_PILOTS)
+            .find(|&slot| alive(slot))
+            .unwrap_or(current);
+    }
+    current
+}
+
+fn battle_area(game: &Game, slot: usize) -> Rect {
+    let focus = game.pilots[slot]
+        .as_ref()
         .map_or(game.bounds / 2.0, |pilot| pilot.ship.pos);
     let origin = (focus - VIEW_SIZE / 2.0).clamp(Vec2::ZERO, game.bounds - VIEW_SIZE);
-    LanView {
-        slot,
-        area: Rect::new(origin.x, origin.y, VIEW_SIZE.x, VIEW_SIZE.y),
-    }
+    Rect::new(origin.x, origin.y, VIEW_SIZE.x, VIEW_SIZE.y)
 }
 
 fn lobby_offset(y: f32) -> f32 {
@@ -422,33 +483,70 @@ fn lobby_label(text: &str, y: f32, height: f32, size: u16, color: Color, res: &R
     draw_menu_label(text, bounds, size, color, res);
 }
 
+fn lobby_slots(state: &SnapshotView<'_>, own_slot: usize, res: &Resources) {
+    let y = screen_height() / 2.0 + lobby_offset(-237.0);
+    let slots = ship_card_row(MAX_PILOTS, y, lobby_offset(108.0));
+    for (slot, (pilot, bounds)) in state.game.pilots.iter().zip(slots).enumerate() {
+        let Rect {
+            x,
+            y,
+            w: width,
+            h: height,
+        } = bounds;
+        let border = if slot == own_slot { SKYBLUE } else { GRAY };
+        draw_rectangle(x, y, width, height, Color::from_rgba(12, 17, 33, 230));
+        draw_rectangle_lines(x, y, width, height, 1.0, border);
+
+        let mut label = format!("{}", slot + 1);
+        if slot == HOST {
+            label.push_str(" · ");
+            label.push_str(res.lang.t("lan_slot_host"));
+        }
+        if slot == own_slot {
+            label.push_str(" · ");
+            label.push_str(res.lang.t("lan_slot_you"));
+        }
+        draw_menu_label(
+            &label,
+            Rect::new(x, y, width, height * 0.22),
+            13,
+            border,
+            res,
+        );
+
+        if let Some(pilot) = pilot {
+            let name = state.player_name(slot);
+            let kind = pilot.ship.kind;
+            draw_ship_hull(
+                kind,
+                vec2(x + width / 2.0, y + height * 0.43),
+                (height * 0.48).min(width * 0.9),
+                0.0,
+                0.0,
+                WHITE,
+                res,
+            );
+            let name_bounds = Rect::new(x, y + height * 0.65, width, height * 0.19);
+            let ship_bounds = Rect::new(x, y + height * 0.83, width, height * 0.16);
+            draw_menu_label(name, name_bounds, 16, WHITE, res);
+            draw_menu_label(res.lang.t(kind.label()), ship_bounds, 12, SKYBLUE, res);
+        } else {
+            let bounds = Rect::new(x, y + height * 0.22, width, height * 0.72);
+            draw_menu_label(res.lang.t("lan_slot_empty"), bounds, 14, LIGHTGRAY, res);
+        }
+    }
+}
+
 fn lobby(
-    state: &Snapshot<&Game>,
+    state: &SnapshotView<'_>,
     slot: usize,
     host: Option<&Host>,
     enter: bool,
     res: &Resources,
 ) -> Option<Action> {
     let is_host = host.is_some();
-    lobby_label(res.lang.t("lan_lobby"), -280.0, 52.0, 30, ORANGE, res);
-    let role = if is_host {
-        "lan_you_host"
-    } else {
-        "lan_you_guest"
-    };
+    lobby_label(res.lang.t("lan_lobby"), -306.0, 52.0, 30, ORANGE, res);
     let pilots = state.game.pilot_count();
-    lobby_label(
-        &format!(
-            "{} #{}    {pilots} / {MAX_PILOTS}",
-            res.lang.t(role),
-            slot + 1
-        ),
-        -229.0,
-        36.0,
-        18,
-        WHITE,
-        res,
-    );
     if let Some(host) = host {
         let addresses = host
             .addresses
@@ -460,18 +558,17 @@ fn lobby(
         } else {
             addresses.join(" / ")
         };
-        lobby_label(&addresses, -193.0, 32.0, 14, SKYBLUE, res);
-        if !host.discovery_available() {
-            lobby_label(
-                res.lang.t("lan_search_unavailable"),
-                -160.0,
-                32.0,
-                12,
+        let (label, color) = if host.discovery_available() {
+            (addresses, SKYBLUE)
+        } else {
+            (
+                format!("{}  {addresses}", res.lang.t("lan_search_unavailable")),
                 GOLD,
-                res,
-            );
-        }
+            )
+        };
+        lobby_label(&label, -265.0, 32.0, 14, color, res);
     }
+    lobby_slots(state, slot, res);
 
     let pilot = state.game.pilots[slot].as_ref()?;
     let active_kind = pilot.ship.kind;
@@ -516,7 +613,7 @@ fn lobby(
             && state.guests_ready()
             && (lobby_button(res.lang.t("lan_start"), 251.0, res) || enter)
     } else {
-        let key = if state.ready[1] {
+        let key = if state.ready[slot] {
             "lan_not_ready"
         } else {
             "lan_ready"
@@ -557,10 +654,32 @@ mod tests {
         game.set_pilot(slot, ShipKind::Alpha);
         let local = game.pilots[slot].as_mut().unwrap();
         local.ship.pos = FIELD;
-        assert_eq!(battle_view(&game, slot).area.point(), FIELD - VIEW_SIZE);
+        assert_eq!(battle_focus(&game, slot, Some(HOST), true), slot);
+        assert_eq!(battle_area(&game, slot).point(), FIELD - VIEW_SIZE);
 
         game.pilots[slot].as_mut().unwrap().ship.health = 0.0;
         game.solo_pilot_mut().ship.pos = Vec2::ZERO;
-        assert_eq!(battle_view(&game, slot).area.point(), Vec2::ZERO);
+        let focus = battle_focus(&game, slot, Some(slot), false);
+        assert_eq!(focus, HOST);
+        assert_eq!(battle_area(&game, focus).point(), Vec2::ZERO);
+    }
+
+    #[test]
+    fn spectator_cycles_living_pilots_and_recovers_if_the_target_leaves() {
+        let mut game = Game::new(FIELD);
+        let guest = MAX_PILOTS - 1;
+        game.set_pilot(guest, ShipKind::Alpha);
+        game.solo_pilot_mut().ship.health = 0.0;
+        game.set_pilot(1, ShipKind::Alpha);
+
+        assert_eq!(battle_focus(&game, HOST, None, false), 1);
+        assert_eq!(battle_focus(&game, HOST, Some(1), true), guest);
+        assert_eq!(battle_focus(&game, HOST, Some(guest), false), guest);
+        assert_eq!(battle_focus(&game, HOST, Some(guest), true), 1);
+
+        game.pilots[guest] = None;
+        assert_eq!(battle_focus(&game, HOST, Some(guest), false), 1);
+        game.pilots[1].as_mut().unwrap().ship.health = 0.0;
+        assert_eq!(battle_focus(&game, HOST, Some(1), true), HOST);
     }
 }

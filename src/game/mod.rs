@@ -383,6 +383,8 @@ impl UpgradeSelection {
 pub struct Pilot {
     pub ship: Ship,
     pub upgrade_levels: UpgradeLevels,
+    #[serde(skip)]
+    mission_points: f32,
 }
 
 impl Pilot {
@@ -390,6 +392,7 @@ impl Pilot {
         Self {
             ship: create_ship(kind, pos),
             upgrade_levels: UpgradeLevels::default(),
+            mission_points: 0.0,
         }
     }
 
@@ -397,7 +400,12 @@ impl Pilot {
         self.ship.health > 0.0
     }
 
+    pub fn mission_points(&self) -> u32 {
+        self.mission_points.round() as u32
+    }
+
     fn start_mission(&mut self, pos: Vec2) {
+        self.mission_points = 0.0;
         self.ship.pos = pos;
         self.ship.vel = Vec2::ZERO;
         self.ship.rotation = 0.0;
@@ -595,11 +603,12 @@ mod tests {
         }
 
         let boss = game.boss.as_mut().unwrap();
-        boss.health = PLAYER_BULLET_DAMAGE;
+        boss.health = 1.0;
         let pos = boss.pos + vec2(80.0, 24.0);
         game.bullets.push(Bullet {
             pos,
             vel: Vec2::ZERO,
+            owner: Some(0),
             life_time: BULLET_LIFETIME,
             style: BulletStyle::Player,
             homing: false,
@@ -611,6 +620,7 @@ mod tests {
         assert!(matches!(outcome, BattleOutcome::Success));
         assert!(game.boss.is_none());
         assert_eq!(game.score, BOSS_MAX_HEALTH as u32 * SCORE_PER_ENEMY_HP);
+        assert_eq!(game.solo_pilot().mission_points(), 1);
         assert!(matches!(
             game.loot_items[0].item_type,
             LootType::RareMetal(10..=49)
@@ -620,5 +630,6 @@ mod tests {
         assert_eq!(game.current_mission.level_id, 6);
         game.start_mission();
         assert!(game.boss.is_none());
+        assert_eq!(game.solo_pilot().mission_points(), 0);
     }
 }

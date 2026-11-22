@@ -60,9 +60,9 @@ impl LanMode {
         self.ui.reset();
     }
 
-    fn join(&mut self, address: SocketAddrV4, now: Instant) -> Result<(), Status> {
+    fn join(&mut self, address: SocketAddrV4, name: &str, now: Instant) -> Result<(), Status> {
         self.last_address = address.ip().to_string();
-        self.screen = Screen::Guest(Box::new(Guest::new(address, now)?));
+        self.screen = Screen::Guest(Box::new(Guest::new(address, name, now)?));
         Ok(())
     }
 }
@@ -86,12 +86,12 @@ pub fn frame(
             match ui::browser(browser, res) {
                 BrowserAction::Stay => {}
                 BrowserAction::Back => return true,
-                BrowserAction::Host => match Host::new(mode.difficulty, now) {
+                BrowserAction::Host => match Host::new(mode.difficulty, player_name, now) {
                     Ok(host) => mode.screen = Screen::Host(Box::new(host)),
                     Err(status) => browser.status = Some(status),
                 },
                 BrowserAction::Join(address) => {
-                    if let Err(status) = mode.join(address, now) {
+                    if let Err(status) = mode.join(address, player_name, now) {
                         leave = Some(status);
                     }
                 }
@@ -101,9 +101,7 @@ pub fn frame(
             host.poll(now);
             let state = host.snapshot();
             let revision = state.revision;
-            let controls = mode
-                .ui
-                .session(&state, HOST, Some(host), player_name, res, audio);
+            let controls = mode.ui.session(&state, HOST, Some(host), res, audio);
             if controls.leave {
                 leave = Some(Status::Left);
             } else {
@@ -124,13 +122,7 @@ pub fn frame(
                     audio.play_sfx(&res.audio, cue);
                 }
                 if let (Some(state), Some(slot)) = (&guest.state, guest.slot) {
-                    let view = session::Snapshot {
-                        game: &state.game,
-                        phase: state.phase,
-                        revision: state.revision,
-                        ready: state.ready,
-                    };
-                    let controls = mode.ui.session(&view, slot, None, player_name, res, audio);
+                    let controls = mode.ui.session(&state.view(), slot, None, res, audio);
                     if controls.leave {
                         leave = Some(Status::Left);
                     } else {
