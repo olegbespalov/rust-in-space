@@ -3,6 +3,9 @@ name = "rust-in-space"
 version = "0.6.0"
 edition = "2021"
 
+[features]
+bake-sprites = []
+
 [dependencies]
 fluent-bundle = "0.16"
 glam = { version = "0.27", features = ["serde"] }

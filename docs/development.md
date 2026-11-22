@@ -23,6 +23,10 @@ Install [Gitleaks](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1) 8.
 
 Use the developer menu to choose a level and ship, then start at that mission's briefing. **Open test shop** starts the selected ship with 999 scrap and 999 rare metal to test purchases.
 
+## Regenerating model sprites
+
+Run `cargo run --features bake-sprites -- --bake-sprites` from the repository root after editing a model in `art/sprite-models`. The command opens a Macroquad window to render the models, then exits. Commit the updated PNGs in `assets/sprites` alongside the model changes. Release packages include those PNGs and the four animated player models in `assets/models`.
+
 ## Security checks
 
 The Security workflow runs zizmor, Gitleaks, and cargo-audit on pushes and pull requests targeting `main`. It also checks `Cargo.lock` weekly for newly published RustSec advisories.

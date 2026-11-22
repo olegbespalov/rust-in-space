@@ -1,45 +1,73 @@
-use crate::ship_model::load_mesh;
 use macroquad::prelude::*;
 
-pub struct ModelSprite {
-    fallback: Texture2D,
-    target: Option<RenderTarget>,
+#[cfg(any(test, feature = "bake-sprites"))]
+mod bake;
+#[cfg(feature = "bake-sprites")]
+pub(crate) use bake::run as bake_sprites;
+
+const SPRITE_DIR: &str = "assets/sprites";
+
+fn sprite_path(name: &str) -> String {
+    format!("{SPRITE_DIR}/{name}.png")
+}
+
+pub struct ModelSprite(Texture2D);
+
+impl ModelSprite {
+    pub async fn load(name: &str, fallback: &str) -> Self {
+        let path = sprite_path(name);
+        let texture = match load_image(&path).await {
+            Ok(image) => Texture2D::from_image(&image),
+            Err(error) => {
+                eprintln!("Could not load {path}: {error}. Using the fallback sprite.");
+                load_texture(fallback).await.unwrap()
+            }
+        };
+        texture.set_filter(FilterMode::Nearest);
+        Self(texture)
+    }
+
+    pub fn draw(&self, position: Vec2, size: f32, rotation: f32) {
+        self.draw_tinted(position, size, rotation, WHITE);
+    }
+
+    pub fn draw_tinted(&self, position: Vec2, size: f32, rotation: f32, tint: Color) {
+        draw_texture_ex(
+            &self.0,
+            position.x - size / 2.0,
+            position.y - size / 2.0,
+            tint,
+            DrawTextureParams {
+                dest_size: Some(Vec2::splat(size)),
+                rotation,
+                ..Default::default()
+            },
+        );
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::bake::{SOURCE_DIR, SPRITES};
+    use super::sprite_path;
     use crate::ship_model::MODEL_MESH_INDEX_CAPACITY;
     use gltf::{image, mesh, Gltf};
     use macroquad::texture::Image;
+    use std::fs;
 
     #[test]
     fn model_assets_match_the_mesh_loader() {
-        for bytes in [
-            include_bytes!("../assets/models/player_ship.glb").as_slice(),
-            include_bytes!("../assets/models/player_delta.glb").as_slice(),
-            include_bytes!("../assets/models/player_specter.glb").as_slice(),
-            include_bytes!("../assets/models/player_vector.glb").as_slice(),
-            include_bytes!("../assets/models/asteroid.glb").as_slice(),
-            include_bytes!("../assets/models/rare_asteroid.glb").as_slice(),
-            include_bytes!("../assets/models/invisibility.glb").as_slice(),
-            include_bytes!("../assets/models/enemy_regular.glb").as_slice(),
-            include_bytes!("../assets/models/enemy_kamikaze.glb").as_slice(),
-            include_bytes!("../assets/models/enemy_guardian.glb").as_slice(),
-            include_bytes!("../assets/models/enemy_guardian_escalated.glb").as_slice(),
-            include_bytes!("../assets/models/enemy_projectile.glb").as_slice(),
-            include_bytes!("../assets/models/enemy_interceptor.glb").as_slice(),
-            include_bytes!("../assets/models/enemy_heavy.glb").as_slice(),
-            include_bytes!("../assets/models/loot_scrap.glb").as_slice(),
-            include_bytes!("../assets/models/loot_scrap_medium.glb").as_slice(),
-            include_bytes!("../assets/models/loot_scrap_large.glb").as_slice(),
-            include_bytes!("../assets/models/loot_gold.glb").as_slice(),
-            include_bytes!("../assets/models/loot_health.glb").as_slice(),
-            include_bytes!("../assets/models/loot_rapid_fire.glb").as_slice(),
-            include_bytes!("../assets/models/loot_big_bullet.glb").as_slice(),
-            include_bytes!("../assets/models/loot_shield.glb").as_slice(),
-            include_bytes!("../assets/models/magnetic_ammo.glb").as_slice(),
-        ] {
-            let glb = Gltf::from_slice(bytes).unwrap();
+        let player_paths = [
+            "player_ship",
+            "player_delta",
+            "player_specter",
+            "player_vector",
+        ]
+        .map(|name| format!("assets/models/{name}.glb"));
+        let sprite_paths = SPRITES.map(|(name, _, _)| format!("{SOURCE_DIR}/{name}.glb"));
+        for path in player_paths.into_iter().chain(sprite_paths) {
+            let bytes = fs::read(&path).unwrap_or_else(|error| panic!("Read {path}: {error}"));
+            let glb = Gltf::from_slice(&bytes).unwrap();
             let blob = glb.blob.as_deref().unwrap();
             let mut meshes = glb.meshes();
             let model = meshes.next().unwrap();
@@ -70,79 +98,25 @@ mod tests {
             assert!(Image::from_file_with_format(image, None).is_ok());
         }
     }
-}
 
-impl ModelSprite {
-    pub async fn load(sprite_path: &str, model_path: &str, view: Vec3, pixels: u32) -> Self {
-        let fallback = load_texture(sprite_path).await.unwrap();
-        fallback.set_filter(FilterMode::Nearest);
-        let target = Self::bake(model_path, view, pixels).await;
-        Self { fallback, target }
-    }
-
-    pub async fn with_model(&self, path: &str, view: Vec3, pixels: u32) -> Self {
-        let target = Self::bake(path, view, pixels).await;
-        Self {
-            fallback: self.fallback.clone(),
-            target,
+    #[test]
+    fn baked_sprites_have_the_expected_dimensions_and_transparency() {
+        for (name, _, pixels) in SPRITES {
+            let path = sprite_path(name);
+            let bytes = fs::read(&path).unwrap_or_else(|error| panic!("Read {path}: {error}"));
+            let image = Image::from_file_with_format(&bytes, None).unwrap();
+            assert_eq!(
+                (u32::from(image.width), u32::from(image.height)),
+                (pixels, pixels)
+            );
+            assert!(
+                image.bytes.chunks_exact(4).any(|rgba| rgba[3] > 0),
+                "Blank sprite: {name}"
+            );
+            assert!(
+                image.bytes.chunks_exact(4).any(|rgba| rgba[3] == 0),
+                "Opaque sprite: {name}"
+            );
         }
-    }
-
-    async fn bake(path: &str, view_position: Vec3, pixels: u32) -> Option<RenderTarget> {
-        let mesh = match load_file(path).await {
-            Ok(bytes) => load_mesh(&bytes),
-            Err(_) => None,
-        };
-        let Some(mesh) = mesh else {
-            eprintln!("Could not load {path}. Using the fallback sprite.");
-            return None;
-        };
-
-        let target = render_target_ex(
-            pixels,
-            pixels,
-            RenderTargetParams {
-                depth: true,
-                ..Default::default()
-            },
-        );
-        target.texture.set_filter(FilterMode::Nearest);
-        push_camera_state();
-        set_camera(&Camera3D {
-            position: view_position,
-            up: Vec3::Y,
-            projection: Projection::Orthographics,
-            fovy: 1.1,
-            render_target: Some(target.clone()),
-            ..Default::default()
-        });
-        clear_background(BLANK);
-        draw_mesh(&mesh);
-        pop_camera_state();
-
-        Some(target)
-    }
-
-    pub fn draw(&self, position: Vec2, size: f32, rotation: f32) {
-        self.draw_tinted(position, size, rotation, WHITE);
-    }
-
-    pub fn draw_tinted(&self, position: Vec2, size: f32, rotation: f32, tint: Color) {
-        let (texture, flip_y) = match &self.target {
-            Some(target) => (&target.texture, true),
-            None => (&self.fallback, false),
-        };
-        draw_texture_ex(
-            texture,
-            position.x - size / 2.0,
-            position.y - size / 2.0,
-            tint,
-            DrawTextureParams {
-                dest_size: Some(Vec2::splat(size)),
-                rotation,
-                flip_y,
-                ..Default::default()
-            },
-        );
     }
 }

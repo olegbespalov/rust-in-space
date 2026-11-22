@@ -4,11 +4,11 @@ A reference to the enemies currently implemented in the game. PNG previews are s
 
 | Enemy | Image | Health | Points | Speed | Attacks and traits |
 |---|---|---:|---:|---:|---|
-| Regular ship (`Regular`) | ![Regular enemy](../assets/enemy.png) · [3D model](../assets/models/enemy_regular.glb) | 24 | 240 | 120 | Tracks the nearest visible pilot and fires one aimed projectile about every 2 seconds. |
-| Kamikaze (`Kamikaze`) | ![Kamikaze enemy](../assets/enemy_kamikaze.png) · [3D model](../assets/models/enemy_kamikaze.glb) | 18 | 180 | 120 on entry; 180 while chasing | Does not shoot. Turns toward the nearest visible pilot, accelerates to 180 units per second, and explodes on contact. |
-| Interceptor (`Interceptor`) | PNG fallback: same as regular · [3D model](../assets/models/enemy_interceptor.glb) | 15 | 150 | 210 | Tracks the nearest visible pilot and fires one fast aimed projectile about every 2.4 seconds. |
-| Heavy ship (`Heavy`) | PNG fallback: same as Guardian · [3D model](../assets/models/enemy_heavy.glb) | 60 | 600 | 75 | Fires a three-projectile spread about every 3.2 seconds. |
-| Guardian (`Guardian`) | ![Guardian fallback](../assets/boss_1.png) · [3D model](../assets/models/enemy_guardian.glb) · [damaged model](../assets/models/enemy_guardian_escalated.glb) | 105 | 1,050 | 65 | Fires a five-projectile spread about every 3.6 seconds. Its hull changes appearance at half health. |
+| Regular ship (`Regular`) | ![Regular enemy](../assets/enemy.png) · [3D model](../art/sprite-models/enemy_regular.glb) | 24 | 240 | 120 | Tracks the nearest visible pilot and fires one aimed projectile about every 2 seconds. |
+| Kamikaze (`Kamikaze`) | ![Kamikaze enemy](../assets/enemy_kamikaze.png) · [3D model](../art/sprite-models/enemy_kamikaze.glb) | 18 | 180 | 120 on entry; 180 while chasing | Does not shoot. Turns toward the nearest visible pilot, accelerates to 180 units per second, and explodes on contact. |
+| Interceptor (`Interceptor`) | PNG fallback: same as regular · [3D model](../art/sprite-models/enemy_interceptor.glb) | 15 | 150 | 210 | Tracks the nearest visible pilot and fires one fast aimed projectile about every 2.4 seconds. |
+| Heavy ship (`Heavy`) | PNG fallback: same as Guardian · [3D model](../art/sprite-models/enemy_heavy.glb) | 60 | 600 | 75 | Fires a three-projectile spread about every 3.2 seconds. |
+| Guardian (`Guardian`) | ![Guardian fallback](../assets/boss_1.png) · [3D model](../art/sprite-models/enemy_guardian.glb) · [damaged model](../art/sprite-models/enemy_guardian_escalated.glb) | 105 | 1,050 | 65 | Fires a five-projectile spread about every 3.6 seconds. Its hull changes appearance at half health. |
 | Dreadnought (`Boss`) | ![Dreadnought sprite](../assets/boss_dreadnought.png) | 1,200 | 12,000 | — | The boss in mission 5. Adds missiles at two-thirds health and three staggered projectile rings per barrage at one-third. Always drops rare metal. |
 
 Kamikazes are available from the start. Mission two spawns only kamikazes and shortens the interval as time passes. In the standard spawn rotation, interceptors are eligible from level 2, and heavy ships and Guardians from level 4. Guardians account for 5% of random spawns when none is already on the field. In that rotation, every fourth spawn supplies the targeted ship type while an interceptor or heavy-ship objective is still active.

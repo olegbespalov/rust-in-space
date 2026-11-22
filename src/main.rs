@@ -56,6 +56,12 @@ fn window_conf() -> macroquad::conf::Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    #[cfg(feature = "bake-sprites")]
+    if std::env::args().any(|arg| arg == "--bake-sprites") {
+        model_sprite::bake_sprites();
+        return;
+    }
+
     let dev_mode = std::env::args().any(|arg| arg == "--dev");
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     let mut update = update::Update::new(dev_mode);
