@@ -1,7 +1,7 @@
 use crate::audio::AudioCue;
 use crate::components::*;
 use crate::game::constants::*;
-use crate::game::Game;
+use crate::game::{nearest_pilot, Game};
 use crate::systems::{generate_loot, spawn_loot, spawn_shield_loot, wrap_around, LootSource};
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
@@ -9,16 +9,24 @@ use std::collections::HashSet;
 
 pub fn update_timers(game: &mut Game, dt: f32) {
     game.mission_progress.elapsed_seconds += f64::from(dt);
-    game.ship.shoot_timer -= dt;
-    game.ship.rapid_fire_timer -= dt;
-    game.ship.big_bullet_timer -= dt;
-    game.ship.magnetic_ammo_timer -= dt;
-    game.ship.invisibility_timer = (game.ship.invisibility_timer - dt).max(0.0);
+    for pilot in game
+        .pilots
+        .iter_mut()
+        .flatten()
+        .filter(|pilot| pilot.is_alive())
+    {
+        let ship = &mut pilot.ship;
+        ship.shoot_timer -= dt;
+        ship.rapid_fire_timer -= dt;
+        ship.big_bullet_timer -= dt;
+        ship.magnetic_ammo_timer -= dt;
+        ship.invisibility_timer = (ship.invisibility_timer - dt).max(0.0);
 
-    if game.ship.shield_timer > 0.0 {
-        game.ship.shield_timer -= dt;
-        if game.ship.shield_timer <= 0.0 {
-            game.ship.shield_hp = 0.0;
+        if ship.shield_timer > 0.0 {
+            ship.shield_timer -= dt;
+            if ship.shield_timer <= 0.0 {
+                ship.shield_hp = 0.0;
+            }
         }
     }
 
@@ -70,10 +78,15 @@ pub fn update_physics(game: &mut Game, dt: f32) {
                         );
                     b.vel = homing_velocity(b.pos, b.vel, targets, dt);
                 }
-                BulletStyle::Enemy if !game.ship.is_invisible() => {
-                    b.vel = homing_velocity(b.pos, b.vel, std::iter::once(game.ship.pos), dt);
+                BulletStyle::Enemy => {
+                    let targets = game
+                        .pilots
+                        .iter()
+                        .flatten()
+                        .filter(|pilot| pilot.is_alive() && !pilot.ship.is_invisible())
+                        .map(|pilot| pilot.ship.pos);
+                    b.vel = homing_velocity(b.pos, b.vel, targets, dt);
                 }
-                BulletStyle::Enemy => {}
             }
         }
         b.pos += b.vel * dt;
@@ -83,7 +96,7 @@ pub fn update_physics(game: &mut Game, dt: f32) {
 
     for a in game.asteroids.iter_mut() {
         a.pos += a.vel * dt;
-        wrap_around(&mut a.pos);
+        wrap_around(&mut a.pos, game.bounds);
     }
 
     // Ramming can exhaust the field without earning credit for the objective.
@@ -93,9 +106,15 @@ pub fn update_physics(game: &mut Game, dt: f32) {
                 && !game.mission_progress.meets(objective)
         })
     {
-        let mut asteroid = Asteroid::new_large();
-        if game.ship.pos.x < screen_width() / 2.0 {
-            asteroid.pos.x = screen_width();
+        let mut asteroid = Asteroid::new_large(game.bounds);
+        if game
+            .pilots
+            .iter()
+            .flatten()
+            .find(|pilot| pilot.is_alive())
+            .is_some_and(|pilot| pilot.ship.pos.x < game.bounds.x / 2.0)
+        {
+            asteroid.pos.x = game.bounds.x;
             asteroid.vel.x = -asteroid.vel.x.abs();
         } else {
             asteroid.pos.x = 0.0;
@@ -105,12 +124,9 @@ pub fn update_physics(game: &mut Game, dt: f32) {
     }
 }
 
-pub fn update_loot(game: &mut Game, dt: f32) -> bool {
-    let magnet_radius = game.loot_magnet_radius();
-    let mut ship_destroyed = false;
-
+pub fn update_loot(game: &mut Game, dt: f32) {
     game.loot_items.retain_mut(|item| {
-        if ship_destroyed {
+        if !game.pilots.iter().flatten().any(super::Pilot::is_alive) {
             return true;
         }
         item.time_left -= dt;
@@ -121,7 +137,7 @@ pub fn update_loot(game: &mut Game, dt: f32) -> bool {
         item.vel *= LOOT_VEL_DECAY;
         item.pos += item.vel * dt;
         item.pos += item.drift_vel * dt;
-        wrap_around(&mut item.pos);
+        wrap_around(&mut item.pos, game.bounds);
 
         item.rotation += item.rotation_speed * dt;
         if item.rotation > std::f32::consts::PI * 2.0 {
@@ -130,61 +146,31 @@ pub fn update_loot(game: &mut Game, dt: f32) -> bool {
             item.rotation += std::f32::consts::PI * 2.0;
         }
 
-        let dist_to_ship = (game.ship.pos - item.pos).length();
-
-        if dist_to_ship < magnet_radius {
+        let pickup_pos = item.pos;
+        if let Some(pilot) = nearest_pilot(&game.pilots, item.pos, |pilot| {
+            item.magnet_active
+                || pilot.ship.pos.distance_squared(item.pos) < pilot.loot_magnet_radius().powi(2)
+        })
+        .and_then(|slot| game.pilots[slot].as_ref())
+        {
             item.magnet_active = true;
-        }
-
-        if item.magnet_active {
-            let dir = (game.ship.pos - item.pos).normalize_or_zero();
+            let dir = (pilot.ship.pos - item.pos).normalize_or_zero();
             item.pos += dir * LOOT_MAGNET_SPEED * dt;
         }
-
-        if dist_to_ship < SHIP_RADIUS + item.radius {
-            match item.item_type {
-                LootType::Scrap(amount) => {
-                    game.ship.scrap += amount;
-                    game.mission_progress.scrap_collected += amount;
-                    game.audio_cues.push(AudioCue::PickupScrap);
-                }
-                LootType::RareMetal(amount) => {
-                    game.ship.rare_metal += amount;
-                    game.audio_cues.push(AudioCue::PickupScrap);
-                }
-                LootType::HealthPack(hp) => {
-                    game.ship.heal(hp as f32);
-                    game.audio_cues.push(AudioCue::PickupHealth);
-                }
-                LootType::RapidFireBoost => {
-                    game.ship.rapid_fire_timer = RAPID_FIRE_DURATION;
-                    game.audio_cues.push(AudioCue::PickupScrap);
-                }
-                LootType::BigBulletBoost => {
-                    game.ship.big_bullet_timer = BIG_BULLET_DURATION;
-                    game.audio_cues.push(AudioCue::PickupScrap);
-                }
-                LootType::MagneticAmmo => {
-                    game.ship.magnetic_ammo_timer = MAGNETIC_AMMO_DURATION;
-                    game.audio_cues.push(AudioCue::PickupScrap);
-                }
-                LootType::Invisibility => {
-                    game.ship.invisibility_timer = INVISIBILITY_DURATION;
-                    game.audio_cues.push(AudioCue::PickupScrap);
-                }
-                LootType::Shield(kind, hp) => {
-                    game.ship.activate_shield(kind, hp as f32, kind.duration());
-                    game.audio_cues.push(AudioCue::ShieldOn);
-                }
-                LootType::MysteryBox => {
-                    let (cue, lethal) = open_mystery_box(&mut game.ship, gen_range(0, 4));
-                    game.audio_cues.push(cue);
-                    ship_destroyed = lethal;
-                }
-            }
+        // Pickup tests use the position before magnet motion, as in solo play.
+        if let Some(pilot) = nearest_pilot(&game.pilots, pickup_pos, |pilot| {
+            pilot.ship.pos.distance_squared(pickup_pos) < (SHIP_RADIUS + item.radius).powi(2)
+        })
+        .and_then(|slot| game.pilots[slot].as_mut())
+        {
+            apply_pickup(
+                &mut pilot.ship,
+                &item.item_type,
+                &mut game.mission_progress,
+                &mut game.audio_cues,
+            );
             return false;
         }
-
         !enemy_picks_up(item, &mut game.enemy_ships, game.boss.as_mut())
     });
     // A mystery box can destroy its collector. Resolve those deaths before collisions.
@@ -202,7 +188,50 @@ pub fn update_loot(game: &mut Game, dt: f32) -> bool {
             finish_boss_defeat(game, boss.pos, boss.max_health);
         }
     }
-    ship_destroyed
+}
+
+fn apply_pickup(
+    ship: &mut Ship,
+    kind: &LootType,
+    progress: &mut super::MissionProgress,
+    cues: &mut Vec<AudioCue>,
+) {
+    match *kind {
+        LootType::Scrap(amount) => {
+            ship.scrap += amount;
+            progress.scrap_collected += amount;
+            cues.push(AudioCue::PickupScrap);
+        }
+        LootType::RareMetal(amount) => {
+            ship.rare_metal += amount;
+            cues.push(AudioCue::PickupScrap);
+        }
+        LootType::HealthPack(hp) => {
+            ship.heal(hp as f32);
+            cues.push(AudioCue::PickupHealth);
+        }
+        LootType::RapidFireBoost => {
+            ship.rapid_fire_timer = RAPID_FIRE_DURATION;
+            cues.push(AudioCue::PickupScrap);
+        }
+        LootType::BigBulletBoost => {
+            ship.big_bullet_timer = BIG_BULLET_DURATION;
+            cues.push(AudioCue::PickupScrap);
+        }
+        LootType::MagneticAmmo => {
+            ship.magnetic_ammo_timer = MAGNETIC_AMMO_DURATION;
+            cues.push(AudioCue::PickupScrap);
+        }
+        LootType::Invisibility => {
+            ship.invisibility_timer = INVISIBILITY_DURATION;
+            cues.push(AudioCue::PickupScrap);
+        }
+        LootType::Shield(kind, hp) => {
+            ship.activate_shield(kind, hp as f32, kind.duration());
+            cues.push(AudioCue::ShieldOn);
+        }
+        LootType::MysteryBox => cues.push(open_mystery_box(ship, gen_range(0, 4))),
+    }
 }
 
 fn enemy_picks_up(item: &LootItem, enemies: &mut [EnemyShip], boss: Option<&mut Boss>) -> bool {
@@ -228,8 +257,8 @@ fn enemy_picks_up(item: &LootItem, enemies: &mut [EnemyShip], boss: Option<&mut 
     false
 }
 
-fn open_mystery_box(ship: &mut Ship, roll: i32) -> (AudioCue, bool) {
-    let cue = match MysteryEffect::from_roll(roll) {
+fn open_mystery_box(ship: &mut Ship, roll: i32) -> AudioCue {
+    match MysteryEffect::from_roll(roll) {
         MysteryEffect::Repair(hp) => {
             ship.heal(hp);
             AudioCue::PickupHealth
@@ -257,20 +286,17 @@ fn open_mystery_box(ship: &mut Ship, roll: i32) -> (AudioCue, bool) {
             } else {
                 AudioCue::ShipHit
             };
-            return (cue, ship.take_damage(damage));
+            ship.take_damage(damage);
+            cue
         }
-    };
-    (cue, false)
+    }
 }
 
-pub fn update_collisions(game: &mut Game) -> bool {
+pub fn update_collisions(game: &mut Game) {
     handle_bullet_bullet_collisions(game);
     handle_player_bullet_collisions(game);
-
-    let bullet_hit_player = handle_enemy_bullet_collisions(game);
-    let ship_hit_entity = handle_ship_entity_collisions(game);
-
-    bullet_hit_player || ship_hit_entity
+    handle_enemy_bullet_collisions(game);
+    handle_ship_entity_collisions(game);
 }
 
 fn handle_bullet_bullet_collisions(game: &mut Game) {
@@ -417,85 +443,123 @@ fn finish_boss_defeat(game: &mut Game, pos: Vec2, max_health: f32) {
     }
 }
 
-fn handle_enemy_bullet_collisions(game: &mut Game) -> bool {
-    let mut game_over = false;
-    game.bullets.retain(|b| {
-        if b.style == BulletStyle::Enemy
-            && (b.pos - game.ship.pos).length() < SHIP_RADIUS + b.radius
-        {
-            game.explosions.push(Explosion::new(game.ship.pos, 0.5));
-            if game.ship.has_shield() {
-                game.audio_cues.push(crate::audio::AudioCue::ShieldHit);
-            } else {
-                game.audio_cues.push(crate::audio::AudioCue::ShipHit);
-            }
-            let damage = b.damage * game.difficulty.damage_mult();
-            if game.ship.take_damage(damage) {
-                game_over = true;
-            }
-            false
-        } else {
-            true
-        }
-    });
-    game_over
+fn collision_pilot(
+    pilots: &mut [Option<super::Pilot>; 2],
+    pos: Vec2,
+    radius: f32,
+) -> Option<&mut Ship> {
+    let hit = |pilot: &super::Pilot| {
+        pilot.ship.pos.distance_squared(pos) < (SHIP_RADIUS + radius).powi(2)
+    };
+    // A solo frame still resolves every collision before reporting defeat.
+    if pilots[1].is_none() {
+        return pilots[0]
+            .as_mut()
+            .filter(|pilot| hit(pilot))
+            .map(|pilot| &mut pilot.ship);
+    }
+    let slot = nearest_pilot(pilots, pos, hit)?;
+    pilots[slot].as_mut().map(|pilot| &mut pilot.ship)
 }
 
-fn handle_ship_entity_collisions(game: &mut Game) -> bool {
-    let mut game_over = false;
+fn damage_ship(ship: &mut Ship, damage: f32, cues: &mut Vec<AudioCue>) {
+    cues.push(if ship.has_shield() {
+        AudioCue::ShieldHit
+    } else {
+        AudioCue::ShipHit
+    });
+    ship.take_damage(damage);
+}
 
-    // Ship vs Asteroids
-    for i in (0..game.asteroids.len()).rev() {
-        if (game.ship.pos - game.asteroids[i].pos).length() < game.asteroids[i].radius + SHIP_RADIUS
-        {
-            let base_damage = (game.asteroids[i].radius / 10.0) * BASE_ASTEROID_DAMAGE;
-            let asteroid_damage = base_damage * game.difficulty.damage_mult();
-            let asteroid_radius = game.asteroids[i].radius;
-            game.asteroids.remove(i);
-            game.explosions.push(Explosion::new(
-                game.ship.pos,
-                (asteroid_radius / LARGE_ASTEROID_RADIUS).clamp(0.3, 0.8),
-            ));
-            if game.ship.has_shield() {
-                game.audio_cues.push(crate::audio::AudioCue::ShieldHit);
-            } else {
-                game.audio_cues.push(crate::audio::AudioCue::ShipHit);
+fn handle_enemy_bullet_collisions(game: &mut Game) {
+    game.bullets.retain(|bullet| {
+        if bullet.style == BulletStyle::Enemy {
+            if let Some(ship) = collision_pilot(&mut game.pilots, bullet.pos, bullet.radius) {
+                game.explosions.push(Explosion::new(ship.pos, 0.5));
+                damage_ship(
+                    ship,
+                    bullet.damage * game.difficulty.damage_mult(),
+                    &mut game.audio_cues,
+                );
+                return false;
             }
-            if game.ship.take_damage(asteroid_damage) {
-                game_over = true;
-            }
-        }
-    }
-
-    // Ship vs Kamikaze
-    game.enemy_ships.retain_mut(|e| {
-        if e.enemy_type == EnemyType::Kamikaze
-            && (game.ship.pos - e.pos).length() < KAMIKAZE_RADIUS + SHIP_RADIUS
-        {
-            let damage = BASE_KAMIKAZE_DAMAGE * game.difficulty.damage_mult();
-            game.explosions.push(Explosion::new(e.pos, 0.6));
-            if game.ship.has_shield() {
-                game.audio_cues.push(crate::audio::AudioCue::ShieldHit);
-            } else {
-                game.audio_cues.push(crate::audio::AudioCue::ShipHit);
-            }
-            if game.ship.take_damage(damage) {
-                game_over = true;
-            }
-            game.score += (e.max_health as u32) * SCORE_PER_ENEMY_HP;
-            drop_small_enemy_loot(&mut game.loot_items, e.pos, game.difficulty);
-            game.mission_progress.record_enemy_defeat(e.enemy_type);
-            return false;
         }
         true
     });
+}
 
-    game_over
+fn handle_ship_entity_collisions(game: &mut Game) {
+    for i in (0..game.asteroids.len()).rev() {
+        let asteroid = &game.asteroids[i];
+        if let Some(ship) = collision_pilot(&mut game.pilots, asteroid.pos, asteroid.radius) {
+            let asteroid = game.asteroids.remove(i);
+            let damage =
+                asteroid.radius / 10.0 * BASE_ASTEROID_DAMAGE * game.difficulty.damage_mult();
+            game.explosions.push(Explosion::new(
+                ship.pos,
+                (asteroid.radius / LARGE_ASTEROID_RADIUS).clamp(0.3, 0.8),
+            ));
+            damage_ship(ship, damage, &mut game.audio_cues);
+        }
+    }
+
+    game.enemy_ships.retain_mut(|enemy| {
+        if enemy.enemy_type == EnemyType::Kamikaze {
+            if let Some(ship) = collision_pilot(&mut game.pilots, enemy.pos, KAMIKAZE_RADIUS) {
+                let damage = BASE_KAMIKAZE_DAMAGE * game.difficulty.damage_mult();
+                game.explosions.push(Explosion::new(enemy.pos, 0.6));
+                damage_ship(ship, damage, &mut game.audio_cues);
+                game.score += (enemy.max_health as u32) * SCORE_PER_ENEMY_HP;
+                drop_small_enemy_loot(&mut game.loot_items, enemy.pos, game.difficulty);
+                game.mission_progress.record_enemy_defeat(enemy.enemy_type);
+                return false;
+            }
+        }
+        true
+    });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn overlapping_pilots_collect_once_with_slot_order_breaking_a_tie() {
+        let mut game = Game::new(vec2(1280.0, 720.0));
+        game.set_pilot(1, ShipKind::Delta);
+        let pos = game.solo_pilot().ship.pos;
+        game.loot_items
+            .push(spawn_loot(pos, LootType::Scrap(15), 15.0));
+        update_loot(&mut game, 0.0);
+        assert!(game.loot_items.is_empty());
+        assert_eq!(game.solo_pilot().ship.scrap, 15);
+        assert_eq!(game.pilots[1].as_ref().unwrap().ship.scrap, 0);
+        assert_eq!(game.mission_progress.scrap_collected, 15);
+    }
+
+    #[test]
+    fn enemy_projectile_hits_only_the_nearest_surviving_pilot() {
+        let mut game = Game::new(vec2(1280.0, 720.0));
+        game.set_pilot(1, ShipKind::Delta);
+        let pos = game.solo_pilot().ship.pos + vec2(10.0, 0.0);
+        game.pilots[1].as_mut().unwrap().ship.pos = pos;
+        game.bullets.push(Bullet {
+            pos,
+            vel: Vec2::ZERO,
+            life_time: 2.0,
+            style: BulletStyle::Enemy,
+            homing: false,
+            damage: ENEMY_BULLET_DAMAGE,
+            radius: 9.0,
+        });
+        update_collisions(&mut game);
+        assert!(game.bullets.is_empty());
+        assert_eq!(game.solo_pilot().ship.health, BASE_SHIP_HP);
+        assert_eq!(
+            game.pilots[1].as_ref().unwrap().ship.health,
+            BASE_SHIP_HP - ENEMY_BULLET_DAMAGE
+        );
+    }
 
     #[test]
     fn enemy_can_collect_a_shield_and_it_absorbs_damage_until_expiry() {

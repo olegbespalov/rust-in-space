@@ -2,6 +2,7 @@ mod audio;
 mod components;
 mod draw;
 mod game;
+mod lan;
 mod localization;
 mod model_sprite;
 mod resources;
@@ -11,7 +12,7 @@ mod systems;
 use macroquad::prelude::*;
 
 use audio::{AudioState, MusicTrack};
-use components::{GameState, MenuItem, ShipKind};
+use components::{GameState, MenuItem, ShipKind, DEFAULT_PLAYER_NAME};
 use draw::*;
 use game::*;
 use localization::Language;
@@ -48,15 +49,24 @@ fn window_conf() -> macroquad::conf::Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let mut state = GameState::Menu;
     let save_path = save_file();
     let mut saved = load_save(save_path.as_deref());
+    let mut state = if saved
+        .player_name
+        .as_deref()
+        .is_none_or(|name| name.trim().is_empty())
+    {
+        GameState::PlayerName(String::new())
+    } else {
+        GameState::Menu
+    };
     let mut resources = Resources::new().await;
     resources.lang.current_lang = saved.language.unwrap_or_else(Language::from_system_locale);
     let mut audio = AudioState::new(saved.audio.clone());
     let mut save_timer = None;
     audio.play_music(&resources.audio, MusicTrack::Menu);
-    let mut game = Game::new();
+    let mut game = Game::new(vec2(screen_width(), screen_height()));
+    let mut upgrade_selection = UpgradeSelection::default();
 
     // XWayland can leave the window at 4×4 after the initial configure.
     #[cfg(target_os = "linux")]
@@ -80,9 +90,38 @@ async fn main() {
         }
 
         clear_background(BLACK);
-        draw_background(&resources.background);
+        if !matches!(state, GameState::Lan(_)) {
+            draw_background(&resources.background);
+        }
 
+        let player_name = saved.player_name.as_deref().unwrap_or(DEFAULT_PLAYER_NAME);
         match state {
+            GameState::PlayerName(ref mut draft) => {
+                if is_key_pressed(KeyCode::Backspace) {
+                    draft.pop();
+                }
+                while let Some(character) = get_char_pressed() {
+                    if !character.is_control() {
+                        draft.push(character);
+                    }
+                }
+                if render_player_name(draft, &resources) || is_key_pressed(KeyCode::Enter) {
+                    let name = draft.trim();
+                    saved.player_name = Some(if name.is_empty() {
+                        DEFAULT_PLAYER_NAME.to_owned()
+                    } else {
+                        name.to_owned()
+                    });
+                    save_timer = Some(0.0);
+                    audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
+                    state = GameState::Menu;
+                }
+            }
+            GameState::Lan(ref mut mode) => {
+                if lan::frame(mode, frame_dt, player_name, &resources, &mut audio) {
+                    state = GameState::Menu;
+                }
+            }
             GameState::Menu => {
                 audio.play_music(&resources.audio, MusicTrack::Menu);
 
@@ -96,7 +135,13 @@ async fn main() {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                 }
 
-                let click = render_menu(&game, saved.high_score, audio.settings(), &resources);
+                let click = render_menu(
+                    &game,
+                    player_name,
+                    saved.high_score,
+                    audio.settings(),
+                    &resources,
+                );
                 if let Some(click) = click {
                     let item = click.item();
                     if matches!(click, MenuClick::Select(_)) && item != game.menu_selection {
@@ -114,6 +159,12 @@ async fn main() {
                         if enter || activate {
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                             state = GameState::ShipSelection(ShipKind::Alpha);
+                        }
+                    }
+                    MenuItem::Lan => {
+                        if enter || activate {
+                            audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
+                            state = GameState::Lan(Box::new(lan::LanMode::new(game.difficulty)));
                         }
                     }
                     MenuItem::Difficulty => {
@@ -183,7 +234,7 @@ async fn main() {
                 } else if matches!(click, Some(ShipSelectionClick::Confirm))
                     || is_key_pressed(KeyCode::Enter)
                 {
-                    game.reset(selected_ship);
+                    game.reset(selected_ship, vec2(screen_width(), screen_height()));
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     state = GameState::Briefing;
                 }
@@ -191,9 +242,10 @@ async fn main() {
 
             GameState::Briefing => {
                 audio.play_music(&resources.audio, MusicTrack::Menu);
-                let launch = render_briefing(&game.current_mission, &resources);
+                let launch = render_briefing(&game.current_mission, player_name, true, &resources);
 
                 if launch || is_key_pressed(KeyCode::Space) {
+                    game.bounds = vec2(screen_width(), screen_height());
                     game.start_mission();
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     audio.play_music(&resources.audio, MusicTrack::Gameplay);
@@ -212,28 +264,21 @@ async fn main() {
                     audio.set_engine_active(
                         &resources.audio,
                         is_key_down(KeyCode::Up),
-                        game.ship.engine.current_thrust,
+                        game.solo_pilot().ship.engine.current_thrust,
                     );
 
-                    update_timers(&mut game, dt);
-                    update_ship_movement(&mut game, dt);
-                    update_ship_shooting(&mut game);
-                    update_enemies(&mut game, dt);
-                    update_boss(&mut game, dt);
-                    let mut ship_destroyed = update_loot(&mut game, dt);
-                    if !ship_destroyed {
-                        update_physics(&mut game, dt);
-                        ship_destroyed = update_collisions(&mut game);
-                    }
-                    if !ship_destroyed {
-                        update_boss_encounter(&mut game, dt);
-                    }
+                    let outcome = game.step(
+                        [PilotInput::keyboard(), PilotInput::default()],
+                        vec2(screen_width(), screen_height()),
+                        dt,
+                        get_time(),
+                    );
 
-                    if ship_destroyed {
+                    if matches!(outcome, BattleOutcome::Defeat) {
                         audio.set_engine_active(&resources.audio, false, 0.0);
                         audio.play_sfx(&resources.audio, audio::AudioCue::GameOver);
                         state = GameState::GameOver(game.score);
-                    } else if game.is_mission_complete() {
+                    } else if matches!(outcome, BattleOutcome::Success) {
                         audio.set_engine_active(&resources.audio, false, 0.0);
                         audio.play_sfx(&resources.audio, audio::AudioCue::MissionSuccess);
                         state = GameState::MissionSuccess;
@@ -249,14 +294,14 @@ async fn main() {
                     }
 
                     if matches!(state, GameState::Playing) {
-                        render_game(&game, &resources);
+                        render_game(&game, None, &resources);
                     }
                 }
             }
 
             GameState::Paused => {
                 // Render the game in paused state (frozen frame)
-                render_game(&game, &resources);
+                render_game(&game, None, &resources);
                 let (resume, main_menu) = render_pause(&resources);
 
                 if resume || (!main_menu && is_key_pressed(KeyCode::Enter)) {
@@ -272,35 +317,40 @@ async fn main() {
             GameState::MissionSuccess => {
                 audio.set_paused(&resources.audio, false);
                 audio.play_music(&resources.audio, MusicTrack::Menu);
-                let upgrades = render_mission_success(&game.current_mission, &resources);
+                let upgrades = render_mission_success(&game.current_mission, true, &resources);
 
                 if upgrades || is_key_pressed(KeyCode::Enter) {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
-                    game.upgrade_selection = 0;
+                    upgrade_selection = UpgradeSelection::default();
                     state = GameState::UpgradeBay;
                 }
             }
 
             GameState::UpgradeBay => {
                 if is_key_pressed(KeyCode::Up) {
-                    game.prev_upgrade_selection();
+                    upgrade_selection.prev();
                 }
                 if is_key_pressed(KeyCode::Down) {
-                    game.next_upgrade_selection();
+                    upgrade_selection.next();
                 }
 
-                let clicked = render_upgrade_bay(&game, &resources);
+                let clicked = render_upgrade_bay(
+                    game.solo_pilot(),
+                    &upgrade_selection,
+                    "upgrade_continue",
+                    &resources,
+                );
                 if let Some(index) = clicked {
-                    game.upgrade_selection = index;
+                    upgrade_selection.0 = index;
                 }
 
                 if clicked.is_some() || is_key_pressed(KeyCode::Enter) {
-                    if game.is_continue_selected() {
+                    if let Some(id) = upgrade_selection.selected() {
+                        let _ = game.solo_pilot_mut().buy_upgrade(id);
+                    } else {
                         game.next_mission();
                         audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                         state = GameState::Briefing;
-                    } else if let Some(id) = game.selected_upgrade() {
-                        let _ = game.buy_upgrade(id);
                     }
                 }
             }
@@ -316,7 +366,6 @@ async fn main() {
                 }
             }
         }
-
         if save_timer.is_some_and(|remaining| remaining <= 0.0) {
             if let Some(path) = save_path.as_deref() {
                 saved.audio = audio.settings().clone();

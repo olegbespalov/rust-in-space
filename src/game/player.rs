@@ -1,13 +1,33 @@
+use crate::audio::AudioCue;
 use crate::components::*;
 use crate::game::constants::*;
-use crate::game::Game;
+use crate::game::Pilot;
 use crate::systems::wrap_around;
 use macroquad::prelude::*;
 
-pub fn create_ship(kind: ShipKind) -> Ship {
+#[derive(Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PilotInput {
+    pub left: bool,
+    pub right: bool,
+    pub thrust: bool,
+    pub fire: bool,
+}
+
+impl PilotInput {
+    pub fn keyboard() -> Self {
+        Self {
+            left: is_key_down(KeyCode::Left),
+            right: is_key_down(KeyCode::Right),
+            thrust: is_key_down(KeyCode::Up),
+            fire: is_key_down(KeyCode::Space),
+        }
+    }
+}
+
+pub fn create_ship(kind: ShipKind, pos: Vec2) -> Ship {
     Ship {
         kind,
-        pos: vec2(screen_width() / 2.0, screen_height() / 2.0),
+        pos,
         vel: vec2(0.0, 0.0),
         rotation: 0.0,
         health: BASE_SHIP_HP,
@@ -27,56 +47,67 @@ pub fn create_ship(kind: ShipKind) -> Ship {
     }
 }
 
-pub fn update_ship_movement(game: &mut Game, dt: f32) {
-    if is_key_down(KeyCode::Left) {
-        game.ship.rotation -= ROTATION_SPEED * dt;
+fn update_ship_movement(pilot: &mut Pilot, input: PilotInput, bounds: Vec2, dt: f32) {
+    if input.left {
+        pilot.ship.rotation -= ROTATION_SPEED * dt;
     }
-    if is_key_down(KeyCode::Right) {
-        game.ship.rotation += ROTATION_SPEED * dt;
+    if input.right {
+        pilot.ship.rotation += ROTATION_SPEED * dt;
     }
 
-    let rotation_rad = game.ship.rotation.to_radians();
+    let rotation_rad = pilot.ship.rotation.to_radians();
     let ship_dir = vec2(rotation_rad.cos(), rotation_rad.sin());
 
-    let is_gas_pedal_down = is_key_down(KeyCode::Up);
-    game.ship.engine.update(dt, is_gas_pedal_down);
-    if game.ship.engine.current_thrust > 0.0 {
-        let thrust_force = game.ship.engine.current_thrust * game.player_acceleration();
-        game.ship.vel += ship_dir * thrust_force * dt;
+    pilot.ship.engine.update(dt, input.thrust);
+    if pilot.ship.engine.current_thrust > 0.0 {
+        let thrust_force = pilot.ship.engine.current_thrust * pilot.acceleration();
+        pilot.ship.vel += ship_dir * thrust_force * dt;
     }
 
-    game.ship.pos += game.ship.vel * dt;
-    wrap_around(&mut game.ship.pos);
+    pilot.ship.pos += pilot.ship.vel * dt;
+    wrap_around(&mut pilot.ship.pos, bounds);
 }
 
-pub fn update_ship_shooting(game: &mut Game) {
-    let current_cooldown = if game.ship.rapid_fire_timer > 0.0 {
+fn player_shot(pilot: &mut Pilot, input: PilotInput) -> Option<Bullet> {
+    let current_cooldown = if pilot.ship.rapid_fire_timer > 0.0 {
         SHOOT_COOLDOWN / 3.0
     } else {
         SHOOT_COOLDOWN
     };
 
-    if is_key_down(KeyCode::Space) && game.ship.shoot_timer <= 0.0 {
-        let rotation_rad = game.ship.rotation.to_radians();
+    if input.fire && pilot.ship.shoot_timer <= 0.0 {
+        let rotation_rad = pilot.ship.rotation.to_radians();
         let ship_dir = vec2(rotation_rad.cos(), rotation_rad.sin());
 
-        let damage_mult = game.player_damage_mult();
-        let (damage, radius) = if game.ship.big_bullet_timer > 0.0 {
+        let damage_mult = pilot.damage_mult();
+        let (damage, radius) = if pilot.ship.big_bullet_timer > 0.0 {
             (BIG_BULLET_DAMAGE, BIG_BULLET_RADIUS)
         } else {
             (PLAYER_BULLET_DAMAGE, PLAYER_BULLET_RADIUS)
         };
 
-        game.bullets.push(Bullet {
-            pos: game.ship.pos,
-            vel: ship_dir * BULLET_SPEED + game.ship.vel,
+        pilot.ship.shoot_timer = current_cooldown;
+        return Some(Bullet {
+            pos: pilot.ship.pos,
+            vel: ship_dir * BULLET_SPEED + pilot.ship.vel,
             life_time: BULLET_LIFETIME,
             style: BulletStyle::Player,
-            homing: game.ship.magnetic_ammo_timer > 0.0,
+            homing: pilot.ship.magnetic_ammo_timer > 0.0,
             damage: damage * damage_mult,
             radius,
         });
-        game.ship.shoot_timer = current_cooldown;
-        game.audio_cues.push(crate::audio::AudioCue::PlayerShot);
+    }
+    None
+}
+
+pub(super) fn update_pilots(game: &mut super::Game, inputs: [PilotInput; 2], dt: f32) {
+    for (pilot, input) in game.pilots.iter_mut().zip(inputs) {
+        if let Some(pilot) = pilot.as_mut().filter(|pilot| pilot.is_alive()) {
+            update_ship_movement(pilot, input, game.bounds, dt);
+            if let Some(bullet) = player_shot(pilot, input) {
+                game.bullets.push(bullet);
+                game.audio_cues.push(AudioCue::PlayerShot);
+            }
+        }
     }
 }

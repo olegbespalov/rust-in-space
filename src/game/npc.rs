@@ -5,21 +5,30 @@ use macroquad::prelude::*;
 
 const TARGET_ENEMY_SPAWN_PERIOD: u32 = 4;
 
-pub fn update_enemies(game: &mut Game, dt: f32) {
+pub fn update_enemies(game: &mut Game, dt: f32, now: f64) {
     if game.boss.is_none() {
-        update_scheduled_enemy_spawn(game, dt);
+        update_scheduled_enemy_spawn(game, dt, now);
     }
 
-    let player_visible = !game.ship.is_invisible();
+    let bounds = game.bounds;
+    let visible_pilots = game
+        .pilots
+        .iter()
+        .flatten()
+        .filter(|pilot| pilot.is_alive() && !pilot.ship.is_invisible())
+        .map(|pilot| pilot.ship.pos);
     for e in game.enemy_ships.iter_mut() {
         e.power_ups.tick(dt);
-        if !player_visible {
+        let Some(target) = visible_pilots.clone().min_by(|a, b| {
+            a.distance_squared(e.pos)
+                .total_cmp(&b.distance_squared(e.pos))
+        }) else {
             e.pos += e.vel * dt;
-            keep_enemy_in_bounds(e);
+            keep_enemy_in_bounds(e, bounds);
             continue;
-        }
+        };
 
-        let diff = game.ship.pos - e.pos;
+        let diff = target - e.pos;
         e.rotation = diff.y.atan2(diff.x);
 
         if e.enemy_type == EnemyType::Kamikaze {
@@ -44,18 +53,18 @@ pub fn update_enemies(game: &mut Game, dt: f32) {
             }
         }
 
-        keep_enemy_in_bounds(e);
+        keep_enemy_in_bounds(e, bounds);
     }
     game.enemy_ships
-        .retain(|e| e.pos.x > -100.0 && e.pos.x < screen_width() + 100.0);
+        .retain(|e| e.pos.x > -100.0 && e.pos.x < bounds.x + 100.0);
 }
 
-fn update_scheduled_enemy_spawn(game: &mut Game, dt: f32) {
+fn update_scheduled_enemy_spawn(game: &mut Game, dt: f32, now: f64) {
     use macroquad::rand::gen_range;
 
     // On Nebula, show the hint before spawning the ship.
     if let Some((from_left, spawn_y, hint_at)) = game.pending_enemy_hint {
-        if get_time() - hint_at >= ENEMY_HINT_DELAY {
+        if now - hint_at >= game.enemy_hint_delay {
             spawn_enemy(game, from_left, spawn_y);
             game.pending_enemy_hint = None;
         }
@@ -64,9 +73,9 @@ fn update_scheduled_enemy_spawn(game: &mut Game, dt: f32) {
         game.enemy_spawn_timer -= dt;
         if game.enemy_spawn_timer <= 0.0 {
             let from_left = gen_range(0, 2) == 0;
-            let y = gen_range(50.0, screen_height() - 50.0);
+            let y = gen_range(50.0, game.bounds.y - 50.0);
             if game.difficulty == Difficulty::Nebula {
-                game.pending_enemy_hint = Some((from_left, y, get_time()));
+                game.pending_enemy_hint = Some((from_left, y, now));
             } else {
                 spawn_enemy(game, from_left, y);
             }
@@ -111,8 +120,12 @@ fn spawn_enemy(game: &mut Game, from_left: bool, y: f32) {
             .unwrap_or_else(|| {
                 enemy_type_for_roll(mission.level_id, macroquad::rand::gen_range(0, 100))
             });
-    game.enemy_ships
-        .push(EnemyShip::new_at_side(from_left, y, enemy_type));
+    game.enemy_ships.push(EnemyShip::new_at_side(
+        from_left,
+        y,
+        enemy_type,
+        game.bounds.x,
+    ));
     game.enemy_spawn_timer = mission.enemy_spawn_interval / game.difficulty.spawn_rate_mult();
 }
 
@@ -163,6 +176,36 @@ fn enemy_volley(enemy_type: EnemyType) -> Option<(f32, f32, &'static [f32])> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn coop_nebula_scales_the_full_spawn_cycle_for_the_duration_of_the_mission() {
+        let mut solo = Game::new(vec2(1280.0, 720.0));
+        solo.difficulty = Difficulty::Nebula;
+        solo.next_mission();
+        solo.start_mission();
+        update_scheduled_enemy_spawn(&mut solo, 10.0, 1.0);
+        update_scheduled_enemy_spawn(&mut solo, 0.0, 3.0);
+        assert!(solo.enemy_ships.is_empty());
+        update_scheduled_enemy_spawn(&mut solo, 0.0, 3.5);
+        assert_eq!(solo.enemy_ships.len(), 1);
+
+        let mut coop = Game::new(solo.bounds);
+        coop.difficulty = Difficulty::Nebula;
+        coop.next_mission();
+        coop.set_pilot(1, ShipKind::Alpha);
+        coop.prepare_lan_mission();
+        coop.start_mission();
+        coop.pilots[1] = None;
+        update_scheduled_enemy_spawn(&mut coop, 10.0, 1.0);
+        update_scheduled_enemy_spawn(&mut coop, 0.0, 2.99);
+        assert!(coop.enemy_ships.is_empty());
+        update_scheduled_enemy_spawn(&mut coop, 0.0, 3.0);
+        assert_eq!(coop.enemy_ships.len(), 1);
+
+        let solo_cycle = f64::from(solo.enemy_spawn_timer) + 2.5;
+        let coop_cycle = f64::from(coop.enemy_spawn_timer) + 2.0;
+        assert!((solo_cycle / coop_cycle - 1.25).abs() < 1e-6);
+    }
     use crate::game::MissionProgress;
     use crate::systems::get_mission;
 
@@ -317,10 +360,10 @@ mod tests {
     }
 }
 
-fn keep_enemy_in_bounds(e: &mut EnemyShip) {
+fn keep_enemy_in_bounds(e: &mut EnemyShip, bounds: Vec2) {
     let margin = ENEMY_BORDER_MARGIN;
-    let w = screen_width();
-    let h = screen_height();
+    let w = bounds.x;
+    let h = bounds.y;
 
     if e.pos.x < margin {
         e.vel.x = e.vel.x.max(60.0);
@@ -345,7 +388,7 @@ pub fn update_boss(game: &mut Game, dt: f32) {
         boss.power_ups.tick(dt);
         boss.pos += boss.vel * dt;
         boss.rotation += BOSS_ROTATION_SPEED * dt * std::f32::consts::PI / 180.0;
-        keep_boss_in_bounds(boss);
+        keep_boss_in_bounds(boss, game.bounds);
         boss.shoot_timer -= dt;
         if boss.shoot_timer <= 0.0 {
             if boss.burst_shots_left == 0 {
@@ -417,7 +460,7 @@ pub fn update_boss_encounter(game: &mut Game, dt: f32) {
     };
     let wave = advance_boss_encounter(boss, game.difficulty, game.enemy_ships.len(), dt, || {
         use macroquad::rand::gen_range;
-        let height = screen_height();
+        let height = game.bounds.y;
         let margin = 50.0_f32.min(height / 2.0);
         let y = if height > 2.0 * margin {
             gen_range(margin, height - margin)
@@ -429,7 +472,7 @@ pub fn update_boss_encounter(game: &mut Game, dt: f32) {
     if let Some(wave) = wave {
         game.enemy_ships
             .extend(wave.arrivals(boss.phase).map(|(from_left, y, enemy_type)| {
-                EnemyShip::new_at_side(from_left, y, enemy_type)
+                EnemyShip::new_at_side(from_left, y, enemy_type, game.bounds.x)
             }));
     }
 }
@@ -481,10 +524,10 @@ fn advance_boss_encounter(
     None
 }
 
-fn keep_boss_in_bounds(boss: &mut Boss) {
+fn keep_boss_in_bounds(boss: &mut Boss, bounds: Vec2) {
     let margin = BOSS_BORDER_MARGIN;
-    let w = screen_width();
-    let h = screen_height();
+    let w = bounds.x;
+    let h = bounds.y;
     if boss.pos.x < margin {
         boss.vel.x = boss.vel.x.abs();
         boss.pos.x = margin;

@@ -14,6 +14,7 @@ pub const BASE_KAMIKAZE_DAMAGE: f32 = 30.0;
 pub const SCORE_PER_ENEMY_HP: u32 = 10;
 pub const ENEMY_BORDER_MARGIN: f32 = 40.0;
 pub const ENEMY_HINT_DELAY: f64 = 2.5;
+pub const COOP_ENEMY_SPAWN_RATE: f32 = 1.25;
 pub const BASE_SHIP_HP: f32 = 150.0;
 pub const BASE_LOOT_MAGNET_RADIUS: f32 = 150.0;
 pub const HULL_HP_PER_LEVEL: f32 = 20.0;

@@ -5,7 +5,7 @@ use macroquad::audio::{
 };
 
 #[allow(dead_code)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum AudioCue {
     UiMove,
     UiConfirm,

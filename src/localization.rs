@@ -214,6 +214,12 @@ impl Localization {
         // --- MENU ITEMS ---
         en.insert("menu_start", "START");
         ru.insert("menu_start", "НАЧАТЬ");
+        en.insert("player_name_prompt", "What's your name, Commander?");
+        ru.insert("player_name_prompt", "Как вас зовут, командир?");
+        en.insert("player_welcome", "Welcome");
+        ru.insert("player_welcome", "Добро пожаловать");
+        en.insert("commander_title", "Commander");
+        ru.insert("commander_title", "Командир");
         en.insert("ship_selection", "Choose your ship");
         ru.insert("ship_selection", "Выбор корабля");
         en.insert("ship_alpha", "Alpha");
@@ -327,6 +333,9 @@ impl Localization {
         de.insert("upgrade_shield_name", "Schildkondensator");
         de.insert("upgrade_shield_desc", "Mission beginnt mit kleinem Schild");
         de.insert("menu_start", "STARTEN");
+        de.insert("player_name_prompt", "Wie lautet dein Name, Commander?");
+        de.insert("player_welcome", "Willkommen");
+        de.insert("commander_title", "Commander");
         de.insert("ship_selection", "Raumschiff wählen");
         de.insert("ship_alpha", "Alpha");
         de.insert("ship_delta", "Delta");
@@ -343,6 +352,248 @@ impl Localization {
         de.insert("lang_english", "Englisch");
         de.insert("lang_russian", "Russisch");
         de.insert("lang_german", "Deutsch");
+
+        for (key, english, russian, german) in [
+            (
+                "lan_menu",
+                "Local Network",
+                "Локальная сеть",
+                "Lokales Netzwerk",
+            ),
+            (
+                "lan_host",
+                "Host game [H]",
+                "Создать игру [H]",
+                "Spiel hosten [H]",
+            ),
+            (
+                "lan_ip",
+                "Host IPv4 address [Tab]",
+                "IPv4-адрес хоста [Tab]",
+                "IPv4-Adresse des Hosts [Tab]",
+            ),
+            (
+                "lan_join",
+                "Connect by IP",
+                "Войти по IP",
+                "Per IP verbinden",
+            ),
+            (
+                "lan_games",
+                "Available games",
+                "Доступные игры",
+                "Verfügbare Spiele",
+            ),
+            (
+                "lan_searching",
+                "Searching for games...",
+                "Поиск игр...",
+                "Suche nach Spielen...",
+            ),
+            (
+                "lan_search_unavailable",
+                "Search unavailable. Connect by IP.",
+                "Поиск недоступен. Войдите по IP.",
+                "Suche nicht verfügbar. Per IP verbinden.",
+            ),
+            (
+                "lan_invalid_ip",
+                "Enter a valid IPv4 address.",
+                "Введите корректный IPv4-адрес.",
+                "Gültige IPv4-Adresse eingeben.",
+            ),
+            (
+                "lan_connecting",
+                "Connecting...",
+                "Подключение...",
+                "Verbindung wird aufgebaut...",
+            ),
+            (
+                "lan_port_busy",
+                "TCP port 41616 is in use.",
+                "Порт TCP 41616 занят.",
+                "TCP-Port 41616 ist belegt.",
+            ),
+            (
+                "lan_host_failed",
+                "Could not create the game.",
+                "Не удалось создать игру.",
+                "Spiel konnte nicht erstellt werden.",
+            ),
+            (
+                "lan_connect_failed",
+                "Could not connect. Check the host address.",
+                "Не удалось войти. Проверьте адрес хоста.",
+                "Verbindung fehlgeschlagen. Host-Adresse prüfen.",
+            ),
+            (
+                "lan_full",
+                "Game is full or already started.",
+                "Игра заполнена или уже началась.",
+                "Spiel ist voll oder läuft bereits.",
+            ),
+            (
+                "lan_version",
+                "Incompatible game version.",
+                "Несовместимая версия игры.",
+                "Inkompatible Spielversion.",
+            ),
+            (
+                "lan_host_lost",
+                "Connection to the host lost.",
+                "Связь с хостом потеряна.",
+                "Verbindung zum Host verloren.",
+            ),
+            (
+                "lan_guest_lost",
+                "Guest disconnected.",
+                "Гость отключился.",
+                "Gast hat die Verbindung getrennt.",
+            ),
+            (
+                "lan_left",
+                "You left the session.",
+                "Вы вышли из игры.",
+                "Du hast die Sitzung verlassen.",
+            ),
+            ("lan_lobby", "LAN lobby", "Лобби LAN", "LAN-Lobby"),
+            (
+                "lan_you_host",
+                "You are the host",
+                "Вы хост",
+                "Du bist der Host",
+            ),
+            (
+                "lan_you_guest",
+                "You are the guest",
+                "Вы гость",
+                "Du bist der Gast",
+            ),
+            (
+                "lan_no_ip",
+                "No local IPv4 address found.",
+                "Локальный IPv4-адрес не найден.",
+                "Keine lokale IPv4-Adresse gefunden.",
+            ),
+            (
+                "lan_wait_guest",
+                "Waiting for a guest...",
+                "Ожидание гостя...",
+                "Warte auf einen Gast...",
+            ),
+            (
+                "lan_guest_joined",
+                "Guest connected",
+                "Гость подключён",
+                "Gast verbunden",
+            ),
+            (
+                "lan_guest_ready",
+                "Guest ready",
+                "Гость готов",
+                "Gast bereit",
+            ),
+            (
+                "lan_start",
+                "Start campaign [Enter]",
+                "Начать кампанию [Enter]",
+                "Kampagne starten [Enter]",
+            ),
+            (
+                "lan_ready",
+                "Ready [Enter]",
+                "Готов [Enter]",
+                "Bereit [Enter]",
+            ),
+            (
+                "lan_not_ready",
+                "Cancel ready [Enter]",
+                "Отменить готовность",
+                "Bereitschaft aufheben",
+            ),
+            (
+                "lan_wait_launch",
+                "Waiting for the host to launch...",
+                "Хост запускает миссию...",
+                "Warte auf den Missionsstart...",
+            ),
+            (
+                "lan_wait_workshop",
+                "Waiting for the host to open the Upgrade Bay...",
+                "Ожидание входа хоста в мастерскую...",
+                "Warte auf die Werkstatt...",
+            ),
+            (
+                "lan_next_briefing",
+                "Next briefing [Enter]",
+                "К брифингу [Enter]",
+                "Nächste Einweisung [Enter]",
+            ),
+            (
+                "lan_ready_advance",
+                "Ready for the next mission",
+                "Можно начать следующую миссию",
+                "Bereit für die nächste Mission",
+            ),
+            (
+                "lan_wait_guest_ready",
+                "Waiting for the guest to be ready...",
+                "Ожидание готовности гостя...",
+                "Warte auf die Bereitschaft des Gasts...",
+            ),
+            (
+                "lan_wait_briefing",
+                "Waiting for the host to continue...",
+                "Ожидание перехода к брифингу...",
+                "Warte auf den Host...",
+            ),
+            (
+                "lan_upgrade_ready",
+                "Mark ready when finished.",
+                "Отметьте готовность после покупок.",
+                "Nach dem Kauf Bereitschaft melden.",
+            ),
+            (
+                "lan_spectating",
+                "Spectating until the next mission",
+                "Наблюдение до следующей миссии",
+                "Zuschauen bis zur nächsten Mission",
+            ),
+            (
+                "lan_session_menu",
+                "Session menu",
+                "Меню сессии",
+                "Sitzungsmenü",
+            ),
+            (
+                "lan_resume",
+                "Resume [Enter]",
+                "Продолжить [Enter]",
+                "Fortsetzen [Enter]",
+            ),
+            (
+                "lan_leave",
+                "Leave session",
+                "Выйти из сессии",
+                "Sitzung verlassen",
+            ),
+            (
+                "lan_back_lobby",
+                "Return to lobby [Enter]",
+                "В лобби [Enter]",
+                "Zur Lobby [Enter]",
+            ),
+            (
+                "lan_wait_lobby",
+                "Waiting for the host to return to the lobby...",
+                "Ожидание возврата хоста в лобби...",
+                "Warte auf die Rückkehr zur Lobby...",
+            ),
+        ] {
+            en.insert(key, english);
+            ru.insert(key, russian);
+            de.insert(key, german);
+        }
 
         Self {
             current_lang: Language::English,

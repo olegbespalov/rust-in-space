@@ -1,12 +1,12 @@
 use crate::components::{
     Asteroid, AudioSettings, Boss, BossPhase, BulletStyle, Difficulty, EnemyShip, EnemyType,
     Engine, Explosion, LootItem, LootType, MenuItem, Mission, MissionObjective, ShieldKind, Ship,
-    ShipKind,
+    ShipKind, DEFAULT_PLAYER_NAME,
 };
 use crate::game::constants::{
     ENEMY_SMALL_RADIUS, HEAVY_RADIUS, INTERCEPTOR_RADIUS, KAMIKAZE_RADIUS,
 };
-use crate::game::{upgrade_definition, Game, UPGRADABLE_IDS};
+use crate::game::{upgrade_definition, Game, Pilot, UpgradeSelection, UPGRADABLE_IDS};
 use crate::resources::Resources;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
@@ -47,8 +47,12 @@ pub fn draw_text_with_font(text: &str, x: f32, y: f32, size: f32, color: Color, 
 }
 
 pub fn draw_background(texture: &Texture2D) {
-    let screen_w = screen_width();
-    let screen_h = screen_height();
+    draw_background_in(texture, vec2(screen_width(), screen_height()));
+}
+
+pub fn draw_background_in(texture: &Texture2D, bounds: Vec2) {
+    let screen_w = bounds.x;
+    let screen_h = bounds.y;
     let tex_w = texture.width();
     let tex_h = texture.height();
 
@@ -205,11 +209,11 @@ fn health_bar_top(center_y: f32, radius: f32, gap: f32, height: f32) -> f32 {
     }
 }
 
-fn health_bar_left(center_x: f32, width: f32) -> f32 {
-    (center_x - width / 2.0).clamp(0.0, (screen_width() - width).max(0.0))
+fn health_bar_left(center_x: f32, width: f32, field_width: f32) -> f32 {
+    (center_x - width / 2.0).clamp(0.0, (field_width - width).max(0.0))
 }
 
-pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
+fn draw_enemy(enemy: &EnemyShip, field_width: f32, res: &Resources) {
     let (radius, sprite) = match enemy.enemy_type {
         EnemyType::Regular => (ENEMY_SMALL_RADIUS, &res.enemy_small),
         EnemyType::Kamikaze => (KAMIKAZE_RADIUS, &res.enemy_kamikaze),
@@ -219,7 +223,7 @@ pub fn draw_enemy(enemy: &EnemyShip, res: &Resources) {
     let visual_radius = radius * SHIP_VISUAL_SCALE;
     let size = visual_radius * 2.0;
 
-    let bar_left = health_bar_left(enemy.pos.x, size);
+    let bar_left = health_bar_left(enemy.pos.x, size, field_width);
     let bar_top = health_bar_top(
         enemy.pos.y,
         visual_radius,
@@ -258,10 +262,10 @@ const BOSS_SIZE: f32 = 120.0;
 const BOSS_HP_BAR_HEIGHT: f32 = 8.0;
 const BOSS_HP_BAR_GAP: f32 = 8.0;
 
-pub fn draw_boss(boss: &Boss, res: &Resources) {
+fn draw_boss(boss: &Boss, field_width: f32, res: &Resources) {
     let size = BOSS_SIZE * SHIP_VISUAL_SCALE;
     let bar_width = size * 1.2;
-    let bar_left = health_bar_left(boss.pos.x, bar_width);
+    let bar_left = health_bar_left(boss.pos.x, bar_width, field_width);
     let bar_top = health_bar_top(boss.pos.y, size / 2.0, BOSS_HP_BAR_GAP, BOSS_HP_BAR_HEIGHT);
 
     let tint = if boss.power_ups.is_invisible() {
@@ -303,7 +307,7 @@ fn draw_enemy_health_bar(x: f32, y: f32, width: f32, height: f32, ratio: f32) {
     }
 }
 
-pub fn draw_loot(item: &LootItem, res: &Resources) {
+fn draw_loot(item: &LootItem, bounds: Vec2, res: &Resources) {
     let size = item.radius * 4.5;
     let sprite = match item.item_type {
         LootType::Scrap(_) => &res.loot_scrap,
@@ -329,13 +333,13 @@ pub fn draw_loot(item: &LootItem, res: &Resources) {
     let seconds = format!("{}", item.time_left.ceil() as u32);
     let width = measure_text(&seconds, res.font.as_ref(), TIMER_FONT_SIZE, 1.0).width;
     let right = item.pos.x + size * 0.5 + TIMER_GAP;
-    let x = if right + width + TIMER_GAP <= screen_width() {
+    let x = if right + width + TIMER_GAP <= bounds.x {
         right.max(TIMER_GAP)
     } else {
         item.pos.x - size * 0.5 - TIMER_GAP - width
     };
     let font_size = f32::from(TIMER_FONT_SIZE);
-    let y = (item.pos.y + font_size / 3.0).clamp(font_size, (screen_height() - 1.0).max(font_size));
+    let y = (item.pos.y + font_size / 3.0).clamp(font_size, (bounds.y - 1.0).max(font_size));
     let color = if item.time_left <= 3.0 { GOLD } else { WHITE };
     draw_text_with_font(&seconds, x + 1.0, y + 1.0, font_size, BLACK, res);
     draw_text_with_font(&seconds, x, y, font_size, color, res);
@@ -380,12 +384,12 @@ pub fn draw_explosion(expl: &Explosion, res: &Resources) {
     );
 }
 
-fn draw_enemy_direction_hint(from_left: bool, spawn_y: f32, t: f32) {
+fn draw_enemy_direction_hint(from_left: bool, spawn_y: f32, t: f32, bounds: Vec2) {
     let blink = 0.4 + 0.6 * (t * 2.5).sin().mul_add(0.5, 0.5);
     let color = Color::new(0.2, 1.0, 0.4, blink);
 
-    let w = screen_width();
-    let h = screen_height();
+    let w = bounds.x;
+    let h = bounds.y;
     let margin = 50.0_f32.min(h / 2.0);
     let cy = spawn_y.clamp(margin, h - margin);
     let edge_x = if from_left { 28.0 } else { w - 28.0 };
@@ -434,9 +438,15 @@ fn draw_enemy_direction_hint(from_left: bool, spawn_y: f32, t: f32) {
     draw_triangle(tip, base_left, base_right, color);
 }
 
-pub fn render_game(game: &Game, resources: &Resources) {
+pub fn render_game(game: &Game, lan_slot: Option<usize>, resources: &Resources) {
+    let bounds = if lan_slot.is_some() {
+        game.bounds
+    } else {
+        vec2(screen_width(), screen_height())
+    };
+    let local_slot = lan_slot.unwrap_or(0);
     for item in &game.loot_items {
-        draw_loot(item, resources);
+        draw_loot(item, bounds, resources);
     }
 
     for b in &game.bullets {
@@ -471,41 +481,70 @@ pub fn render_game(game: &Game, resources: &Resources) {
     }
 
     for e in &game.enemy_ships {
-        draw_enemy(e, resources);
+        draw_enemy(e, bounds.x, resources);
     }
 
     if let Some(ref boss) = game.boss {
-        draw_boss(boss, resources);
+        draw_boss(boss, bounds.x, resources);
     }
 
     for ex in &game.explosions {
         draw_explosion(ex, resources);
     }
 
-    draw_ship(&game.ship, resources);
+    for (slot, pilot) in game.pilots.iter().enumerate() {
+        if let Some(pilot) = pilot.as_ref().filter(|pilot| pilot.is_alive()) {
+            draw_ship(&pilot.ship, resources);
+            if lan_slot.is_some() {
+                let pos = pilot.ship.pos;
+                let color = if slot == local_slot { SKYBLUE } else { GOLD };
+                draw_text_with_font(
+                    if slot == 0 { "1" } else { "2" },
+                    pos.x - 7.0,
+                    pos.y + 37.0,
+                    14.0,
+                    color,
+                    resources,
+                );
+            }
+        }
+    }
+    let Some(pilot) = &game.pilots[local_slot] else {
+        return;
+    };
+    let ship = &pilot.ship;
 
     let mut status_text = format!(
         "{} {}  {} {:.0}/{:.0}",
         resources.lang.t("score"),
         game.score,
         resources.lang.t("hp"),
-        game.ship.health,
-        game.ship.max_health
+        ship.health.max(0.0),
+        ship.max_health
     );
-    if game.ship.has_shield() {
+    if ship.has_shield() {
         status_text.push_str(&format!(
             "  {} {:.0}/{:.0}",
             resources.lang.t("shield"),
-            game.ship.shield_hp,
-            game.ship.shield_max_hp
+            ship.shield_hp,
+            ship.shield_max_hp
         ));
     }
     draw_text_with_font(&status_text, 20.0, 30.0, 24.0, WHITE, resources);
-    if game.ship.is_invisible() {
+    if lan_slot.is_some() && !pilot.is_alive() {
+        draw_text_with_font(
+            resources.lang.t("lan_spectating"),
+            20.0,
+            60.0,
+            20.0,
+            GOLD,
+            resources,
+        );
+    } else if ship.is_invisible() {
         let cloak_text = format!(
             "{} {:.0}",
             resources.lang.t("invisibility"),
-            game.ship.invisibility_timer.ceil()
+            ship.invisibility_timer.ceil()
         );
         draw_text_with_font(&cloak_text, 20.0, 60.0, 24.0, SKYBLUE, resources);
     }
@@ -542,7 +581,7 @@ pub fn render_game(game: &Game, resources: &Resources) {
         draw_text_with_font(
             &status,
             20.0,
-            screen_height() - 30.0 - (objectives.len() - 1 - row) as f32 * 26.0,
+            bounds.y - 30.0 - (objectives.len() - 1 - row) as f32 * 26.0,
             24.0,
             if complete { GREEN } else { WHITE },
             resources,
@@ -553,14 +592,14 @@ pub fn render_game(game: &Game, resources: &Resources) {
         "{} {} {} | {} {}",
         resources.lang.t("resources"),
         resources.lang.t("rust"),
-        game.ship.scrap,
+        ship.scrap,
         resources.lang.t("gold"),
-        game.ship.rare_metal
+        ship.rare_metal
     );
     draw_text_with_font(
         &inventory,
         20.0,
-        screen_height() - 34.0 - objectives.len() as f32 * 26.0,
+        bounds.y - 34.0 - objectives.len() as f32 * 26.0,
         20.0,
         GRAY,
         resources,
@@ -569,12 +608,12 @@ pub fn render_game(game: &Game, resources: &Resources) {
     if let Some(boss) = &game.boss {
         if let Some(wave) = boss.pending_summon {
             for (from_left, y, _) in wave.arrivals(boss.phase) {
-                draw_enemy_direction_hint(from_left, y, -wave.remaining);
+                draw_enemy_direction_hint(from_left, y, -wave.remaining, bounds);
             }
         }
     } else if game.difficulty == Difficulty::Nebula {
         if let Some((from_left, spawn_y, _)) = game.pending_enemy_hint {
-            draw_enemy_direction_hint(from_left, spawn_y, get_time() as f32);
+            draw_enemy_direction_hint(from_left, spawn_y, get_time() as f32, bounds);
         }
     }
 }
@@ -707,13 +746,13 @@ fn draw_menu_label_with_scale(
     );
 }
 
-fn menu_button(text: &str, bounds: Rect, size: u16, selected: bool, res: &Resources) -> bool {
+pub fn menu_button(text: &str, bounds: Rect, size: u16, selected: bool, res: &Resources) -> bool {
     let clicked = draw_menu_button(bounds, selected);
     draw_menu_label_with_scale(text, bounds, size, WHITE, 0.84, res);
     clicked
 }
 
-fn centered_menu_button(text: &str, y_offset: f32, res: &Resources) -> bool {
+pub fn centered_menu_button(text: &str, y_offset: f32, res: &Resources) -> bool {
     let width =
         (measure_text(text, res.font.as_ref(), 24, 1.0).width + 64.0).min(screen_width() * 0.94);
     let bounds = Rect::new(
@@ -744,8 +783,17 @@ impl MenuClick {
     }
 }
 
+pub fn difficulty_key(difficulty: Difficulty) -> &'static str {
+    match difficulty {
+        Difficulty::Nebula => "diff_nebula",
+        Difficulty::Supernova => "diff_supernova",
+        Difficulty::BlackHole => "diff_blackhole",
+    }
+}
+
 pub fn render_menu(
     game: &Game,
+    player_name: &str,
     high_score: u32,
     settings: &AudioSettings,
     res: &Resources,
@@ -754,12 +802,12 @@ pub fn render_menu(
     let screen_h = screen_height();
     let pulse = 1.0 + (get_time() * 2.0).sin() as f32 * 0.05;
     let aspect_ratio = res.logo.height() / res.logo.width();
-    let logo_w = (screen_w * 0.3).min(screen_h * 0.28 / aspect_ratio) * pulse;
+    let logo_w = (screen_w * 0.3).min(screen_h * 0.23 / aspect_ratio) * pulse;
     let logo_h = logo_w * aspect_ratio;
     draw_texture_ex(
         &res.logo,
         (screen_w - logo_w) / 2.0,
-        screen_h * 0.18 - logo_h / 2.0,
+        screen_h * 0.15 - logo_h / 2.0,
         WHITE,
         DrawTextureParams {
             dest_size: Some(vec2(logo_w, logo_h)),
@@ -768,22 +816,25 @@ pub fn render_menu(
     );
 
     let start_y = screen_h * 0.39;
-    let row_step = (screen_h * 0.075).min(46.0);
+    let row_step = ((screen_h * 0.61 - 30.0) / 8.0).clamp(1.0, 46.0);
     let row_width = (screen_w * 0.94).min(420.0);
     let row_x = (screen_w - row_width) / 2.0;
-    draw_text_centered(
+    draw_menu_label(
+        &format!("{}, {player_name}!", res.lang.t("player_welcome")),
+        Rect::new(0.0, screen_h * 0.26, screen_w, screen_h * 0.06),
+        20,
+        WHITE,
+        res,
+    );
+    draw_menu_label(
         &format!("{} {}", res.lang.t("high_score"), high_score),
-        screen_h * 0.35 - screen_h / 2.0,
+        Rect::new(0.0, screen_h * 0.32, screen_w, screen_h * 0.06),
         18,
         YELLOW,
         res,
     );
 
-    let difficulty = match game.difficulty {
-        Difficulty::Nebula => "diff_nebula",
-        Difficulty::Supernova => "diff_supernova",
-        Difficulty::BlackHole => "diff_blackhole",
-    };
+    let difficulty = difficulty_key(game.difficulty);
     let language = match res.lang.current_lang {
         crate::localization::Language::English => "lang_english",
         crate::localization::Language::Russian => "lang_russian",
@@ -797,6 +848,7 @@ pub fn render_menu(
 
     let rows = [
         (MenuItem::Start, "menu_start", None),
+        (MenuItem::Lan, "lan_menu", None),
         (
             MenuItem::Difficulty,
             "menu_difficulty",
@@ -829,6 +881,7 @@ pub fn render_menu(
         ),
     ];
 
+    let row_count = rows.len();
     let mut click = None;
     for (index, (item, key, value)) in rows.into_iter().enumerate() {
         let bounds = Rect::new(
@@ -874,7 +927,7 @@ pub fn render_menu(
 
     draw_text_centered(
         res.lang.t("menu_instructions"),
-        start_y + 7.0 * row_step + 22.0 - screen_h / 2.0,
+        start_y + row_count as f32 * row_step + 22.0 - screen_h / 2.0,
         14,
         GRAY,
         res,
@@ -890,6 +943,31 @@ pub fn render_menu(
     click
 }
 
+pub fn render_player_name(draft: &str, res: &Resources) -> bool {
+    draw_menu_label(
+        res.lang.t("player_name_prompt"),
+        Rect::new(0.0, screen_height() / 2.0 - 120.0, screen_width(), 58.0),
+        30,
+        ORANGE,
+        res,
+    );
+    let width = (screen_width() * 0.9).min(520.0);
+    let field = Rect::new(
+        (screen_width() - width) / 2.0,
+        screen_height() / 2.0 - 23.0,
+        width,
+        46.0,
+    );
+    draw_menu_button(field, true);
+    let (text, color) = if draft.is_empty() {
+        (DEFAULT_PLAYER_NAME, LIGHTGRAY)
+    } else {
+        (draft, WHITE)
+    };
+    draw_menu_label(&format!("{text}_"), field, 20, color, res);
+    centered_menu_button(res.lang.t("ship_confirm"), 77.0, res)
+}
+
 pub enum ShipSelectionClick {
     Select(ShipKind),
     Confirm,
@@ -900,6 +978,33 @@ pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<Ship
     let center = vec2(screen_width() / 2.0, screen_height() / 2.0);
     let card_width = (screen_width() * 0.43).min(260.0);
     let card_height = (screen_height() * 0.4).min(218.0);
+    draw_text_centered(
+        res.lang.t("ship_selection"),
+        -card_height / 2.0 - 40.0,
+        30,
+        ORANGE,
+        res,
+    );
+    let click = render_ship_cards(selected, center, vec2(card_width, card_height), res);
+    if centered_menu_button(res.lang.t("ship_confirm"), card_height / 2.0 + 32.0, res) {
+        return Some(ShipSelectionClick::Confirm);
+    }
+    if centered_menu_button(res.lang.t("ship_back"), card_height / 2.0 + 82.0, res) {
+        return Some(ShipSelectionClick::Back);
+    }
+    click.map(ShipSelectionClick::Select)
+}
+
+pub fn render_ship_cards(
+    selected: ShipKind,
+    center: Vec2,
+    card_size: Vec2,
+    res: &Resources,
+) -> Option<ShipKind> {
+    let Vec2 {
+        x: card_width,
+        y: card_height,
+    } = card_size;
     let gap = 18.0;
     let has_delta = res.ship_model(ShipKind::Delta).is_some();
     let x = if has_delta {
@@ -908,13 +1013,6 @@ pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<Ship
         center.x - card_width / 2.0
     };
     let y = center.y - card_height / 2.0;
-    draw_text_centered(
-        res.lang.t("ship_selection"),
-        -card_height / 2.0 - 40.0,
-        30,
-        ORANGE,
-        res,
-    );
 
     let mut click = None;
     for (kind, label, shortcut, x) in [
@@ -926,7 +1024,7 @@ pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<Ship
         }
         let card = Rect::new(x, y, card_width, card_height);
         if draw_menu_button(card, kind == selected) {
-            click = Some(ShipSelectionClick::Select(kind));
+            click = Some(kind);
         }
         if has_delta {
             let key_bounds = Rect::new(x + 8.0, y + 8.0, 30.0, 24.0);
@@ -944,12 +1042,6 @@ pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<Ship
         let label_bounds = Rect::new(x, y + card_height * 0.76, card_width, card_height * 0.2);
         draw_menu_label(res.lang.t(label), label_bounds, 20, WHITE, res);
     }
-    if centered_menu_button(res.lang.t("ship_confirm"), card_height / 2.0 + 32.0, res) {
-        return Some(ShipSelectionClick::Confirm);
-    }
-    if centered_menu_button(res.lang.t("ship_back"), card_height / 2.0 + 82.0, res) {
-        return Some(ShipSelectionClick::Back);
-    }
     click
 }
 
@@ -965,7 +1057,12 @@ fn objective_label(objective: MissionObjective) -> &'static str {
     }
 }
 
-pub fn render_briefing(mission: &Mission, res: &Resources) -> bool {
+pub fn render_briefing(
+    mission: &Mission,
+    player_name: &str,
+    launch: bool,
+    res: &Resources,
+) -> bool {
     draw_text_centered(
         &format!("{} {}", res.lang.t("mission"), mission.level_id),
         -100.0,
@@ -974,6 +1071,13 @@ pub fn render_briefing(mission: &Mission, res: &Resources) -> bool {
         res,
     );
     draw_text_centered(&mission.title, -50.0, 48, WHITE, res);
+    draw_menu_label(
+        &format!("{} {player_name}", res.lang.t("commander_title")),
+        Rect::new(0.0, screen_height() / 2.0 - 54.0, screen_width(), 40.0),
+        20,
+        SKYBLUE,
+        res,
+    );
     draw_text_centered(res.lang.t("objectives"), 20.0, 24, GRAY, res);
 
     for (row, &objective) in mission.objectives.iter().enumerate() {
@@ -986,10 +1090,10 @@ pub fn render_briefing(mission: &Mission, res: &Resources) -> bool {
         draw_text_centered(&text, 60.0 + row as f32 * 32.0, 24, WHITE, res);
     }
 
-    centered_menu_button(res.lang.t("press_space"), 190.0, res)
+    launch && centered_menu_button(res.lang.t("press_space"), 190.0, res)
 }
 
-pub fn render_mission_success(mission: &Mission, res: &Resources) -> bool {
+pub fn render_mission_success(mission: &Mission, advance: bool, res: &Resources) -> bool {
     draw_text_centered(res.lang.t("mission_complete"), -50.0, 40, GREEN, res);
     draw_text_centered(
         &format!(
@@ -1003,10 +1107,15 @@ pub fn render_mission_success(mission: &Mission, res: &Resources) -> bool {
         WHITE,
         res,
     );
-    centered_menu_button(res.lang.t("next_mission"), 100.0, res)
+    advance && centered_menu_button(res.lang.t("next_mission"), 100.0, res)
 }
 
-pub fn render_upgrade_bay(game: &Game, res: &Resources) -> Option<usize> {
+pub fn render_upgrade_bay(
+    pilot: &Pilot,
+    selection: &UpgradeSelection,
+    continue_key: &str,
+    res: &Resources,
+) -> Option<usize> {
     draw_text_centered(res.lang.t("upgrade_bay_title"), -260.0, 40, ORANGE, res);
     draw_text_centered(res.lang.t("upgrade_bay_subtitle"), -220.0, 18, GRAY, res);
 
@@ -1014,9 +1123,9 @@ pub fn render_upgrade_bay(game: &Game, res: &Resources) -> Option<usize> {
         "{} {} {} | {} {}",
         res.lang.t("resources"),
         res.lang.t("rust"),
-        game.ship.scrap,
+        pilot.ship.scrap,
         res.lang.t("gold"),
-        game.ship.rare_metal
+        pilot.ship.rare_metal
     );
     draw_text_centered(&resources_text, -175.0, 22, YELLOW, res);
 
@@ -1028,16 +1137,16 @@ pub fn render_upgrade_bay(game: &Game, res: &Resources) -> Option<usize> {
 
     for (idx, id) in UPGRADABLE_IDS.iter().copied().enumerate() {
         let def = upgrade_definition(id);
-        let level = game.upgrade_level(id);
+        let level = pilot.upgrade_level(id);
         let max_level = def.max_level;
-        let selected = game.upgrade_selection == idx;
+        let selected = selection.0 == idx;
 
         let status_text = if level >= max_level {
             res.lang.t("upgrade_status_maxed").to_string()
         } else {
             let next_level = level + 1;
             let cost = crate::game::upgrade_cost(id, next_level);
-            let can_buy = game.can_buy_upgrade(id);
+            let can_buy = pilot.can_buy_upgrade(id);
             let buy_state = if can_buy {
                 res.lang.t("upgrade_status_buy")
             } else {
@@ -1092,10 +1201,10 @@ pub fn render_upgrade_bay(game: &Game, res: &Resources) -> Option<usize> {
         40.0,
     );
     if menu_button(
-        res.lang.t("upgrade_continue"),
+        res.lang.t(continue_key),
         bounds,
         24,
-        game.upgrade_selection == continue_idx,
+        selection.0 == continue_idx,
         res,
     ) {
         clicked = Some(continue_idx);

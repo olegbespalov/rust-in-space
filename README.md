@@ -25,6 +25,29 @@ See [Installation](docs/installation.md) for platform-specific setup.
 - **After a mission**, press Enter to open the Upgrade Bay. Use Up/Down to select an item and Enter to buy or continue.
 - At **game over**, press Enter to return to the main menu.
 
+## Local network co-op
+
+Two pilots on the same IPv4 network can play the campaign together. Open
+**Local Network** and select **Host game** on one computer. On the other, select
+the host from **Available games**, or enter one of the IPv4 addresses shown in
+the host lobby. Both computers need compatible game versions. The host uses
+TCP port `41616` for the game and UDP port `41616` for discovery. The host runs
+the simulation and sends snapshots to the guest. If broadcast discovery is
+unavailable on your network, use the IP address directly.
+
+Pick a ship, have the guest mark **Ready**, and start the campaign from the
+host lobby. The host chooses the campaign's difficulty. Starting a mission with
+two pilots raises asteroid counts, count-based objectives, and Guardian health
+by 50%. Regular enemies spawn 25% more often. In Nebula, the spawn warning also
+shortens from 2.5 to 2 seconds to maintain that rate. Both pilots share mission
+progress and score, and each spends their own salvage in the Upgrade Bay. If
+a pilot is destroyed, they spectate until the next mission. **Esc** opens a
+personal menu while the battle continues.
+
+If the guest disconnects, the host can finish the mission and continue with
+single-pilot settings from the next mission. Join and rejoin from the host
+lobby between campaigns. LAN scores stay in the session.
+
 ## Documentation
 
 - [Gameplay](docs/gameplay.md) covers missions, difficulty, combat, and upgrades.

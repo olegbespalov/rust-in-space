@@ -15,16 +15,16 @@ pub enum LootSource {
     EnemyBoss,
 }
 
-pub fn wrap_around(pos: &mut Vec2) {
+pub fn wrap_around(pos: &mut Vec2, bounds: Vec2) {
     if pos.x < -20.0 {
-        pos.x = screen_width() + 20.0;
-    } else if pos.x > screen_width() + 20.0 {
+        pos.x = bounds.x + 20.0;
+    } else if pos.x > bounds.x + 20.0 {
         pos.x = -20.0;
     }
 
     if pos.y < -20.0 {
-        pos.y = screen_height() + 20.0;
-    } else if pos.y > screen_height() + 20.0 {
+        pos.y = bounds.y + 20.0;
+    } else if pos.y > bounds.y + 20.0 {
         pos.y = -20.0;
     }
 }
@@ -279,16 +279,19 @@ mod tests {
         let mut data = load_or_migrate(&save_path, &legacy_path);
         assert_eq!(data.high_score, 450);
         assert_eq!(data.language, None);
+        assert_eq!(data.player_name, None);
         assert!(data.audio.audio_muted);
         assert!(!fs::read_to_string(&save_path).unwrap().contains("language"));
 
         data.high_score = 600;
         data.language = Some(Language::German);
+        data.player_name = Some("Командир Alpha".to_owned());
         write_save(&save_path, &data).unwrap();
 
         let restored = load_or_migrate(&save_path, &legacy_path);
         assert_eq!(restored.high_score, 600);
         assert_eq!(restored.language, Some(Language::German));
+        assert_eq!(restored.player_name.as_deref(), Some("Командир Alpha"));
         assert_eq!(restored.audio.master_volume, 0.5);
         assert!(restored.audio.audio_muted);
         assert_eq!(fs::read_to_string(&legacy_path).unwrap(), legacy);

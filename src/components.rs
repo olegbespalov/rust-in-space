@@ -19,7 +19,7 @@ fn default_sfx_volume() -> f32 {
     0.85
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Mission {
     pub level_id: u32,
     pub title: String,
@@ -28,7 +28,7 @@ pub struct Mission {
     pub asteroid_count: usize,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MissionObjective {
     DefeatEnemies(u32),
     DestroyAsteroids(u32),
@@ -54,7 +54,9 @@ impl MissionObjective {
 }
 
 pub enum GameState {
+    PlayerName(String),
     Menu,
+    Lan(Box<crate::lan::LanMode>),
     ShipSelection(ShipKind),
     Briefing, // briefing screen before the mission
     Playing,
@@ -64,9 +66,11 @@ pub enum GameState {
     GameOver(u32),
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq)]
 pub enum MenuItem {
+    #[default]
     Start,
+    Lan,
     Difficulty,
     Language,
     MasterVolume,
@@ -78,7 +82,8 @@ pub enum MenuItem {
 impl MenuItem {
     pub fn next(self) -> Self {
         match self {
-            MenuItem::Start => MenuItem::Difficulty,
+            MenuItem::Start => MenuItem::Lan,
+            MenuItem::Lan => MenuItem::Difficulty,
             MenuItem::Difficulty => MenuItem::Language,
             MenuItem::Language => MenuItem::MasterVolume,
             MenuItem::MasterVolume => MenuItem::MusicVolume,
@@ -91,7 +96,8 @@ impl MenuItem {
     pub fn prev(self) -> Self {
         match self {
             MenuItem::Start => MenuItem::AudioMute,
-            MenuItem::Difficulty => MenuItem::Start,
+            MenuItem::Difficulty => MenuItem::Lan,
+            MenuItem::Lan => MenuItem::Start,
             MenuItem::Language => MenuItem::Difficulty,
             MenuItem::MasterVolume => MenuItem::Language,
             MenuItem::MusicVolume => MenuItem::MasterVolume,
@@ -101,13 +107,13 @@ impl MenuItem {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum BulletStyle {
     Player,
     Enemy,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum EnemyType {
     Regular,
     Kamikaze,
@@ -125,6 +131,7 @@ impl EnemyType {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Bullet {
     pub pos: Vec2,
     pub vel: Vec2,
@@ -135,6 +142,7 @@ pub struct Bullet {
     pub radius: f32, // Bullet radius (for collision and drawing)
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Asteroid {
     pub pos: Vec2,
     pub vel: Vec2,
@@ -142,6 +150,7 @@ pub struct Asteroid {
     pub is_rare: bool,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct EnemyShip {
     pub pos: Vec2,
     pub vel: Vec2,
@@ -153,6 +162,7 @@ pub struct EnemyShip {
     pub power_ups: EnemyPowerUps,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Boss {
     pub pos: Vec2,
     pub vel: Vec2,
@@ -168,20 +178,20 @@ pub struct Boss {
     pub pending_summon: Option<BossSummon>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BossPhase {
     Opening,
     Escalated,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct BossSummon {
     pub from_left: bool,
     pub y: f32,
     pub remaining: f32,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct EnemyPowerUps {
     pub rapid_fire_timer: f32,
     pub big_bullet_timer: f32,
@@ -190,6 +200,7 @@ pub struct EnemyPowerUps {
     invisibility_timer: f32,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct EnemyShield {
     pub kind: ShieldKind,
     pub hp: f32,
@@ -277,12 +288,13 @@ impl EnemyPowerUps {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ShipKind {
     Alpha,
     Delta,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Ship {
     pub kind: ShipKind,
     pub pos: Vec2,
@@ -310,6 +322,7 @@ pub struct Ship {
     pub big_bullet_timer: f32, // Time remaining for big bullet boost (0 if inactive)
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Engine {
     pub current_thrust: f32, // Current thrust (0.0 - 1.0)
     pub ramp_up: f32,        // Speed of thrust increase
@@ -317,7 +330,7 @@ pub struct Engine {
     pub offset: f32,         // Offset of the nozzles relative to the center of the ship
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum UpgradeId {
     ReinforcedHull,
     WeaponTuning,
@@ -332,7 +345,7 @@ pub struct UpgradeCost {
     pub rare_metal: u32,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct UpgradeLevels {
     pub reinforced_hull: u8,
     pub weapon_tuning: u8,
@@ -341,7 +354,7 @@ pub struct UpgradeLevels {
     pub shield_capacitor: u8,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ShieldKind {
     Standard,
     Golden,
@@ -358,7 +371,7 @@ impl ShieldKind {
 }
 
 // 1. Types of loot
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum LootType {
     // Currencies
     Scrap(u32),     // Scrap (ordinary resource)
@@ -442,6 +455,7 @@ mod loot_tests {
 }
 
 // 2. The entity of the dropped item
+#[derive(Serialize, Deserialize)]
 pub struct LootItem {
     pub pos: Vec2,
     pub vel: Vec2,       // Initial explosion velocity (decays)
@@ -466,6 +480,8 @@ pub struct AudioSettings {
     pub audio_muted: bool,
 }
 
+pub const DEFAULT_PLAYER_NAME: &str = "player1";
+
 #[derive(Default, Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct SaveData {
@@ -473,9 +489,11 @@ pub struct SaveData {
     pub audio: AudioSettings,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<Language>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub player_name: Option<String>,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum Difficulty {
     Nebula,    // Easy
     Supernova, // Medium
@@ -483,14 +501,11 @@ pub enum Difficulty {
 }
 
 impl Asteroid {
-    pub fn new_large() -> Self {
+    pub fn new_large(bounds: Vec2) -> Self {
         // 10% chance of being rare
         let is_rare = gen_range(0, 100) < 10;
         Self {
-            pos: vec2(
-                gen_range(0.0, screen_width()),
-                gen_range(0.0, screen_height()),
-            ),
+            pos: vec2(gen_range(0.0, bounds.x), gen_range(0.0, bounds.y)),
             vel: vec2(gen_range(-80.0, 80.0), gen_range(-80.0, 80.0)),
             radius: 40.0,
             is_rare,
@@ -509,12 +524,8 @@ impl Asteroid {
 }
 
 impl EnemyShip {
-    pub fn new_at_side(from_left: bool, y: f32, enemy_type: EnemyType) -> Self {
-        let x = if from_left {
-            -30.0
-        } else {
-            screen_width() + 30.0
-        };
+    pub fn new_at_side(from_left: bool, y: f32, enemy_type: EnemyType, width: f32) -> Self {
+        let x = if from_left { -30.0 } else { width + 30.0 };
         let (max_health, speed, shoot_timer) = match enemy_type {
             EnemyType::Regular => (24.0, 120.0, 1.5),
             EnemyType::Kamikaze => (18.0, 120.0, 1.5),
@@ -570,7 +581,7 @@ impl Ship {
         self.invisibility_timer > 0.0
     }
 
-    // Returns true if the game is over
+    // Returns true if the ship was destroyed
     // Damage is first applied to shield if active, then to ship health
     pub fn take_damage(&mut self, damage: f32) -> bool {
         // If shield is active, absorb damage with shield first
@@ -655,6 +666,7 @@ impl UpgradeLevels {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Explosion {
     pub pos: Vec2,
     pub timer: f32,        // Timer for frame change
