@@ -167,3 +167,13 @@ mission_kamikaze = 自爆机突袭
 mission_scrap_yard = 废料场
 mission_dreadnought = 首领：无畏舰
 mission_deep_space = 深空第 { $level } 区
+
+update_check = 检查更新
+update_checking = 正在检查 GitHub…
+update_current = 暂无更新
+update_check_failed = 无法检查更新
+update_install = 安装 { $version }
+update_github = 在 GitHub 下载 { $version }
+update_installing = 正在安装更新…
+update_failed = 更新失败。打开 GitHub
+update_installed = 更新完成。关闭后重新打开

@@ -167,3 +167,13 @@ mission_kamikaze = 特攻機の襲撃
 mission_scrap_yard = スクラップ置き場
 mission_dreadnought = ボス：ドレッドノート
 mission_deep_space = 深宇宙セクター { $level }
+
+update_check = 更新を確認
+update_checking = GitHubで確認中…
+update_current = 更新はありません
+update_check_failed = 更新を確認できませんでした
+update_install = { $version } をインストール
+update_github = GitHubで { $version } を入手
+update_installing = 更新をインストール中…
+update_failed = 更新に失敗しました。GitHubを開く
+update_installed = 更新完了。終了して開き直す

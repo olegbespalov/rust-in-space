@@ -528,6 +528,7 @@ dependencies = [
  "gltf",
  "if-addrs",
  "image",
+ "libc",
  "macroquad",
  "rmp-serde",
  "serde",

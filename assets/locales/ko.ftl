@@ -167,3 +167,13 @@ mission_kamikaze = 자폭기 습격
 mission_scrap_yard = 고철 처리장
 mission_dreadnought = 보스: 드레드노트
 mission_deep_space = 심우주 구역 { $level }
+
+update_check = 업데이트 확인
+update_checking = GitHub 확인 중…
+update_current = 새 업데이트 없음
+update_check_failed = 업데이트 확인 실패
+update_install = { $version } 설치
+update_github = GitHub에서 { $version } 다운로드
+update_installing = 업데이트 설치 중…
+update_failed = 업데이트 실패. GitHub 열기
+update_installed = 설치 완료. 닫은 후 다시 열기

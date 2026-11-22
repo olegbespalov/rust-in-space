@@ -169,6 +169,7 @@ mod tests {
         let mut args = FluentArgs::new();
         args.set("level", 12);
         args.set("name", "Pilot");
+        args.set("version", "v1.2.3");
 
         for &(language, tag, source) in CATALOGS {
             let english = CATALOGS[0].2;

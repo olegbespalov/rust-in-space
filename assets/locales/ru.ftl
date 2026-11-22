@@ -167,3 +167,13 @@ mission_kamikaze = Нападение камикадзе
 mission_scrap_yard = Свалка
 mission_dreadnought = Босс: Дредноут
 mission_deep_space = Сектор дальнего космоса { $level }
+
+update_check = Проверить обновления
+update_checking = Проверяем GitHub…
+update_current = Обновлений нет
+update_check_failed = Не удалось проверить обновления
+update_install = Установить { $version }
+update_github = Скачать { $version } с GitHub
+update_installing = Устанавливаем обновление…
+update_failed = Ошибка обновления. Открыть GitHub
+update_installed = Установлено. Закрыть и запустить снова

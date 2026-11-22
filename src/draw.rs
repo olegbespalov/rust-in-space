@@ -1141,7 +1141,7 @@ pub fn render_menu(
     );
 
     let start_y = screen_h * 0.37;
-    let row_step = ((screen_h * 0.63 - 30.0) / 9.0).clamp(1.0, 48.0);
+    let row_step = ((screen_h * 0.63 - 64.0) / 9.0).clamp(1.0, 48.0);
     let row_height = (row_step * 0.8).min(42.0);
     let row_width = (screen_w * 0.94).min(420.0);
     let row_x = (screen_w - row_width) / 2.0;
@@ -1257,15 +1257,55 @@ pub fn render_menu(
         GRAY,
         res,
     );
-    draw_text_with_font(
-        concat!("v", env!("CARGO_PKG_VERSION")),
-        16.0,
-        screen_h - 14.0,
-        14.0,
-        LIGHTGRAY,
-        res,
-    );
+    draw_text_with_font(crate::VERSION, 16.0, screen_h - 14.0, 14.0, LIGHTGRAY, res);
     click
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub fn render_update_footer(update: &crate::update::Update, res: &Resources) -> bool {
+    use crate::update::Update;
+    use fluent_bundle::FluentArgs;
+
+    let (key, tag) = match update {
+        Update::Ready => ("update_check", None),
+        Update::Checking(_) => ("update_checking", None),
+        Update::Checked { failed: false, .. } => ("update_current", None),
+        Update::Checked { failed: true, .. } => ("update_check_failed", None),
+        Update::Available(release) if release.can_install() => {
+            ("update_install", Some(&release.tag))
+        }
+        Update::Available(release) => ("update_github", Some(&release.tag)),
+        Update::Installing(_) => ("update_installing", None),
+        Update::Failed(_) => ("update_failed", None),
+        Update::Installed => ("update_installed", None),
+        Update::Hidden => return false,
+    };
+    let mut args = FluentArgs::new();
+    if let Some(tag) = tag {
+        args.set("version", tag.as_str());
+    }
+    let text = res.lang.format(key, Some(&args));
+    let version_width = measure_text(crate::VERSION, res.text_font(crate::VERSION), 14, 1.0).width;
+    let x = 32.0 + version_width;
+    let width = measure_text(&text, res.text_font(&text), 14, 1.0).width + 32.0;
+    let bounds = Rect::new(
+        x,
+        screen_height() - 36.0,
+        width.min(screen_width() - x - 12.0),
+        28.0,
+    );
+    if bounds.w <= 0.0 {
+        return false;
+    }
+    if matches!(
+        update,
+        Update::Checking(_) | Update::Checked { .. } | Update::Installing(_)
+    ) {
+        draw_menu_label(&text, bounds, 14, LIGHTGRAY, res);
+        false
+    } else {
+        menu_button(&text, bounds, 14, false, res)
+    }
 }
 
 pub fn render_player_name(draft: &str, res: &Resources) -> bool {

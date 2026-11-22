@@ -5,13 +5,15 @@ on:
     tags:
       - 'v[0-9]*.[0-9]*.[0-9]*'
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   build:
     name: Build ${{ matrix.target }}
+    if: github.repository == 'olegbespalov/rust-in-space' && github.ref_type == 'tag' && !github.event.deleted
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +29,9 @@ jobs:
       PACKAGE: rust-in-space-${{ github.ref_name }}-${{ matrix.target }}
       TAG: ${{ github.ref_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Install Linux build and packaging tools
         if: runner.os == 'Linux'
@@ -49,11 +53,20 @@ jobs:
           echo "APPIMAGETOOL_RUNTIME_FILE=$tool_dir/runtime-x86_64" >> "$GITHUB_ENV"
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
 
+      - name: Test the macOS updater
+        if: runner.os == 'macOS'
+        run: |
+          cargo test --locked --target "$TARGET" update::
+
       - name: Build and package
+        env:
+          RUST_IN_SPACE_RELEASE_TAG: ${{ github.ref_name }}
+          RUST_IN_SPACE_UPDATE_PUBLIC_KEY: ${{ vars.RUST_IN_SPACE_UPDATE_PUBLIC_KEY }}
         run: |
           cargo build --locked --release --target "$TARGET"
           mkdir -p dist
@@ -66,7 +79,7 @@ jobs:
             tar -czf "dist/$PACKAGE.tar.gz" -C dist "$PACKAGE"
           fi
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: ${{ matrix.target }}
           path: dist/${{ env.PACKAGE }}.*
@@ -76,14 +89,38 @@ jobs:
     name: Publish GitHub release
     needs: build
     runs-on: ubuntu-22.04
+    environment: macos-release
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: dist
           merge-multiple: true
 
+      - name: Sign macOS update archives
+        env:
+          UPDATE_PRIVATE_KEY: ${{ secrets.RUST_IN_SPACE_UPDATE_PRIVATE_KEY }}
+          UPDATE_PUBLIC_KEY: ${{ vars.RUST_IN_SPACE_UPDATE_PUBLIC_KEY }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ -z "$UPDATE_PRIVATE_KEY" && -z "$UPDATE_PUBLIC_KEY" ]]; then
+            exit 0
+          fi
+          if [[ -z "$UPDATE_PRIVATE_KEY" || -z "$UPDATE_PUBLIC_KEY" ]]; then
+            echo "::error::Configure both macOS update signing keys"
+            exit 1
+          fi
+          umask 077
+          key_dir=$(mktemp -d)
+          trap 'rm -rf -- "$key_dir"' EXIT
+          printf '%s\n' "$UPDATE_PRIVATE_KEY" > "$key_dir/private.pem"
+          printf '%s\n' "$UPDATE_PUBLIC_KEY" > "$key_dir/public.pem"
+          for target in x86_64-apple-darwin aarch64-apple-darwin; do
+            archive="dist/rust-in-space-$TAG-$target.zip"
+            openssl dgst -sha256 -sign "$key_dir/private.pem" -out "$archive.sig" "$archive"
+            openssl dgst -sha256 -verify "$key_dir/public.pem" -signature "$archive.sig" "$archive"
+          done
       - name: Publish the tagged release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -100,6 +137,11 @@ jobs:
           for asset in "${assets[@]}"; do
             test -s "$asset"
           done
+          if [[ -e "$prefix-x86_64-apple-darwin.zip.sig" ]]; then
+            test -s "$prefix-x86_64-apple-darwin.zip.sig"
+            test -s "$prefix-aarch64-apple-darwin.zip.sig"
+            assets+=("$prefix-x86_64-apple-darwin.zip.sig" "$prefix-aarch64-apple-darwin.zip.sig")
+          fi
 
           flags=()
           if [[ "${TAG%%+*}" == *-* ]]; then

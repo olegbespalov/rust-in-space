@@ -167,3 +167,13 @@ mission_kamikaze = Kamikaze-Angriff
 mission_scrap_yard = Schrottplatz
 mission_dreadnought = Boss: Dreadnought
 mission_deep_space = Tiefraumsektor { $level }
+
+update_check = Nach Updates suchen
+update_checking = GitHub wird geprüft…
+update_current = Kein Update verfügbar
+update_check_failed = Updateprüfung fehlgeschlagen
+update_install = { $version } installieren
+update_github = { $version } auf GitHub laden
+update_installing = Update wird installiert…
+update_failed = Update fehlgeschlagen. GitHub öffnen
+update_installed = Installiert. Schließen und neu öffnen

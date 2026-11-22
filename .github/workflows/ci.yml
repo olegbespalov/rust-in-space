@@ -6,12 +6,17 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   check:
     name: Check
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install --yes libasound2-dev

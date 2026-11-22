@@ -24,6 +24,14 @@ The pre-commit hook automatically runs the same checks as CI before each commit.
 
 Push a version tag such as `v0.1.0` from a commit that has passed CI. The release workflow attaches a Linux AppImage, a Linux tarball, and ZIP packages for Intel and Apple Silicon Macs. A tag with a prerelease suffix, such as `-beta.1`, is published as a prerelease.
 
+Packaged builds display the version from the release tag. The updater uses the latest stable release from GitHub's public API and verifies the downloaded asset against its GitHub SHA-256 digest.
+
+### macOS update signing
+
+The release build embeds the public key from a repository variable. The publish job uses the private key from the protected `macos-release` environment to sign each Mac ZIP. GitHub restricts that environment to version tags. If the key is replaced, players need to install the build with the new public key manually. Without a configured key pair, the game directs Mac players to GitHub for updates.
+
+The release key verifies updates inside the game. Apple Developer ID and notarization are separate and determine how Gatekeeper treats downloaded builds.
+
 ## Project structure
 
 - `src/main.rs` runs the game loop and handles state transitions.

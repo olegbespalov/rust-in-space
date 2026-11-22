@@ -8,6 +8,8 @@ mod model_sprite;
 mod resources;
 mod ship_model;
 mod systems;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod update;
 
 use macroquad::prelude::*;
 
@@ -22,6 +24,10 @@ use systems::{load_save, save_data, save_file};
 const WINDOW_WIDTH: i32 = 1280;
 const WINDOW_HEIGHT: i32 = 720;
 const DEV_SHOP_RESOURCES: u32 = 999;
+const VERSION: &str = match option_env!("RUST_IN_SPACE_RELEASE_TAG") {
+    Some(tag) => tag,
+    None => concat!("v", env!("CARGO_PKG_VERSION")),
+};
 
 fn window_conf() -> macroquad::conf::Conf {
     let window = Conf {
@@ -51,6 +57,8 @@ fn window_conf() -> macroquad::conf::Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let dev_mode = std::env::args().any(|arg| arg == "--dev");
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    let mut update = update::Update::new(dev_mode);
     let save_path = save_file();
     let mut saved = load_save(save_path.as_deref());
     let mut state = if dev_mode {
@@ -84,6 +92,10 @@ async fn main() {
     let startup_resize_deadline = get_time() + 2.0;
 
     loop {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        update.poll();
+        let mut quit = false;
+
         #[cfg(target_os = "linux")]
         if startup_resize_pending
             && get_time() < startup_resize_deadline
@@ -134,12 +146,17 @@ async fn main() {
             GameState::Menu => {
                 audio.play_music(&resources.audio, MusicTrack::Menu);
 
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                let menu_enabled = !update.blocks_menu();
+                #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+                let menu_enabled = true;
+
                 // Menu navigation
-                if is_key_pressed(KeyCode::Up) {
+                if menu_enabled && is_key_pressed(KeyCode::Up) {
                     menu_selection = menu_selection.prev();
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                 }
-                if is_key_pressed(KeyCode::Down) {
+                if menu_enabled && is_key_pressed(KeyCode::Down) {
                     menu_selection = menu_selection.next();
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
                 }
@@ -151,7 +168,21 @@ async fn main() {
                     saved.high_score,
                     audio.settings(),
                     &resources,
-                );
+                )
+                .filter(|_| menu_enabled);
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                let update_clicked = render_update_footer(&update, &resources);
+                #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+                let update_clicked = false;
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                if update_clicked {
+                    if matches!(update, update::Update::Installed) {
+                        quit = true;
+                    } else {
+                        update.activate();
+                    }
+                }
+                let click = click.filter(|_| !update_clicked);
                 if let Some(click) = click {
                     let item = click.item();
                     if matches!(click, MenuClick::Select(_)) && item != menu_selection {
@@ -160,9 +191,10 @@ async fn main() {
                     menu_selection = item;
                 }
                 let activate = matches!(click, Some(MenuClick::Activate(_)));
-                let enter = click.is_none() && is_key_pressed(KeyCode::Enter);
-                let left = click.is_none() && is_key_pressed(KeyCode::Left);
-                let right = click.is_none() && is_key_pressed(KeyCode::Right);
+                let use_keys = menu_enabled && !update_clicked && click.is_none();
+                let enter = use_keys && is_key_pressed(KeyCode::Enter);
+                let left = use_keys && is_key_pressed(KeyCode::Left);
+                let right = use_keys && is_key_pressed(KeyCode::Right);
 
                 match menu_selection {
                     MenuItem::Start => {
@@ -531,12 +563,15 @@ async fn main() {
                 }
             }
         }
-        if save_timer.is_some_and(|remaining| remaining <= 0.0) {
+        if save_timer.is_some_and(|remaining| remaining <= 0.0 || quit) {
             if let Some(path) = save_path.as_deref() {
                 saved.audio = audio.settings().clone();
                 save_data(path, &saved);
             }
             save_timer = None;
+        }
+        if quit {
+            return;
         }
 
         next_frame().await
