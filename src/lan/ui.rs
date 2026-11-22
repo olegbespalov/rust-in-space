@@ -236,23 +236,27 @@ impl SessionUi {
                 }
             }
             Phase::Briefing => {
-                let may_launch = host.is_some() && !self.menu;
+                let action = match (host.is_some(), self.menu) {
+                    (true, false) => BriefingAction::Launch,
+                    (true, true) => BriefingAction::Hidden,
+                    (false, _) => BriefingAction::WaitForHost,
+                };
                 let ships = state
                     .game
                     .pilots
                     .each_ref()
                     .map(|pilot| pilot.as_ref().map(|p| p.ship.kind));
-                draw_briefing_fleet(&ships, get_time() as f32, 0.0, res);
                 let launch = render_briefing(
                     &state.game.current_mission,
                     state.player_name(slot),
-                    may_launch,
+                    &ships,
+                    action,
                     res,
                 );
-                if may_launch && (launch || is_key_pressed(KeyCode::Space)) {
+                if matches!(action, BriefingAction::Launch)
+                    && (launch || is_key_pressed(KeyCode::Space))
+                {
                     controls.action = Some(Action::Advance);
-                } else if host.is_none() {
-                    draw_text_centered(&res.lang.t("lan_wait_launch"), 190.0, 14, SKYBLUE, res);
                 }
             }
             Phase::Launching => {

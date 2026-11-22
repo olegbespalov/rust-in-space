@@ -1479,28 +1479,55 @@ fn objective_label(objective: MissionObjective) -> &'static str {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum BriefingAction {
+    Launch,
+    WaitForHost,
+    Hidden,
+}
+
 pub fn render_briefing(
     mission: &Mission,
     player_name: &str,
-    launch: bool,
+    ships: &[Option<ShipKind>],
+    action: BriefingAction,
     res: &Resources,
 ) -> bool {
-    draw_text_centered(
+    let screen = vec2(screen_width(), screen_height());
+    let frame = vec2(960.0, 660.0);
+    let scale = (screen / frame).min_element().min(1.2);
+    let origin = (screen - frame * scale) / 2.0;
+    let rect = |x, y, w, h| {
+        Rect::new(
+            origin.x + x * scale,
+            origin.y + y * scale,
+            w * scale,
+            h * scale,
+        )
+    };
+    let band = |y, h| rect(16.0, y, 928.0, h);
+
+    draw_menu_label(
         &format!("{} {}", res.lang.t("mission"), mission.level_id),
-        -100.0,
-        32,
+        band(12.0, 37.0),
+        26,
         ORANGE,
         res,
     );
-    draw_text_centered(&mission_title(mission, res), -50.0, 48, WHITE, res);
     draw_menu_label(
-        &pilot_label("commander_title", player_name, res),
-        Rect::new(0.0, screen_height() / 2.0 - 54.0, screen_width(), 40.0),
-        20,
-        SKYBLUE,
+        &mission_title(mission, res),
+        band(47.0, 62.0),
+        46,
+        WHITE,
         res,
     );
-    draw_text_centered(&res.lang.t("objectives"), 20.0, 24, GRAY, res);
+    draw_menu_label(
+        &res.lang.t("objectives"),
+        band(113.0, 32.0),
+        21,
+        LIGHTGRAY,
+        res,
+    );
 
     for (row, &objective) in mission.objectives.iter().enumerate() {
         let label = res.lang.t(objective_label(objective));
@@ -1509,75 +1536,124 @@ pub fn render_briefing(
         } else {
             format!("{label}  {}", objective.target())
         };
-        draw_text_centered(&text, 60.0 + row as f32 * 32.0, 24, WHITE, res);
+        draw_menu_label(&text, band(145.0 + row as f32 * 32.0, 32.0), 23, WHITE, res);
     }
 
-    let mut possible = vec![EnemyType::Regular, EnemyType::Kamikaze];
-    if mission.level_id >= 2 {
-        possible.push(EnemyType::Interceptor);
+    let fleet = rect(16.0, 223.0, 320.0, 355.0);
+    let threats = rect(416.0, 223.0, 528.0, 355.0);
+    for (panel, fill, edge) in [
+        (fleet, Color::from_rgba(15, 38, 56, 238), SKYBLUE),
+        (threats, Color::from_rgba(91, 53, 49, 242), ORANGE),
+    ] {
+        draw_rectangle(panel.x, panel.y, panel.w, panel.h, fill);
+        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 1.5 * scale, edge);
     }
-    if mission.level_id >= 4 {
-        possible.extend([EnemyType::Heavy, EnemyType::Guardian]);
-    }
-    draw_text_centered(&res.lang.t("briefing_threats"), 130.0, 18, ORANGE, res);
-    // Keep the threat previews grouped around the briefing text instead of
-    // spreading them across the full width on ultrawide displays.
-    let slot_width = (screen_width() * 0.8 / possible.len() as f32).min(140.0);
-    let row_width = slot_width * possible.len() as f32;
-    let row_left = (screen_width() - row_width) / 2.0;
-    for (index, enemy) in possible.into_iter().enumerate() {
-        let x = row_left + slot_width * (index as f32 + 0.5);
-        enemy_sprite(enemy, res).draw(vec2(x, screen_height() / 2.0 + 155.0), 48.0, 0.0);
-        draw_menu_label(
-            &res.lang.t(enemy_name_key(enemy)),
-            Rect::new(
-                x - slot_width * 0.48,
-                screen_height() / 2.0 + 180.0,
-                slot_width * 0.96,
-                24.0,
-            ),
-            11,
-            WHITE,
+
+    draw_menu_label(
+        &pilot_label("commander_title", player_name, res),
+        rect(16.0, 234.0, 320.0, 36.0),
+        21,
+        SKYBLUE,
+        res,
+    );
+    draw_menu_label("VS", rect(336.0, 377.0, 80.0, 70.0), 36, WHITE, res);
+    draw_menu_label(
+        &res.lang.t("briefing_threats"),
+        rect(416.0, 234.0, 528.0, 36.0),
+        21,
+        ORANGE,
+        res,
+    );
+    draw_briefing_fleet(ships, fleet.center() + vec2(0.0, 22.0 * scale), scale, res);
+    draw_briefing_threats(
+        mission.level_id,
+        threats.center() + vec2(0.0, 12.0 * scale),
+        scale,
+        res,
+    );
+
+    match action {
+        BriefingAction::Launch => menu_button(
+            &res.lang.t("press_space"),
+            rect(285.0, 593.0, 390.0, 52.0),
+            24,
+            false,
             res,
-        );
+        ),
+        BriefingAction::WaitForHost => {
+            draw_menu_label(
+                &res.lang.t("lan_wait_launch"),
+                band(593.0, 52.0),
+                20,
+                SKYBLUE,
+                res,
+            );
+            false
+        }
+        BriefingAction::Hidden => false,
     }
-
-    launch && centered_menu_button(&res.lang.t("press_space"), 230.0, res)
 }
 
-pub fn draw_briefing_fleet(ships: &[Option<ShipKind>], elapsed: f32, launch: f32, res: &Resources) {
-    let count = ships.iter().flatten().count();
-    if count == 0 {
-        return;
+fn draw_briefing_fleet(ships: &[Option<ShipKind>], center: Vec2, scale: f32, res: &Resources) {
+    let ships: Vec<_> = ships.iter().flatten().copied().collect();
+    let first_row_y = if ships.len() > 2 { -65.0 } else { 0.0 };
+    let size = if ships.len() == 1 { 206.0 } else { 134.0 };
+    let elapsed = get_time() as f32;
+    for (row, ships) in ships.chunks(2).enumerate() {
+        for (column, &kind) in ships.iter().enumerate() {
+            let phase = elapsed * 1.4 + (row * 2 + column) as f32 * 1.1;
+            let x = (column as f32 - (ships.len() - 1) as f32 / 2.0) * 145.0;
+            let y = first_row_y + row as f32 * 130.0 + phase.sin() * 5.0;
+            draw_ship_hull(
+                kind,
+                center + vec2(x, y) * scale,
+                size * scale,
+                std::f32::consts::FRAC_PI_2 + phase.sin() * 0.04,
+                0.2,
+                WHITE,
+                res,
+            );
+        }
     }
-    let center = vec2(screen_width() * 0.72, screen_height() * 0.84);
-    let spacing = 92.0_f32.min(screen_width() * 0.72 / count as f32);
-    let left = center.x - spacing * (count.saturating_sub(1) as f32) * 0.5;
-    let progress = launch.clamp(0.0, 1.0);
-    let travel = screen_width() * 0.8 * progress * progress;
-    let thrust = (progress * 1.5).min(1.0);
-    let alpha = if progress > 0.8 {
-        (1.0 - (progress - 0.8) / 0.2).clamp(0.0, 1.0)
-    } else {
-        1.0
+}
+
+fn draw_briefing_threats(level: u32, center: Vec2, scale: f32, res: &Resources) {
+    let possible = [
+        EnemyType::Regular,
+        EnemyType::Kamikaze,
+        EnemyType::Interceptor,
+        EnemyType::Heavy,
+        EnemyType::Guardian,
+    ];
+    let (count, size, first_row_y) = match level {
+        0..=1 => (2, 156.0, 0.0),
+        2..=3 => (3, 156.0, 0.0),
+        _ => (5, 112.0, -66.0),
     };
-    for (index, kind) in ships.iter().flatten().enumerate() {
-        let phase = elapsed * 1.4 + index as f32 * 1.1;
-        let drift = phase.sin() * 18.0 * (1.0 - progress);
-        let bob = (phase * 1.7).cos() * 8.0 * (1.0 - progress);
-        let pos = vec2(
-            left + spacing * index as f32 + drift - travel,
-            center.y + bob,
-        );
-        draw_ship_hull(
-            *kind,
-            pos,
-            58.0,
-            -std::f32::consts::FRAC_PI_2 + phase.sin() * 0.04,
-            (0.18 + phase.sin().abs() * 0.12).max(thrust),
-            Color::new(1.0, 1.0, 1.0, alpha),
-            res,
-        );
+    let slot_width = 164.0 * scale;
+    for (row, enemies) in possible[..count].chunks(3).enumerate() {
+        for (column, &enemy) in enemies.iter().enumerate() {
+            let x = center.x + (column as f32 - (enemies.len() - 1) as f32 / 2.0) * slot_width;
+            let y = center.y + (first_row_y + row as f32 * 132.0) * scale;
+            enemy_sprite(enemy, res).draw_tinted(
+                vec2(x, y),
+                size * scale,
+                -std::f32::consts::FRAC_PI_2,
+                BLACK,
+            );
+            draw_menu_label(
+                &res.lang.t(enemy_name_key(enemy)),
+                Rect::new(
+                    x - slot_width / 2.0,
+                    y + size * 0.5 * scale,
+                    slot_width,
+                    24.0 * scale,
+                ),
+                15,
+                WHITE,
+                res,
+            );
+        }
     }
 }
 

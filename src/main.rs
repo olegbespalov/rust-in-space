@@ -337,8 +337,13 @@ async fn main() {
                     .pilots
                     .each_ref()
                     .map(|pilot| pilot.as_ref().map(|p| p.ship.kind));
-                draw_briefing_fleet(&ships, get_time() as f32, 0.0, &resources);
-                let launch = render_briefing(&game.current_mission, player_name, true, &resources);
+                let launch = render_briefing(
+                    &game.current_mission,
+                    player_name,
+                    &ships,
+                    BriefingAction::Launch,
+                    &resources,
+                );
 
                 if launch || is_key_pressed(KeyCode::Space) {
                     audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
