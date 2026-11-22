@@ -5,7 +5,6 @@ use crate::game::{nearest_pilot, Game, Pilot};
 use crate::systems::{generate_loot, spawn_loot, spawn_shield_loot, wrap_around, LootSource};
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
-use std::collections::HashSet;
 
 const ASTEROID_MISSION_POINTS: f32 = 10.0;
 
@@ -332,39 +331,51 @@ pub fn update_collisions(game: &mut Game, dt: f32) {
 }
 
 fn handle_bullet_bullet_collisions(game: &mut Game) {
-    let mut bullets_to_remove = HashSet::new();
-    for (i, b1) in game.bullets.iter().enumerate() {
-        if b1.style != BulletStyle::Player {
-            continue;
-        }
-        if bullets_to_remove.contains(&i) {
-            continue;
-        }
-        for (j, b2) in game.bullets.iter().enumerate() {
-            if b2.style == BulletStyle::Player {
-                continue;
-            }
-            if bullets_to_remove.contains(&j) {
-                continue;
-            }
+    if !game.bullets.iter().any(|b| b.style == BulletStyle::Player) {
+        return;
+    }
+    let mut hostile_bullets: Vec<_> = game
+        .bullets
+        .iter()
+        .enumerate()
+        .filter(|(_, bullet)| bullet.style != BulletStyle::Player)
+        .map(|(index, bullet)| (index, Some(bullet)))
+        .collect();
+    if hostile_bullets.is_empty() {
+        return;
+    }
 
-            if (b1.pos - b2.pos).length() < b1.radius + b2.radius {
-                let collision_pos = (b1.pos + b2.pos) * 0.5;
+    let mut intercepted = Vec::new();
+    for (player_index, player) in game.bullets.iter().enumerate() {
+        if player.style != BulletStyle::Player {
+            continue;
+        }
+        for (hostile_index, hostile) in &mut hostile_bullets {
+            let Some(bullet) = *hostile else {
+                continue;
+            };
+            if player.pos.distance(bullet.pos) < player.radius + bullet.radius {
+                let collision_pos = (player.pos + bullet.pos) * 0.5;
                 game.explosions.push(Explosion::new(collision_pos, 0.5));
-                game.audio_cues.push(crate::audio::AudioCue::ExplosionSmall);
-                bullets_to_remove.insert(i);
-                bullets_to_remove.insert(j);
+                game.audio_cues.push(AudioCue::ExplosionSmall);
+                *hostile = None;
+                if intercepted.is_empty() {
+                    intercepted.resize(game.bullets.len(), false);
+                }
+                intercepted[player_index] = true;
+                intercepted[*hostile_index] = true;
                 break;
             }
         }
     }
 
-    let mut sorted_indices: Vec<usize> = bullets_to_remove.into_iter().collect();
-    sorted_indices.sort_unstable_by(|a, b| b.cmp(a));
-    for &idx in &sorted_indices {
-        if idx < game.bullets.len() {
-            game.bullets.remove(idx);
-        }
+    if !intercepted.is_empty() {
+        let mut index = 0;
+        game.bullets.retain(|_| {
+            let keep = !intercepted[index];
+            index += 1;
+            keep
+        });
     }
 }
 
@@ -803,6 +814,38 @@ mod tests {
             assert!((explosion.pos.x - center.x + rim).abs() < 1.0);
             assert_eq!(explosion.pos.y, center.y);
         }
+    }
+
+    #[test]
+    fn projectile_interceptions_preserve_hit_and_survivor_order() {
+        let mut game = Game::new(vec2(1280.0, 720.0));
+        let bullet = |x, style, owner| Bullet {
+            pos: vec2(x, 100.0),
+            vel: Vec2::ZERO,
+            owner,
+            life_time: 1.0,
+            style,
+            homing: false,
+            damage: PLAYER_BULLET_DAMAGE,
+            radius: PLAYER_BULLET_RADIUS,
+        };
+        game.bullets = vec![
+            bullet(108.0, BulletStyle::Enemy, None),
+            bullet(100.0, BulletStyle::Player, Some(0)),
+            bullet(200.0, BulletStyle::Boss, None),
+            bullet(100.0, BulletStyle::Player, Some(1)),
+            bullet(100.0, BulletStyle::BossMissile, None),
+            bullet(100.0, BulletStyle::Player, Some(2)),
+            bullet(300.0, BulletStyle::Enemy, None),
+        ];
+
+        handle_bullet_bullet_collisions(&mut game);
+
+        let explosion_positions: Vec<_> = game.explosions.iter().map(|ex| ex.pos.x).collect();
+        assert_eq!(explosion_positions, [104.0, 100.0]);
+        assert_eq!(game.audio_cues.len(), 2);
+        let survivors: Vec<_> = game.bullets.iter().map(|b| (b.pos.x, b.owner)).collect();
+        assert_eq!(survivors, [(200.0, None), (100.0, Some(2)), (300.0, None)]);
     }
 
     #[test]
