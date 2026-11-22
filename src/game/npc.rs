@@ -118,7 +118,9 @@ fn enemy_shot_delay(interval: f32, power_ups: &EnemyPowerUps) -> f32 {
 fn spawn_enemy(game: &mut Game, from_left: bool, y: f32) {
     let mission = &game.current_mission;
     game.enemy_spawn_count += 1;
-    let enemy_type =
+    let enemy_type = if mission.level_id == 2 {
+        EnemyType::Kamikaze
+    } else {
         scheduled_target_enemy(mission, &game.mission_progress, game.enemy_spawn_count)
             .unwrap_or_else(|| {
                 let roll = macroquad::rand::gen_range(0, 100);
@@ -127,14 +129,21 @@ fn spawn_enemy(game: &mut Game, from_left: bool, y: f32) {
                     .iter()
                     .any(|enemy| enemy.enemy_type == EnemyType::Guardian);
                 enemy_type_for_roll(mission.level_id, roll, guardian_present)
-            });
+            })
+    };
     game.enemy_ships.push(EnemyShip::new_at_side(
         from_left,
         y,
         enemy_type,
         game.bounds.x,
     ));
-    game.enemy_spawn_timer = mission.enemy_spawn_interval / game.difficulty.spawn_rate_mult();
+    let elapsed = game.mission_progress.elapsed_seconds as f32;
+    let interval = if mission.level_id == 2 {
+        (mission.enemy_spawn_interval - elapsed * 0.02).max(0.5)
+    } else {
+        mission.enemy_spawn_interval
+    };
+    game.enemy_spawn_timer = interval / game.difficulty.spawn_rate_mult();
 }
 
 fn scheduled_target_enemy(

@@ -114,7 +114,7 @@ pub fn get_mission(level: u32) -> Mission {
         },
         2 => Mission {
             level_id: 2,
-            title: "Into the Void".to_string(),
+            title: "Нападение камикадзе".to_string(),
             objectives: vec![Survive(60), DefeatInterceptors(5)],
             enemy_spawn_interval: 2.0,
             asteroid_count: 8,
