@@ -1,9 +1,10 @@
 use crate::components::ShipKind;
-use crate::localization::Localization;
+use crate::localization::{Language, Localization};
 use crate::model_sprite::ModelSprite;
 use crate::ship_model::ShipModel;
 use macroquad::audio::{load_sound, Sound};
 use macroquad::prelude::*;
+use std::cell::OnceCell;
 use std::path::Path;
 
 #[cfg(target_os = "macos")]
@@ -23,6 +24,9 @@ pub struct Resources {
     pub background: Texture2D,
     pub shop_background: Texture2D,
     pub font: Option<Font>,
+    japanese_font: OnceCell<Font>,
+    chinese_font: OnceCell<Font>,
+    korean_font: OnceCell<Font>,
     pub lang: Localization,
     pub audio: AudioAssets,
 
@@ -75,6 +79,38 @@ pub struct AudioAssets {
 }
 
 impl Resources {
+    pub fn text_font(&self, text: &str) -> Option<&Font> {
+        let language = match self.lang.current_lang {
+            language @ (Language::Japanese | Language::Chinese | Language::Korean) => language,
+            _ if text.chars().any(|c| matches!(c, '\u{3040}'..='\u{30ff}' | '\u{ff66}'..='\u{ff9f}')) => {
+                Language::Japanese
+            }
+            _ if text.chars().any(|c| matches!(c, '\u{1100}'..='\u{11ff}' | '\u{3130}'..='\u{318f}' | '\u{ac00}'..='\u{d7ff}')) => {
+                Language::Korean
+            }
+            _ if text.chars().any(|c| matches!(c, '\u{3000}'..='\u{303f}' | '\u{3400}'..='\u{9fff}' | '\u{f900}'..='\u{faff}')) => {
+                Language::Chinese
+            }
+            _ => return self.font.as_ref(),
+        };
+        let (font, bytes) = match language {
+            Language::Japanese => (
+                &self.japanese_font,
+                include_bytes!("localization/fonts/RustInSpaceCJKJP-Regular.otf").as_slice(),
+            ),
+            Language::Chinese => (
+                &self.chinese_font,
+                include_bytes!("localization/fonts/RustInSpaceCJKSC-Regular.otf").as_slice(),
+            ),
+            Language::Korean => (
+                &self.korean_font,
+                include_bytes!("localization/fonts/RustInSpaceCJKKR-Regular.otf").as_slice(),
+            ),
+            _ => return self.font.as_ref(),
+        };
+        Some(font.get_or_init(|| load_ttf_font_from_bytes(bytes).expect("valid bundled CJK font")))
+    }
+
     pub fn ship_model(&self, kind: ShipKind) -> Option<&ShipModel> {
         self.ship_models[kind as usize].as_ref()
     }
@@ -325,6 +361,9 @@ impl Resources {
             background,
             shop_background,
             font,
+            japanese_font: OnceCell::new(),
+            chinese_font: OnceCell::new(),
+            korean_font: OnceCell::new(),
             lang: Localization::new(),
             audio,
             ship_body,

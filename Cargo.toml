@@ -4,6 +4,7 @@ version = "0.5.0"
 edition = "2021"
 
 [dependencies]
+fluent-bundle = "0.16"
 glam = { version = "0.27", features = ["serde"] }
 if-addrs = "0.15"
 gltf = { version = "1.4", default-features = false, features = ["utils"] }

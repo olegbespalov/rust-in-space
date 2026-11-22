@@ -23,6 +23,7 @@ fn default_sfx_volume() -> f32 {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Mission {
     pub level_id: u32,
+    // Kept in the LAN payload for compatibility with older peers.
     pub title: String,
     pub objectives: Vec<MissionObjective>,
     pub enemy_spawn_interval: f32,

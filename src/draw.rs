@@ -12,9 +12,10 @@ use crate::model_sprite::ModelSprite;
 use crate::resources::Resources;
 use macroquad::prelude::*;
 use macroquad::rand::gen_range;
+use std::borrow::Cow;
 
 pub fn draw_text_centered(text: &str, y_offset: f32, size: u16, color: Color, res: &Resources) {
-    let font = res.font.as_ref();
+    let font = res.text_font(text);
     let params = TextParams {
         font,
         font_size: size,
@@ -22,7 +23,7 @@ pub fn draw_text_centered(text: &str, y_offset: f32, size: u16, color: Color, re
         ..Default::default()
     };
 
-    let dims = measure_text(text, res.font.as_ref(), size, 1.0);
+    let dims = measure_text(text, font, size, 1.0);
     draw_text_ex(
         text,
         screen_width() / 2.0 - dims.width / 2.0,
@@ -32,7 +33,7 @@ pub fn draw_text_centered(text: &str, y_offset: f32, size: u16, color: Color, re
 }
 
 pub fn draw_text_with_font(text: &str, x: f32, y: f32, size: f32, color: Color, res: &Resources) {
-    let font = res.font.as_ref();
+    let font = res.text_font(text);
     let font_size = size as u16;
 
     let has_cyrillic = text.chars().any(|c| matches!(c, '\u{0400}'..='\u{04FF}'));
@@ -763,7 +764,7 @@ pub fn render_battle_hud(game: &Game, lan: Option<LanView<'_>>, resources: &Reso
             > 1
         {
             label.push_str("   ");
-            label.push_str(resources.lang.t("lan_switch_pilot"));
+            label.push_str(&resources.lang.t("lan_switch_pilot"));
         }
         draw_text_with_font(&label, 20.0, 60.0, 20.0, GOLD, resources);
     } else if ship.is_invisible() {
@@ -1027,7 +1028,7 @@ fn draw_menu_label_with_scale(
     max_scale: f32,
     res: &Resources,
 ) {
-    let font = res.font.as_ref();
+    let font = res.text_font(text);
     let dims = measure_text(text, font, size, 1.0);
     let inner_x = 22.0_f32.min(bounds.w * 0.18);
     let inner_y = 10.0_f32.min(bounds.h * 0.24);
@@ -1068,7 +1069,7 @@ pub fn centered_menu_button_with_height(
     res: &Resources,
 ) -> bool {
     let width =
-        (measure_text(text, res.font.as_ref(), 24, 1.0).width + 64.0).min(screen_width() * 0.94);
+        (measure_text(text, res.text_font(text), 24, 1.0).width + 64.0).min(screen_width() * 0.94);
     let bounds = Rect::new(
         (screen_width() - width) / 2.0,
         screen_height() / 2.0 + y_offset - height / 2.0,
@@ -1136,7 +1137,7 @@ pub fn render_menu(
     let row_width = (screen_w * 0.94).min(420.0);
     let row_x = (screen_w - row_width) / 2.0;
     draw_menu_label(
-        &format!("{}, {player_name}!", res.lang.t("player_welcome")),
+        &pilot_label("player_welcome", player_name, res),
         Rect::new(0.0, screen_h * 0.26, screen_w, screen_h * 0.06),
         20,
         WHITE,
@@ -1151,11 +1152,6 @@ pub fn render_menu(
     );
 
     let difficulty = difficulty_key(difficulty);
-    let language = match res.lang.current_lang {
-        crate::localization::Language::English => "lang_english",
-        crate::localization::Language::Russian => "lang_russian",
-        crate::localization::Language::German => "lang_german",
-    };
     let audio_status = if settings.audio_muted {
         "audio_off"
     } else {
@@ -1168,12 +1164,12 @@ pub fn render_menu(
         (
             MenuItem::Difficulty,
             "menu_difficulty",
-            Some(res.lang.t(difficulty).to_owned()),
+            Some(res.lang.t(difficulty).into_owned()),
         ),
         (
             MenuItem::Language,
             "menu_language",
-            Some(res.lang.t(language).to_owned()),
+            Some(res.lang.t("language_name").into_owned()),
         ),
         (
             MenuItem::MasterVolume,
@@ -1193,7 +1189,7 @@ pub fn render_menu(
         (
             MenuItem::AudioMute,
             "menu_audio_mute",
-            Some(res.lang.t(audio_status).to_owned()),
+            Some(res.lang.t(audio_status).into_owned()),
         ),
         (MenuItem::EnemyCodex, "enemy_codex", None),
     ];
@@ -1209,7 +1205,10 @@ pub fn render_menu(
         );
         let selected = selection == item;
         let label = res.lang.t(key);
-        let text = value.map_or_else(|| label.to_owned(), |value| format!("{label}  {value}"));
+        let text = match value {
+            Some(value) => Cow::Owned(format!("{label}  {value}")),
+            None => label,
+        };
 
         if matches!(
             item,
@@ -1243,7 +1242,7 @@ pub fn render_menu(
     }
 
     draw_text_centered(
-        res.lang.t("menu_instructions"),
+        &res.lang.t("menu_instructions"),
         start_y + row_count as f32 * row_step + 22.0 - screen_h / 2.0,
         14,
         GRAY,
@@ -1262,7 +1261,7 @@ pub fn render_menu(
 
 pub fn render_player_name(draft: &str, res: &Resources) -> bool {
     draw_menu_label(
-        res.lang.t("player_name_prompt"),
+        &res.lang.t("player_name_prompt"),
         Rect::new(0.0, screen_height() / 2.0 - 120.0, screen_width(), 58.0),
         30,
         ORANGE,
@@ -1282,7 +1281,7 @@ pub fn render_player_name(draft: &str, res: &Resources) -> bool {
         (draft, WHITE)
     };
     draw_menu_label(&format!("{text}_"), field, 20, color, res);
-    centered_menu_button(res.lang.t("ship_confirm"), 77.0, res)
+    centered_menu_button(&res.lang.t("ship_confirm"), 77.0, res)
 }
 
 pub enum ShipSelectionClick {
@@ -1315,7 +1314,7 @@ pub fn render_dev_menu(
         Rect::new((width - w) / 2.0, height * center - h / 2.0, w, h)
     };
 
-    draw_menu_label(res.lang.t("dev_title"), band(0.04, 0.12), 36, ORANGE, res);
+    draw_menu_label(&res.lang.t("dev_title"), band(0.04, 0.12), 36, ORANGE, res);
     let level_clicked = menu_button(
         &format!("←  {} {level}  →", res.lang.t("level_cleared_prefix")),
         button(0.22),
@@ -1329,7 +1328,7 @@ pub fn render_dev_menu(
         WHITE
     };
     draw_menu_label(
-        res.lang.t("ship_selection"),
+        &res.lang.t("ship_selection"),
         band(0.27, 0.07),
         22,
         ship_color,
@@ -1342,21 +1341,21 @@ pub fn render_dev_menu(
         res,
     );
     let start_clicked = menu_button(
-        res.lang.t("dev_start_level"),
+        &res.lang.t("dev_start_level"),
         button(0.73),
         24,
         selection == DevMenuItem::Start,
         res,
     );
     let shop_clicked = menu_button(
-        res.lang.t("dev_open_shop"),
+        &res.lang.t("dev_open_shop"),
         button(0.83),
         24,
         selection == DevMenuItem::Shop,
         res,
     );
     draw_menu_label(
-        res.lang.t("dev_controls"),
+        &res.lang.t("dev_controls"),
         band(0.89, 0.07),
         16,
         LIGHTGRAY,
@@ -1377,7 +1376,7 @@ pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<Ship
     let button_height = MENU_BUTTON_HEIGHT * scale;
     let gap = 18.0 * scale;
     draw_text_centered(
-        res.lang.t("ship_selection"),
+        &res.lang.t("ship_selection"),
         -card_height / 2.0 - 40.0 * scale,
         30,
         ORANGE,
@@ -1385,11 +1384,12 @@ pub fn render_ship_selection(selected: ShipKind, res: &Resources) -> Option<Ship
     );
     let click = render_ship_cards(selected, (screen_h - card_height) / 2.0, card_height, res);
     let confirm_y = card_height / 2.0 + gap + button_height / 2.0;
-    if centered_menu_button_with_height(res.lang.t("ship_confirm"), confirm_y, button_height, res) {
+    if centered_menu_button_with_height(&res.lang.t("ship_confirm"), confirm_y, button_height, res)
+    {
         return Some(ShipSelectionClick::Confirm);
     }
     let back_y = confirm_y + button_height + gap;
-    if centered_menu_button_with_height(res.lang.t("ship_back"), back_y, button_height, res) {
+    if centered_menu_button_with_height(&res.lang.t("ship_back"), back_y, button_height, res) {
         return Some(ShipSelectionClick::Back);
     }
     click.map(ShipSelectionClick::Select)
@@ -1453,7 +1453,7 @@ pub fn render_ship_cards(
             res,
         );
         let label_bounds = Rect::new(x, y + card_height * 0.76, card_width, card_height * 0.2);
-        draw_menu_label(res.lang.t(kind.label()), label_bounds, 20, WHITE, res);
+        draw_menu_label(&res.lang.t(kind.label()), label_bounds, 20, WHITE, res);
     }
     click
 }
@@ -1483,15 +1483,15 @@ pub fn render_briefing(
         ORANGE,
         res,
     );
-    draw_text_centered(&mission.title, -50.0, 48, WHITE, res);
+    draw_text_centered(&mission_title(mission, res), -50.0, 48, WHITE, res);
     draw_menu_label(
-        &format!("{} {player_name}", res.lang.t("commander_title")),
+        &pilot_label("commander_title", player_name, res),
         Rect::new(0.0, screen_height() / 2.0 - 54.0, screen_width(), 40.0),
         20,
         SKYBLUE,
         res,
     );
-    draw_text_centered(res.lang.t("objectives"), 20.0, 24, GRAY, res);
+    draw_text_centered(&res.lang.t("objectives"), 20.0, 24, GRAY, res);
 
     for (row, &objective) in mission.objectives.iter().enumerate() {
         let label = res.lang.t(objective_label(objective));
@@ -1510,7 +1510,7 @@ pub fn render_briefing(
     if mission.level_id >= 4 {
         possible.extend([EnemyType::Heavy, EnemyType::Guardian]);
     }
-    draw_text_centered(res.lang.t("briefing_threats"), 130.0, 18, ORANGE, res);
+    draw_text_centered(&res.lang.t("briefing_threats"), 130.0, 18, ORANGE, res);
     // Keep the threat previews grouped around the briefing text instead of
     // spreading them across the full width on ultrawide displays.
     let slot_width = (screen_width() * 0.8 / possible.len() as f32).min(140.0);
@@ -1520,7 +1520,7 @@ pub fn render_briefing(
         let x = row_left + slot_width * (index as f32 + 0.5);
         enemy_sprite(enemy, res).draw(vec2(x, screen_height() / 2.0 + 155.0), 48.0, 0.0);
         draw_menu_label(
-            res.lang.t(enemy_name_key(enemy)),
+            &res.lang.t(enemy_name_key(enemy)),
             Rect::new(
                 x - slot_width * 0.48,
                 screen_height() / 2.0 + 180.0,
@@ -1533,7 +1533,7 @@ pub fn render_briefing(
         );
     }
 
-    launch && centered_menu_button(res.lang.t("press_space"), 230.0, res)
+    launch && centered_menu_button(&res.lang.t("press_space"), 230.0, res)
 }
 
 pub fn draw_briefing_fleet(ships: &[Option<ShipKind>], elapsed: f32, launch: f32, res: &Resources) {
@@ -1671,14 +1671,14 @@ pub fn render_enemy_codex(selected: usize, res: &Resources) {
         EnemyType::Heavy,
         EnemyType::Guardian,
     ];
-    draw_text_centered(res.lang.t("enemy_codex"), -275.0, 30, ORANGE, res);
+    draw_text_centered(&res.lang.t("enemy_codex"), -275.0, 30, ORANGE, res);
     let list_x = screen_width() * 0.04;
     let list_width = screen_width() * 0.35;
     for (index, enemy) in entries.into_iter().enumerate() {
         let y = screen_height() * 0.28 + index as f32 * 52.0;
         let color = if index == selected { YELLOW } else { LIGHTGRAY };
         draw_menu_label(
-            res.lang.t(enemy_name_key(enemy)),
+            &res.lang.t(enemy_name_key(enemy)),
             Rect::new(list_x, y, list_width, 38.0),
             15,
             color,
@@ -1692,7 +1692,7 @@ pub fn render_enemy_codex(selected: usize, res: &Resources) {
         0.0,
     );
     draw_menu_label(
-        res.lang.t(enemy_name_key(selected_enemy)),
+        &res.lang.t(enemy_name_key(selected_enemy)),
         Rect::new(
             screen_width() * 0.69,
             screen_height() * 0.36,
@@ -1704,7 +1704,7 @@ pub fn render_enemy_codex(selected: usize, res: &Resources) {
         res,
     );
     draw_menu_label(
-        res.lang.t(enemy_lore_key(selected_enemy)),
+        &res.lang.t(enemy_lore_key(selected_enemy)),
         Rect::new(
             screen_width() * 0.68,
             screen_height() * 0.43,
@@ -1715,7 +1715,7 @@ pub fn render_enemy_codex(selected: usize, res: &Resources) {
         WHITE,
         res,
     );
-    draw_text_centered(res.lang.t("codex_controls"), 280.0, 14, GRAY, res);
+    draw_text_centered(&res.lang.t("codex_controls"), 280.0, 14, GRAY, res);
 }
 
 fn enemy_name_key(enemy: EnemyType) -> &'static str {
@@ -1749,18 +1749,35 @@ fn enemy_sprite(enemy: EnemyType, res: &Resources) -> &ModelSprite {
 }
 
 pub fn render_mission_success(mission: &Mission, advance: bool, res: &Resources) -> bool {
-    draw_text_centered(res.lang.t("mission_complete"), -50.0, 40, GREEN, res);
+    draw_text_centered(&res.lang.t("mission_complete"), -50.0, 40, GREEN, res);
     draw_text_centered(&level_cleared_label(mission, res), 10.0, 24, WHITE, res);
-    advance && centered_menu_button(res.lang.t("next_mission"), 100.0, res)
+    advance && centered_menu_button(&res.lang.t("next_mission"), 100.0, res)
 }
 
-fn level_cleared_label(mission: &Mission, res: &Resources) -> String {
-    format!(
-        "{} {} {}",
-        res.lang.t("level_cleared_prefix"),
-        mission.level_id,
-        res.lang.t("level_cleared_suffix")
-    )
+fn pilot_label<'a>(key: &str, name: &str, res: &'a Resources) -> Cow<'a, str> {
+    let mut args = fluent_bundle::FluentArgs::new();
+    args.set("name", name);
+    res.lang.format(key, Some(&args))
+}
+
+fn mission_title<'a>(mission: &Mission, res: &'a Resources) -> Cow<'a, str> {
+    match mission.level_id {
+        1 => res.lang.t("mission_dust"),
+        2 => res.lang.t("mission_kamikaze"),
+        4 => res.lang.t("mission_scrap_yard"),
+        5 => res.lang.t("mission_dreadnought"),
+        level => level_label("mission_deep_space", level, res),
+    }
+}
+
+fn level_cleared_label<'a>(mission: &Mission, res: &'a Resources) -> Cow<'a, str> {
+    level_label("level_cleared", mission.level_id, res)
+}
+
+fn level_label<'a>(key: &str, level: u32, res: &'a Resources) -> Cow<'a, str> {
+    let mut args = fluent_bundle::FluentArgs::new();
+    args.set("level", level);
+    res.lang.format(key, Some(&args))
 }
 
 pub fn render_lan_victory(
@@ -1835,7 +1852,7 @@ pub fn render_lan_victory(
     let label_bounds = |y, h| Rect::new(0.0, window.y * y, window.x, window.y * h);
     let title_alpha = (progress * 4.0).min(1.0);
     draw_menu_label(
-        res.lang.t("mission_complete"),
+        &res.lang.t("mission_complete"),
         label_bounds(0.11, 0.09),
         40,
         Color {
@@ -1856,7 +1873,7 @@ pub fn render_lan_victory(
     );
     let gold = Color { a: reveal, ..GOLD };
     draw_menu_label(
-        res.lang.t("lan_mvp"),
+        &res.lang.t("lan_mvp"),
         label_bounds(0.673, 0.045),
         17,
         gold,
@@ -1885,14 +1902,14 @@ pub fn render_upgrade_bay(
     draw_rectangle(0.0, 0.0, width, height, Color::new(0.015, 0.02, 0.06, 0.62));
     let header_bounds = |top, height| Rect::new(0.0, top * start_y, width, height * start_y);
     draw_menu_label(
-        res.lang.t("upgrade_bay_title"),
+        &res.lang.t("upgrade_bay_title"),
         header_bounds(0.12, 0.25),
         40,
         ORANGE,
         res,
     );
     draw_menu_label(
-        res.lang.t("upgrade_bay_subtitle"),
+        &res.lang.t("upgrade_bay_subtitle"),
         header_bounds(0.43, 0.18),
         18,
         GRAY,
@@ -2010,7 +2027,7 @@ pub fn render_upgrade_bay(
             res,
         );
         draw_menu_label(
-            res.lang.t(desc_key),
+            &res.lang.t(desc_key),
             Rect::new(row_x, y + row_height * 0.54, row_width, row_height * 0.40),
             14,
             LIGHTGRAY,
@@ -2043,7 +2060,7 @@ pub fn render_upgrade_bay(
         row_height,
     );
     if menu_button(
-        res.lang.t(continue_key),
+        &res.lang.t(continue_key),
         bounds,
         24,
         selection.0 == continue_idx,
@@ -2053,7 +2070,7 @@ pub fn render_upgrade_bay(
     }
 
     draw_menu_label(
-        res.lang.t("upgrade_controls"),
+        &res.lang.t("upgrade_controls"),
         Rect::new(row_x, start_y + line_height * row_count, row_width, 28.0),
         16,
         GRAY,
@@ -2103,7 +2120,7 @@ pub fn render_game_over(
     }
     let title_alpha = fade;
     draw_menu_label(
-        res.lang.t("game_over"),
+        &res.lang.t("game_over"),
         Rect::new(0.0, window.y * 0.13, window.x, window.y * 0.1),
         48,
         Color {
@@ -2133,7 +2150,7 @@ pub fn render_game_over(
         res,
     );
     if fade >= 1.0 {
-        centered_menu_button(res.lang.t("return_to_menu"), 115.0, res)
+        centered_menu_button(&res.lang.t("return_to_menu"), 115.0, res)
     } else {
         false
     }
@@ -2148,8 +2165,8 @@ pub fn render_pause(res: &Resources) -> (bool, bool) {
         Color::new(0.0, 0.0, 0.0, 0.7),
     );
 
-    draw_text_centered(res.lang.t("paused"), -40.0, 48, YELLOW, res);
-    let resume = centered_menu_button(res.lang.t("press_enter_resume"), 20.0, res);
-    let main_menu = centered_menu_button(res.lang.t("press_esc"), 70.0, res);
+    draw_text_centered(&res.lang.t("paused"), -40.0, 48, YELLOW, res);
+    let resume = centered_menu_button(&res.lang.t("press_enter_resume"), 20.0, res);
+    let main_menu = centered_menu_button(&res.lang.t("press_esc"), 70.0, res);
     (resume, main_menu)
 }

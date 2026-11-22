@@ -40,6 +40,15 @@ Push a version tag such as `v0.1.0` from a commit that has passed CI. The releas
 
 The game runs on Macroquad. It uses Serde and serde_json for saves, glTF for models, and sys-locale for language detection. See [Cargo.toml](../Cargo.toml) for versions and build dependencies.
 
+## Localization
+
+The game embeds the [Fluent](https://projectfluent.org/fluent/guide/) catalogs from [assets/locales](../assets/locales).
+To add a language, copy `en.ftl`, translate its values, then register the file and language tag in `CATALOGS` and add a saved language variant in [src/localization.rs](../src/localization.rs).
+Keep the message IDs and variable names consistent across catalogs. Placeholders such as `{ $level }` and `{ $name }` can move within a message.
+The game uses English for missing messages and uses the system locale when the save has no language preference.
+
+Check that the font covers the translated text. The built-in CJK fonts cover all shipped messages and commonly used characters. Run `make test` to check catalog coverage and formatting, and check the translated screens in-game.
+
 ## Credits & licenses
 
 ### Code
@@ -49,4 +58,5 @@ The code is licensed under the [MIT License](../LICENSE).
 ### Assets
 
 - [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P) by CodeMan38 is licensed under the SIL Open Font License (OFL).
+- The Japanese, Simplified Chinese, and Korean UI fonts are renamed subsets of [Noto Sans CJK](https://github.com/notofonts/noto-cjk), distributed under the [SIL Open Font License](../assets/fonts/OFL-Rust-In-Space-CJK.txt).
 - Graphics include AI-generated and original artwork.

@@ -25,12 +25,12 @@ pub(super) enum BrowserAction {
 }
 
 fn button(key: &str, y: f32, res: &Resources) -> bool {
-    centered_menu_button(res.lang.t(key), y, res)
+    centered_menu_button(&res.lang.t(key), y, res)
 }
 
 pub(super) fn browser(browser: &mut Browser, res: &Resources) -> BrowserAction {
     draw_background(&res.background);
-    draw_text_centered(res.lang.t("lan_menu"), -224.0, 32, ORANGE, res);
+    draw_text_centered(&res.lang.t("lan_menu"), -224.0, 32, ORANGE, res);
     let host = button("lan_host", -168.0, res);
     let field_width = screen_width().min(460.0) * 0.9;
     let field = Rect::new(
@@ -72,7 +72,7 @@ pub(super) fn browser(browser: &mut Browser, res: &Resources) -> BrowserAction {
         }
     }
     let label = if browser.address.is_empty() {
-        res.lang.t("lan_ip").to_owned()
+        res.lang.t("lan_ip").into_owned()
     } else if browser.focused {
         format!("{}_", browser.address)
     } else {
@@ -119,7 +119,7 @@ pub(super) fn browser(browser: &mut Browser, res: &Resources) -> BrowserAction {
     } else {
         "lan_games"
     };
-    draw_text_centered(res.lang.t(heading), -7.0, 16, SKYBLUE, res);
+    draw_text_centered(&res.lang.t(heading), -7.0, 16, SKYBLUE, res);
     let start = browser.selected_host / HOSTS_VISIBLE * HOSTS_VISIBLE;
     for (index, address) in hosts.iter().enumerate().skip(start).take(HOSTS_VISIBLE) {
         let clicked = menu_button(
@@ -148,7 +148,7 @@ pub(super) fn browser(browser: &mut Browser, res: &Resources) -> BrowserAction {
         );
     }
     if let Some(status) = browser.status {
-        draw_text_centered(res.lang.t(status.key()), 190.0, 14, GOLD, res);
+        draw_text_centered(&res.lang.t(status.key()), 190.0, 14, GOLD, res);
     }
     BrowserAction::Stay
 }
@@ -156,7 +156,7 @@ pub(super) fn browser(browser: &mut Browser, res: &Resources) -> BrowserAction {
 pub(super) fn connecting(address: &str, res: &Resources) -> bool {
     draw_background(&res.background);
     draw_text_centered(
-        res.lang.t(Status::Connecting.key()),
+        &res.lang.t(Status::Connecting.key()),
         -55.0,
         24,
         SKYBLUE,
@@ -231,7 +231,7 @@ impl SessionUi {
         match state.phase {
             Phase::Lobby => {
                 controls.action = lobby(state, slot, host, enter, res);
-                if !self.menu && lobby_button(res.lang.t("lan_leave"), 321.0, res) {
+                if !self.menu && lobby_button(&res.lang.t("lan_leave"), 321.0, res) {
                     controls.leave = true;
                 }
             }
@@ -252,7 +252,7 @@ impl SessionUi {
                 if may_launch && (launch || is_key_pressed(KeyCode::Space)) {
                     controls.action = Some(Action::Advance);
                 } else if host.is_none() {
-                    draw_text_centered(res.lang.t("lan_wait_launch"), 190.0, 14, SKYBLUE, res);
+                    draw_text_centered(&res.lang.t("lan_wait_launch"), 190.0, 14, SKYBLUE, res);
                 }
             }
             Phase::Launching => {
@@ -290,7 +290,7 @@ impl SessionUi {
                     let button_height = MENU_BUTTON_HEIGHT.min(height * 0.075);
                     if host.is_none() {
                         draw_menu_label(
-                            res.lang.t("lan_wait_workshop"),
+                            &res.lang.t("lan_wait_workshop"),
                             Rect::new(0.0, height * 0.85, screen_width(), height * 0.08),
                             14,
                             SKYBLUE,
@@ -298,7 +298,7 @@ impl SessionUi {
                         );
                     } else if !self.menu
                         && (centered_menu_button_with_height(
-                            res.lang.t("next_mission"),
+                            &res.lang.t("next_mission"),
                             height * 0.39,
                             button_height,
                             res,
@@ -363,7 +363,7 @@ impl SessionUi {
                     (SKYBLUE, 14)
                 };
                 draw_text_centered(
-                    res.lang.t(readiness),
+                    &res.lang.t(readiness),
                     237.0,
                     readiness_size,
                     readiness_color,
@@ -371,7 +371,7 @@ impl SessionUi {
                 );
             }
             Phase::Defeat => {
-                draw_text_centered(res.lang.t("game_over"), -50.0, 40, RED, res);
+                draw_text_centered(&res.lang.t("game_over"), -50.0, 40, RED, res);
                 draw_text_centered(
                     &format!("{} {}", res.lang.t("final_score_prefix"), state.game.score),
                     10.0,
@@ -382,7 +382,7 @@ impl SessionUi {
                 if host.is_some() && (button("lan_back_lobby", 100.0, res) || enter) {
                     controls.action = Some(Action::Advance);
                 } else if host.is_none() {
-                    draw_text_centered(res.lang.t("lan_wait_lobby"), 85.0, 14, SKYBLUE, res);
+                    draw_text_centered(&res.lang.t("lan_wait_lobby"), 85.0, 14, SKYBLUE, res);
                 }
             }
         }
@@ -393,7 +393,7 @@ impl SessionUi {
         {
             let top = if playing { 94.0 } else { 29.0 };
             draw_text_centered(
-                res.lang.t(status.key()),
+                &res.lang.t(status.key()),
                 top - screen_height() / 2.0,
                 14,
                 GOLD,
@@ -410,7 +410,7 @@ impl SessionUi {
                 screen_height(),
                 Color::new(0.0, 0.0, 0.0, 0.85),
             );
-            draw_text_centered(res.lang.t("lan_session_menu"), -50.0, 30, ORANGE, res);
+            draw_text_centered(&res.lang.t("lan_session_menu"), -50.0, 30, ORANGE, res);
             if button("lan_resume", 20.0, res) || is_key_pressed(KeyCode::Enter) {
                 self.menu = false;
             } else if button("lan_leave", 84.0, res) {
@@ -555,11 +555,11 @@ fn lobby_slots(state: &SnapshotView<'_>, own_slot: usize, res: &Resources) {
         let mut label = format!("{}", slot + 1);
         if slot == HOST {
             label.push_str(" · ");
-            label.push_str(res.lang.t("lan_slot_host"));
+            label.push_str(&res.lang.t("lan_slot_host"));
         }
         if slot == own_slot {
             label.push_str(" · ");
-            label.push_str(res.lang.t("lan_slot_you"));
+            label.push_str(&res.lang.t("lan_slot_you"));
         }
         draw_menu_label(
             &label,
@@ -584,7 +584,7 @@ fn lobby_slots(state: &SnapshotView<'_>, own_slot: usize, res: &Resources) {
             let name_bounds = Rect::new(x, y + height * 0.65, width, height * 0.19);
             let ship_bounds = Rect::new(x, y + height * 0.83, width, height * 0.16);
             draw_menu_label(name, name_bounds, 16, WHITE, res);
-            draw_menu_label(res.lang.t(kind.label()), ship_bounds, 12, SKYBLUE, res);
+            draw_menu_label(&res.lang.t(kind.label()), ship_bounds, 12, SKYBLUE, res);
             if state.ready[slot] {
                 let check = vec2(x + width - 17.0, y + 17.0);
                 draw_circle(check.x, check.y, 12.0, GREEN);
@@ -607,7 +607,7 @@ fn lobby_slots(state: &SnapshotView<'_>, own_slot: usize, res: &Resources) {
             }
         } else {
             let bounds = Rect::new(x, y + height * 0.22, width, height * 0.72);
-            draw_menu_label(res.lang.t("lan_slot_empty"), bounds, 14, LIGHTGRAY, res);
+            draw_menu_label(&res.lang.t("lan_slot_empty"), bounds, 14, LIGHTGRAY, res);
         }
     }
 }
@@ -620,7 +620,7 @@ fn lobby(
     res: &Resources,
 ) -> Option<Action> {
     let is_host = host.is_some();
-    lobby_label(res.lang.t("lan_lobby"), -306.0, 52.0, 30, ORANGE, res);
+    lobby_label(&res.lang.t("lan_lobby"), -306.0, 52.0, 30, ORANGE, res);
     let pilots = state.game.pilot_count();
     if let Some(host) = host {
         let addresses = host
@@ -629,7 +629,7 @@ fn lobby(
             .map(ToString::to_string)
             .collect::<Vec<_>>();
         let addresses = if addresses.is_empty() {
-            res.lang.t("lan_no_ip").to_owned()
+            res.lang.t("lan_no_ip").into_owned()
         } else {
             addresses.join(" / ")
         };
@@ -668,7 +668,7 @@ fn lobby(
     };
 
     let status = if pilots == 1 {
-        res.lang.t("lan_wait_guest").to_owned()
+        res.lang.t("lan_wait_guest").into_owned()
     } else {
         format!(
             "{} {}/{}",
@@ -685,14 +685,14 @@ fn lobby(
     let start = if is_host {
         pilots > 1
             && state.guests_ready()
-            && (lobby_button(res.lang.t("lan_start"), 251.0, res) || enter)
+            && (lobby_button(&res.lang.t("lan_start"), 251.0, res) || enter)
     } else {
         let key = if state.ready[slot] {
             "lan_not_ready"
         } else {
             "lan_ready"
         };
-        lobby_button(res.lang.t(key), 251.0, res) || enter
+        lobby_button(&res.lang.t(key), 251.0, res) || enter
     };
 
     let kind = ship_clicked.unwrap_or_else(|| keyboard_ship_selection(active_kind, res));

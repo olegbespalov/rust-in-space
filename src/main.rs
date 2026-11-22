@@ -191,7 +191,7 @@ async fn main() {
                     }
                     MenuItem::Language => {
                         if left || right || activate {
-                            resources.lang.cycle_lang();
+                            resources.lang.cycle_lang(left);
                             saved.language = Some(resources.lang.current_lang);
                             save_timer = Some(0.0);
                             audio.play_sfx(&resources.audio, audio::AudioCue::UiMove);
