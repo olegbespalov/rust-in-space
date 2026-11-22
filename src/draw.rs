@@ -1829,8 +1829,8 @@ pub fn render_upgrade_bay(
 
     // The preview uses the same ship model as gameplay. Upgrade locations are
     // marked relative to the model so the preview remains useful across ships.
-    let ship_size = (screen_height() * 0.32).clamp(150.0, 250.0);
-    let ship_pos = vec2(screen_width() * 0.79, screen_height() * 0.30);
+    let ship_size = (screen_height() * 0.48).clamp(220.0, 380.0);
+    let ship_pos = vec2(screen_width() * 0.66, screen_height() * 0.43);
     draw_ship_hull(pilot.ship.kind, ship_pos, ship_size, 0.0, 0.0, WHITE, res);
     let (marker_offset, marker_color) = match UPGRADABLE_IDS.get(active_upgrade) {
         Some(crate::components::UpgradeId::WeaponTuning) => (vec2(0.0, -0.30), ORANGE),
@@ -1842,8 +1842,8 @@ pub fn render_upgrade_bay(
     };
     if active_upgrade < UPGRADABLE_IDS.len() {
         let marker = ship_pos + marker_offset * ship_size;
-        draw_circle_lines(marker.x, marker.y, 16.0, 3.0, marker_color);
-        draw_circle(marker.x, marker.y, 5.0, marker_color);
+        draw_circle_lines(marker.x, marker.y, 25.0, 5.0, marker_color);
+        draw_circle(marker.x, marker.y, 9.0, marker_color);
     }
 
     for (idx, id) in UPGRADABLE_IDS.iter().copied().enumerate() {
