@@ -680,7 +680,7 @@ impl Boss {
         let right = forward.perp();
         let count = match kind {
             BossAttackKind::Cannons => 6,
-            BossAttackKind::Missiles => 2,
+            BossAttackKind::Missiles => 4,
             BossAttackKind::Rings => 12,
         };
         // Cannon and launcher offsets are measured in fractions of the sprite size.

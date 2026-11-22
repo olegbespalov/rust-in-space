@@ -246,7 +246,7 @@ mod tests {
         boss.shoot_timer = BossPhase::Opening.shot_interval();
         assert!(advance(&mut boss, 0, 1.0).is_none());
         assert_eq!(boss.phase, BossPhase::MissileSalvos);
-        assert_eq!(boss.shoot_timer, 2.5);
+        assert_eq!(boss.shoot_timer, 1.25);
         assert_eq!(boss.summon_timer, 4.25);
         assert!(boss.pending_summon.is_none());
 
@@ -256,7 +256,7 @@ mod tests {
         boss.take_damage(1.0);
         assert!(advance(&mut boss, 0, 1.0).is_none());
         assert_eq!(boss.phase, BossPhase::Escalated);
-        assert_eq!(boss.shoot_timer, 2.0);
+        assert_eq!(boss.shoot_timer, 1.0);
         assert_eq!(boss.summon_timer, 3.5);
         assert!(boss.pending_summon.is_none());
 
