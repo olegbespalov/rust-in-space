@@ -33,6 +33,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check the release version
+        run: python3 scripts/release-version.py check-tag "$TAG"
+
       - name: Install Linux build and packaging tools
         if: runner.os == 'Linux'
         run: |

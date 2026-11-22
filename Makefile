@@ -1,4 +1,4 @@
-.PHONY: help check fmt clippy build build-release test run run-dev run-release clean ci install-hooks
+.PHONY: help check fmt clippy build build-release test run run-dev run-release clean ci install-hooks bump-version
 
 # Default target
 help:
@@ -16,6 +16,7 @@ help:
 	@echo "  make clean      - Clean build artifacts"
 	@echo "  make ci         - Run the Rust checks from CI"
 	@echo "  make install-hooks - Install pre-commit hook"
+	@echo "  make bump-version VERSION=0.6.1 - Set the version in Cargo.toml and Cargo.lock"
 
 # Run all checks
 check: fmt clippy build test
@@ -72,6 +73,10 @@ clean:
 
 # Rust checks run by CI
 ci: fmt clippy build test
+
+bump-version: export RELEASE_VERSION = $(value VERSION)
+bump-version:
+	@python3 scripts/release-version.py bump "$$RELEASE_VERSION"
 
 # Install pre-commit hook
 install-hooks:
