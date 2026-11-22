@@ -14,7 +14,7 @@ help:
 	@echo "  make run-dev    - Run the developer menu (levels and shop)"
 	@echo "  make run-release - Run the game (release)"
 	@echo "  make clean      - Clean build artifacts"
-	@echo "  make ci         - Run CI checks (same as CI pipeline)"
+	@echo "  make ci         - Run the Rust checks from CI"
 	@echo "  make install-hooks - Install pre-commit hook"
 
 # Run all checks
@@ -70,11 +70,12 @@ clean:
 	@echo "Cleaning build artifacts..."
 	cargo clean
 
-# CI checks (same as CI pipeline)
+# Rust checks run by CI
 ci: fmt clippy build test
 
 # Install pre-commit hook
 install-hooks:
+	@command -v gitleaks >/dev/null 2>&1 || { echo "Install Gitleaks 8.30.1 or newer and add it to PATH first." >&2; exit 1; }
 	@echo "Installing pre-commit hook..."
 	@mkdir -p .git/hooks
 	@cp scripts/pre-commit .git/hooks/pre-commit

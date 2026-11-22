@@ -19,9 +19,17 @@ See [Installation](installation.md) to build and run the game locally.
 - `make clean` - Clean build artifacts
 - `make install-hooks` - Install pre-commit hook
 
-After installation, the pre-commit hook runs the same checks as CI before each commit.
+Install [Gitleaks](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1) 8.30.1 or newer and run `make install-hooks` to install or refresh the pre-commit hook. It scans staged changes for secrets before running the Rust checks.
 
 Use the developer menu to choose a level and ship, then start at that mission's briefing. **Open test shop** starts the selected ship with 999 scrap and 999 rare metal to test purchases.
+
+## Security checks
+
+The Security workflow runs zizmor, Gitleaks, and cargo-audit on pushes and pull requests targeting `main`. It also checks `Cargo.lock` weekly for newly published RustSec advisories.
+
+- `zizmor --offline .` audits GitHub Actions workflows locally without a GitHub token.
+- `gitleaks git --verbose --redact --log-opts=HEAD .` scans the current branch's history. Use `--log-opts=origin/main..HEAD` to scan only the local commits ahead of `origin/main`.
+- `cargo audit` checks `Cargo.lock` against the RustSec advisory database. Vulnerability findings fail CI. Informational advisories, such as unmaintained dependencies, appear as warnings.
 
 ## Publishing a release
 
