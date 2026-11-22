@@ -20,6 +20,7 @@ After an in-game installation, close and reopen the game to start the new versio
 
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable version)
 - Cargo (comes with Rust)
+- On Ubuntu or Debian, install the ALSA development package with `sudo apt install libasound2-dev` before building from source.
 
 ## Building and running
 

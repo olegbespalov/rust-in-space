@@ -6,6 +6,7 @@ See [Installation](installation.md) to build and run the game locally.
 
 - `make help` - Show all available commands
 - `make run` - Run the game in debug mode
+- `make run-dev` - Open the developer menu
 - `make run-release` - Run the game in release mode (optimized)
 - `make build` - Build the project (debug)
 - `make build-release` - Build the project (release)
@@ -18,7 +19,9 @@ See [Installation](installation.md) to build and run the game locally.
 - `make clean` - Clean build artifacts
 - `make install-hooks` - Install pre-commit hook
 
-The pre-commit hook automatically runs the same checks as CI before each commit.
+After installation, the pre-commit hook runs the same checks as CI before each commit.
+
+Use the developer menu to choose a level and ship, then start at that mission's briefing. **Open test shop** starts the selected ship with 999 scrap and 999 rare metal to test purchases.
 
 ## Publishing a release
 
@@ -28,7 +31,7 @@ Packaged builds display the version from the release tag. The updater uses the l
 
 ### macOS update signing
 
-The release build embeds the public key from a repository variable. The publish job uses the private key from the protected `macos-release` environment to sign each Mac ZIP. GitHub restricts that environment to version tags. If the key is replaced, players need to install the build with the new public key manually. Without a configured key pair, the game directs Mac players to GitHub for updates.
+The release build embeds the public key from the `RUST_IN_SPACE_UPDATE_PUBLIC_KEY` repository variable. The publish job uses the `RUST_IN_SPACE_UPDATE_PRIVATE_KEY` secret from the `macos-release` environment to sign each Mac ZIP. If the key is replaced, players need to install the build with the new public key manually. Without a configured key pair, the game directs Mac players to GitHub for updates.
 
 The release key verifies updates inside the game. Apple Developer ID and notarization are separate and determine how Gatekeeper treats downloaded builds.
 
@@ -39,6 +42,8 @@ The release key verifies updates inside the game. Apple Developer ID and notariz
 - `src/components.rs` defines game entities and state.
 - `src/draw.rs` renders the game and UI. `src/resources.rs`, `src/ship_model.rs`, and `src/model_sprite.rs` handle game assets and models.
 - `src/systems.rs` handles saves, mission definitions, loot generation, and screen wrapping.
+- `src/lan/` handles host and guest sessions, transport, guest ship prediction, and LAN UI.
+- `src/update/` handles in-game updates on Linux and macOS. `packaging/` builds the distributable packages.
 - `src/localization.rs` provides translations. `src/audio.rs` handles audio playback and settings.
 - `assets/` contains game assets. See the [audio guide](../scripts/audio/README.md).
 - `Makefile` provides development commands, and `scripts/pre-commit` runs checks before commits.
@@ -46,11 +51,13 @@ The release key verifies updates inside the game. Apple Developer ID and notariz
 
 ## Dependencies
 
-The game runs on Macroquad. It uses Serde and serde_json for saves, glTF for models, and sys-locale for language detection. See [Cargo.toml](../Cargo.toml) for versions and build dependencies.
+The game runs on Macroquad. It uses Serde and serde_json for saves, MessagePack for LAN snapshots, glTF for models, and Fluent and sys-locale for localization. See [Cargo.toml](../Cargo.toml) for versions and build dependencies.
 
 ## Localization
 
-The game embeds the [Fluent](https://projectfluent.org/fluent/guide/) catalogs from [assets/locales](../assets/locales).
+English is the project's development language. Use English for code identifiers, comments, and developer documentation.
+
+Use message IDs for player-facing text. Add the English source strings to [en.ftl](../assets/locales/en.ftl) and translations to the corresponding catalogs in [assets/locales](../assets/locales). The game embeds these [Fluent](https://projectfluent.org/fluent/guide/) catalogs.
 To add a language, copy `en.ftl`, translate its values, then register the file and language tag in `CATALOGS` and add a saved language variant in [src/localization.rs](../src/localization.rs).
 Keep the message IDs and variable names consistent across catalogs. Placeholders such as `{ $level }` and `{ $name }` can move within a message.
 The game uses English for missing messages and uses the system locale when the save has no language preference.

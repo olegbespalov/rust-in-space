@@ -14,10 +14,12 @@ For each asset, record:
 
 ## Runtime Targets
 
-- Runtime format: `ogg`
-- Source/edit format: `wav`
+- The game tries `.ogg` first and falls back to `.wav` for each sound.
+- Sound effects live in `assets/audio/sfx/` and music in `assets/audio/music/`.
 - Keep clips short and readable in gameplay
 - Normalize loudness before exporting runtime files
+
+Run `python3 scripts/audio/generate_audio.py` from the repository root to write procedural WAV clips into those directories. Existing OGG clips take precedence over WAV clips with the same name.
 
 ## Initial Batch
 

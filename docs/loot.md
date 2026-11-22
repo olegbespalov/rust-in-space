@@ -17,7 +17,7 @@ A reference to the loot items currently implemented in the game. Images use the 
 
 ## Collection
 
-Loot drifts and rotates until it is collected on contact. The ship pulls loot in from within 150 units at base, and Magnet Array upgrades extend that range. The HUD tracks your current scrap and rare metal balances separately from mission progress. Scrap collected during a mission counts toward its scrap objective.
+Loot drifts and rotates until it expires or is collected on contact. The ship pulls loot in from within 150 units at base, and Magnet Array upgrades extend that range. The HUD tracks your current scrap and rare metal balances separately from mission progress. Scrap collected during a mission counts toward its scrap objective.
 
 ## Drop rates
 
@@ -25,7 +25,7 @@ These are the standard drop rates on Supernova. The standard roll adds 10 on Neb
 
 | Standard drop | Regular asteroid | Rare asteroid | Enemy ship |
 |---|---:|---:|---:|
-| Scrap | 40% (1–3) | 15% (5–9) | 30% (5–9) |
+| Scrap | 40% (2–4, 6–10, or 12–20) | 15% (4–7, 10–16, or 18–30) | 30% (4–7, 10–16, or 18–30) |
 | Rare metal | 5% (1) | 30% (2–4) | — |
 | Health pack | — | 25% | 25% |
 | Rapid fire | — | 18% | 18% |
@@ -33,4 +33,4 @@ These are the standard drop rates on Supernova. The standard roll adds 10 on Neb
 | Shield | — | — | 8% |
 | No standard drop | 55% | — | 7% |
 
-Enemy ships have independent extra rolls for magnetic ammo (8%), invisibility (8%), a mystery box (5%), and a golden shield (2%) on every difficulty. Rare asteroids always drop an item. The Dreadnought always drops 10–49 rare metal.
+When scrap drops, the three pile sizes are equally likely. Enemy ships have independent extra rolls for magnetic ammo (8%), invisibility (8%), a mystery box (5%), and a golden shield (2%) on every difficulty. Rare asteroids always drop an item. The Dreadnought always drops 10–49 rare metal.

@@ -6,7 +6,7 @@ The game stores your high score, commander name, language, and audio settings in
 - **macOS**: `~/Library/Application Support/Rust in Space/highscore.json`.
 - **Windows (native builds)**: `%LOCALAPPDATA%\Rust in Space\highscore.json`.
 
-The JSON object includes `high_score` (a nonnegative integer), `language` (`english`, `russian`, or `german`), and `audio` (volume and mute settings). If the game cannot load a save, it starts with a score of zero and the default audio settings. If the save has no language preference, the game selects Russian or German based on the system locale and uses English for other locales.
+The JSON object includes `high_score` (a nonnegative integer), `player_name`, `language`, and `audio` (volume and mute settings). The language values are `english`, `russian`, `german`, `spanish`, `japanese`, `chinese` (Simplified Chinese), and `korean`. If the game cannot load a save, it starts with a score of zero and the default audio settings. If the save has no language preference, the game uses the system language when supported and falls back to English.
 
 If the save has no `player_name`, the game asks for your commander name at startup. Confirm the default `player1` or enter a name to save.
 
