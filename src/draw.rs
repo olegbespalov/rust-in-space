@@ -1417,6 +1417,37 @@ pub fn render_briefing(
     launch && centered_menu_button(res.lang.t("press_space"), 230.0, res)
 }
 
+pub fn draw_briefing_fleet(ships: &[Option<ShipKind>], elapsed: f32, launch: f32, res: &Resources) {
+    let count = ships.iter().flatten().count();
+    if count == 0 {
+        return;
+    }
+    let center = vec2(screen_width() * 0.5, screen_height() * 0.78);
+    let spacing = 92.0_f32.min(screen_width() * 0.72 / count as f32);
+    let left = center.x - spacing * (count.saturating_sub(1) as f32) * 0.5;
+    let progress = launch.clamp(0.0, 1.0);
+    let travel = screen_width() * 0.8 * progress * progress;
+    let thrust = (progress * 1.5).min(1.0);
+    let alpha = if progress > 0.8 {
+        (1.0 - (progress - 0.8) / 0.2).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+    for (index, kind) in ships.iter().flatten().enumerate() {
+        let bob = (elapsed * 2.3 + index as f32 * 1.1).sin() * 5.0 * (1.0 - progress);
+        let pos = vec2(left + spacing * index as f32 - travel, center.y + bob);
+        draw_ship_hull(
+            *kind,
+            pos,
+            58.0,
+            -std::f32::consts::FRAC_PI_2,
+            thrust,
+            Color::new(1.0, 1.0, 1.0, alpha),
+            res,
+        );
+    }
+}
+
 pub fn render_enemy_codex(selected: usize, res: &Resources) {
     let entries = [
         EnemyType::Regular,

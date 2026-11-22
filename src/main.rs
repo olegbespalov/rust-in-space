@@ -261,13 +261,38 @@ async fn main() {
             GameState::Briefing => {
                 audio.play_music(&resources.audio, MusicTrack::Menu);
                 let launch = render_briefing(&game.current_mission, player_name, true, &resources);
+                let ships = game
+                    .pilots
+                    .each_ref()
+                    .map(|pilot| pilot.as_ref().map(|p| p.ship.kind));
+                draw_briefing_fleet(&ships, get_time() as f32, 0.0, &resources);
 
                 if launch || is_key_pressed(KeyCode::Space) {
+                    audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
+                    state = GameState::LaunchSequence(0.0);
+                }
+            }
+
+            GameState::LaunchSequence(mut elapsed) => {
+                elapsed += frame_dt;
+                let launch_progress = (elapsed / 1.5).clamp(0.0, 1.0);
+                let ships = game
+                    .pilots
+                    .each_ref()
+                    .map(|pilot| pilot.as_ref().map(|p| p.ship.kind));
+                render_briefing(&game.current_mission, player_name, false, &resources);
+                draw_briefing_fleet(&ships, get_time() as f32, launch_progress, &resources);
+                if elapsed >= 1.5 {
+                    let number = (3.0 - (elapsed - 1.5).floor()).clamp(1.0, 3.0) as u32;
+                    draw_text_centered(&number.to_string(), -10.0, 96, ORANGE, &resources);
+                }
+                if elapsed >= 4.5 {
                     game.bounds = vec2(screen_width(), screen_height());
                     game.start_mission();
-                    audio.play_sfx(&resources.audio, audio::AudioCue::UiConfirm);
                     audio.play_music(&resources.audio, MusicTrack::Gameplay);
                     state = GameState::Playing;
+                } else {
+                    state = GameState::LaunchSequence(elapsed);
                 }
             }
 

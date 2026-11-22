@@ -61,6 +61,7 @@ pub enum GameState {
     Lan(Box<crate::lan::LanMode>),
     ShipSelection(ShipKind),
     Briefing, // briefing screen before the mission
+    LaunchSequence(f32),
     Playing,
     Paused,         // game is paused
     MissionSuccess, // level completed

@@ -240,6 +240,12 @@ impl SessionUi {
                     may_launch,
                     res,
                 );
+                let ships = state
+                    .game
+                    .pilots
+                    .each_ref()
+                    .map(|pilot| pilot.as_ref().map(|p| p.ship.kind));
+                draw_briefing_fleet(&ships, get_time() as f32, 0.0, res);
                 if may_launch && (launch || is_key_pressed(KeyCode::Space)) {
                     controls.action = Some(Action::Advance);
                 } else if host.is_none() {
