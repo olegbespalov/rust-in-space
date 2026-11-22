@@ -308,28 +308,44 @@ impl SessionUi {
                         self.selection.0 = index;
                     }
                     if clicked.is_some() || enter {
-                        controls.action = match self.selection.selected() {
-                            Some(id) if host.is_some() || !state.ready[slot] => {
-                                Some(Action::Buy(id))
+                        controls.action = if self.selection.0 == UpgradeSelection::SELL_SCRAP_INDEX
+                        {
+                            (host.is_some() || !state.ready[slot]).then_some(Action::SellScrap)
+                        } else if self.selection.0 == UpgradeSelection::CONTINUE_INDEX {
+                            if can_advance {
+                                Some(Action::Advance)
+                            } else {
+                                Some(Action::Ready)
                             }
-                            Some(_) => None,
-                            None if can_advance => Some(Action::Advance),
-                            None => Some(Action::Ready),
+                        } else {
+                            self.selection
+                                .selected()
+                                .filter(|_| host.is_some() || !state.ready[slot])
+                                .map(Action::Buy)
                         };
                     }
                 }
                 let readiness = if can_advance {
                     "lan_ready_advance"
                 } else if state.ready[slot] {
-                    if host.is_some() {
-                        "lan_wait_guest_ready"
-                    } else {
-                        "lan_wait_briefing"
-                    }
+                    "lan_marked_ready"
                 } else {
                     "lan_upgrade_ready"
                 };
-                draw_text_centered(res.lang.t(readiness), 237.0, 14, SKYBLUE, res);
+                let (readiness_color, readiness_size) = if state.ready[slot] {
+                    (GREEN, 24)
+                } else if can_advance {
+                    (GOLD, 18)
+                } else {
+                    (SKYBLUE, 14)
+                };
+                draw_text_centered(
+                    res.lang.t(readiness),
+                    237.0,
+                    readiness_size,
+                    readiness_color,
+                    res,
+                );
             }
             Phase::Defeat => {
                 draw_text_centered(res.lang.t("game_over"), -50.0, 40, RED, res);

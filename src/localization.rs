@@ -624,6 +624,12 @@ impl Localization {
                 "Отметьте готовность после покупок.",
                 "Nach dem Kauf Bereitschaft melden.",
             ),
+            (
+                "lan_marked_ready",
+                "READY — waiting for the crew",
+                "ГОТОВ — ждём команду",
+                "BEREIT — warte auf die Crew",
+            ),
             ("lan_spectating", "Spectating", "Наблюдение", "Zuschauen"),
             (
                 "lan_switch_pilot",

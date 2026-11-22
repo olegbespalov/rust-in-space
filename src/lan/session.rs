@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 pub(super) const FIELD: Vec2 = vec2(1920.0, 1080.0);
 pub(super) const HOST: usize = 0;
-const VERSION: u16 = 9;
+const VERSION: u16 = 10;
 const MAX_NAME_CHARS: usize = 24;
 const STEP: f64 = 1.0 / 60.0;
 const INPUT_PERIOD: Duration = Duration::from_nanos(33_333_334);
@@ -37,6 +37,7 @@ pub(super) enum Action {
     Ready,
     Advance,
     Buy(UpgradeId),
+    SellScrap,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -276,6 +277,11 @@ impl Campaign {
             (Phase::UpgradeBay, Action::Buy(id)) if slot == HOST || !self.ready[slot] => {
                 if let Some(pilot) = &mut self.game.pilots[slot] {
                     let _ = pilot.buy_upgrade(id);
+                }
+            }
+            (Phase::UpgradeBay, Action::SellScrap) if slot == HOST || !self.ready[slot] => {
+                if let Some(pilot) = &mut self.game.pilots[slot] {
+                    let _ = pilot.sell_scrap();
                 }
             }
             (Phase::UpgradeBay, Action::Ready) => self.ready[slot] ^= true,
