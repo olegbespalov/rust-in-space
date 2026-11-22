@@ -1,15 +1,16 @@
 use super::net;
-use super::session::{Action, Host, Phase, Snapshot, Status, FIELD};
+use super::session::{Action, Host, Phase, Snapshot, Status};
 use super::Browser;
 use crate::audio::{AudioState, MusicTrack};
 use crate::components::ShipKind;
 use crate::draw::*;
-use crate::game::{Game, PilotInput, UpgradeSelection};
+use crate::game::{Game, PilotInput, UpgradeSelection, MAX_PILOTS};
 use crate::resources::Resources;
 use macroquad::prelude::*;
 use std::net::{Ipv4Addr, SocketAddrV4};
 
 const HOSTS_VISIBLE: usize = 4;
+const VIEW_SIZE: Vec2 = vec2(1280.0, 720.0);
 
 pub(super) enum BrowserAction {
     Stay,
@@ -185,6 +186,7 @@ impl SessionUi {
     pub fn session(
         &mut self,
         state: &Snapshot<&Game>,
+        slot: usize,
         host: Option<&Host>,
         player_name: &str,
         res: &Resources,
@@ -194,7 +196,6 @@ impl SessionUi {
             self.selection = UpgradeSelection::default();
             self.revision = Some(state.revision);
         }
-        let slot = usize::from(host.is_none());
         let playing = state.phase == Phase::Playing;
         if is_key_pressed(KeyCode::Escape) {
             self.menu = !self.menu;
@@ -250,8 +251,7 @@ impl SessionUi {
                 }
             }
             Phase::UpgradeBay => {
-                let can_advance =
-                    host.is_some() && (state.ready[1] || state.game.pilots[1].is_none());
+                let can_advance = host.is_some() && state.guests_ready();
                 let continue_key = if can_advance {
                     "lan_next_briefing"
                 } else if state.ready[slot] {
@@ -351,17 +351,22 @@ impl SessionUi {
     fn battle(&mut self, game: &Game, slot: usize, res: &Resources) {
         let target = self
             .field
-            .get_or_insert_with(|| render_target(FIELD.x as u32, FIELD.y as u32));
-        let mut camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, FIELD.x, FIELD.y));
+            .get_or_insert_with(|| render_target(VIEW_SIZE.x as u32, VIEW_SIZE.y as u32));
+        let view = battle_view(game, slot);
+        let mut camera = Camera2D::from_display_rect(view.area);
         camera.render_target = Some(target.clone());
         set_camera(&camera);
         clear_background(BLACK);
-        draw_background_in(&res.background, FIELD);
-        render_game(game, Some(slot), res);
+        draw_background_in(&res.background, game.bounds);
+        render_battle_world(game, Some(view), res);
+
+        camera.target = VIEW_SIZE / 2.0;
+        set_camera(&camera);
+        render_battle_hud(game, Some(view), res);
         set_default_camera();
 
         let window = vec2(screen_width(), screen_height());
-        let size = FIELD * (window / FIELD).min_element();
+        let size = VIEW_SIZE * (window / VIEW_SIZE).min_element();
         let offset = (window - size) / 2.0;
         draw_texture_ex(
             &target.texture,
@@ -374,6 +379,20 @@ impl SessionUi {
                 ..Default::default()
             },
         );
+    }
+}
+
+fn battle_view(game: &Game, slot: usize) -> LanView {
+    let local = game.pilots[slot].as_ref();
+    let focus = local
+        .filter(|pilot| pilot.is_alive())
+        .or_else(|| game.pilots.iter().flatten().find(|pilot| pilot.is_alive()))
+        .or(local)
+        .map_or(game.bounds / 2.0, |pilot| pilot.ship.pos);
+    let origin = (focus - VIEW_SIZE / 2.0).clamp(Vec2::ZERO, game.bounds - VIEW_SIZE);
+    LanView {
+        slot,
+        area: Rect::new(origin.x, origin.y, VIEW_SIZE.x, VIEW_SIZE.y),
     }
 }
 
@@ -401,9 +420,13 @@ fn lobby(
     } else {
         "lan_you_guest"
     };
-    let paired = state.game.pilots[1].is_some();
+    let pilots = state.game.pilot_count();
     draw_text_centered(
-        &format!("{}  {} / 2", res.lang.t(role), if paired { 2 } else { 1 }),
+        &format!(
+            "{} #{}    {pilots} / {MAX_PILOTS}",
+            res.lang.t(role),
+            slot + 1
+        ),
         lobby_offset(-163.0),
         18,
         WHITE,
@@ -457,16 +480,21 @@ fn lobby(
         false
     };
 
-    let status = if !paired {
-        "lan_wait_guest"
-    } else if state.ready[1] {
-        "lan_guest_ready"
+    let status = if pilots == 1 {
+        res.lang.t("lan_wait_guest").to_owned()
     } else {
-        "lan_guest_joined"
+        format!(
+            "{} {}/{}",
+            res.lang.t("lan_ready_count"),
+            state.ready_guests(),
+            pilots - 1
+        )
     };
-    draw_text_centered(res.lang.t(status), lobby_offset(116.0), 16, SKYBLUE, res);
+    draw_text_centered(&status, lobby_offset(116.0), 16, SKYBLUE, res);
     let start = if is_host {
-        paired && state.ready[1] && (button("lan_start", lobby_offset(154.0), res) || enter)
+        pilots > 1
+            && state.guests_ready()
+            && (button("lan_start", lobby_offset(154.0), res) || enter)
     } else {
         let key = if state.ready[1] {
             "lan_not_ready"
@@ -495,4 +523,24 @@ fn lobby(
     } else {
         Action::Ready
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lan::session::FIELD;
+
+    #[test]
+    fn battle_camera_follows_the_local_pilot_within_the_arena() {
+        let mut game = Game::new(FIELD);
+        let slot = MAX_PILOTS - 1;
+        game.set_pilot(slot, ShipKind::Alpha);
+        let local = game.pilots[slot].as_mut().unwrap();
+        local.ship.pos = FIELD;
+        assert_eq!(battle_view(&game, slot).area.point(), FIELD - VIEW_SIZE);
+
+        game.pilots[slot].as_mut().unwrap().ship.health = 0.0;
+        game.solo_pilot_mut().ship.pos = Vec2::ZERO;
+        assert_eq!(battle_view(&game, slot).area.point(), Vec2::ZERO);
+    }
 }

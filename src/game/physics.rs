@@ -444,7 +444,7 @@ fn finish_boss_defeat(game: &mut Game, pos: Vec2, max_health: f32) {
 }
 
 fn collision_pilot(
-    pilots: &mut [Option<super::Pilot>; 2],
+    pilots: &mut [Option<super::Pilot>; super::MAX_PILOTS],
     pos: Vec2,
     radius: f32,
 ) -> Option<&mut Ship> {
@@ -452,7 +452,7 @@ fn collision_pilot(
         pilot.ship.pos.distance_squared(pos) < (SHIP_RADIUS + radius).powi(2)
     };
     // A solo frame still resolves every collision before reporting defeat.
-    if pilots[1].is_none() {
+    if pilots[1..].iter().all(Option::is_none) {
         return pilots[0]
             .as_mut()
             .filter(|pilot| hit(pilot))

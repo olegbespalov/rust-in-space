@@ -1,7 +1,7 @@
-use super::net::{self, Advertiser, Connection, COMMAND_LIMIT, SNAPSHOT_LIMIT};
+use super::net::{self, Advertiser, Connection, Frame, COMMAND_LIMIT, SNAPSHOT_LIMIT};
 use crate::audio::AudioCue;
 use crate::components::{Difficulty, ShipKind, UpgradeId};
-use crate::game::{BattleOutcome, Game, PilotInput};
+use crate::game::{BattleOutcome, Game, PilotInput, MAX_PILOTS};
 use macroquad::prelude::{vec2, Vec2};
 use serde::{Deserialize, Serialize};
 use std::io::{self, ErrorKind};
@@ -9,12 +9,12 @@ use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
-pub(super) const FIELD: Vec2 = vec2(1280.0, 720.0);
-const VERSION: u16 = 1;
-const HOST: usize = 0;
-const GUEST: usize = 1;
+pub(super) const FIELD: Vec2 = vec2(1920.0, 1080.0);
+pub(super) const HOST: usize = 0;
+const VERSION: u16 = 3;
 const STEP: f64 = 1.0 / 60.0;
-const SEND_PERIOD: Duration = Duration::from_nanos(33_333_334);
+const INPUT_PERIOD: Duration = Duration::from_nanos(33_333_334);
+const HEARTBEAT_PERIOD: Duration = Duration::from_secs(1);
 const INPUT_MAX_AGE: Duration = Duration::from_millis(300);
 const MAX_HANDSHAKES: usize = 4;
 
@@ -73,7 +73,21 @@ pub(super) struct Snapshot<G> {
     pub game: G,
     pub phase: Phase,
     pub revision: u64,
-    pub ready: [bool; 2],
+    pub ready: [bool; MAX_PILOTS],
+}
+
+impl Snapshot<&Game> {
+    pub fn ready_guests(&self) -> usize {
+        self.game.pilots[1..]
+            .iter()
+            .zip(&self.ready[1..])
+            .filter(|(pilot, ready)| pilot.is_some() && **ready)
+            .count()
+    }
+
+    pub fn guests_ready(&self) -> bool {
+        self.ready_guests() == self.game.pilot_count() - 1
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -85,7 +99,7 @@ enum FromClient {
 
 #[derive(Serialize, Deserialize)]
 enum FromHost<G> {
-    Welcome(u16),
+    Welcome { version: u16, slot: usize },
     Reject(Status),
     State(Box<Snapshot<G>>),
     Audio(Vec<AudioCue>),
@@ -95,7 +109,8 @@ pub(super) struct Campaign {
     game: Game,
     phase: Phase,
     revision: u64,
-    ready: [bool; 2],
+    ready: [bool; MAX_PILOTS],
+    needs_snapshot: bool,
     pending_time: f64,
     simulation_time: f64,
 }
@@ -108,7 +123,8 @@ impl Campaign {
             game,
             phase: Phase::Lobby,
             revision: 0,
-            ready: [false; 2],
+            ready: [false; MAX_PILOTS],
+            needs_snapshot: false,
             pending_time: 0.0,
             simulation_time: 0.0,
         }
@@ -126,18 +142,21 @@ impl Campaign {
     fn transition(&mut self, phase: Phase) {
         self.phase = phase;
         self.revision += 1;
-        self.ready = [false; 2];
+        self.ready = [false; MAX_PILOTS];
+        self.needs_snapshot = true;
         self.pending_time = 0.0;
     }
 
-    fn add_guest(&mut self) {
-        self.game.set_pilot(GUEST, ShipKind::Alpha);
-        self.ready[GUEST] = false;
+    fn add_guest(&mut self, slot: usize) {
+        self.game.set_pilot(slot, ShipKind::Alpha);
+        self.ready[slot] = false;
+        self.needs_snapshot = true;
     }
 
-    fn remove_guest(&mut self) {
-        self.game.pilots[GUEST] = None;
-        self.ready[GUEST] = false;
+    fn remove_guest(&mut self, slot: usize) {
+        self.game.pilots[slot] = None;
+        self.ready[slot] = false;
+        self.needs_snapshot = true;
         if self.phase == Phase::Briefing {
             self.game.prepare_lan_mission();
         } else if self.phase == Phase::Playing && !self.game.has_survivors() {
@@ -161,17 +180,23 @@ impl Campaign {
                 self.ready[slot] = false;
             }
             (Phase::Lobby, Action::CycleDifficulty) if slot == HOST => self.game.cycle_difficulty(),
-            (Phase::Lobby, Action::Ready) if slot == GUEST => self.ready[GUEST] ^= true,
+            (Phase::Lobby, Action::Ready) if slot != HOST => self.ready[slot] ^= true,
             (Phase::Lobby, Action::Advance)
-                if slot == HOST && self.game.pilots[GUEST].is_some() && self.ready[GUEST] =>
+                if slot == HOST
+                    && self.game.pilot_count() > 1
+                    && self.snapshot().guests_ready() =>
             {
                 let host_kind = self.game.solo_pilot().ship.kind;
-                let guest_kind = self.game.pilots[GUEST]
-                    .as_ref()
-                    .map(|pilot| pilot.ship.kind);
+                let kinds = self
+                    .game
+                    .pilots
+                    .each_ref()
+                    .map(|pilot| pilot.as_ref().map(|pilot| pilot.ship.kind));
                 self.game.reset(host_kind, FIELD);
-                if let Some(kind) = guest_kind {
-                    self.game.set_pilot(GUEST, kind);
+                for (slot, kind) in kinds.into_iter().enumerate().skip(1) {
+                    if let Some(kind) = kind {
+                        self.game.set_pilot(slot, kind);
+                    }
                 }
                 self.game.prepare_lan_mission();
                 self.simulation_time = 0.0;
@@ -190,18 +215,19 @@ impl Campaign {
             }
             (Phase::UpgradeBay, Action::Ready) => self.ready[slot] ^= true,
             (Phase::UpgradeBay, Action::Advance)
-                if slot == HOST && (self.ready[GUEST] || self.game.pilots[GUEST].is_none()) =>
+                if slot == HOST && self.snapshot().guests_ready() =>
             {
                 self.game.next_mission();
                 self.game.prepare_lan_mission();
                 self.transition(Phase::Briefing);
             }
             (Phase::Defeat, Action::Advance) if slot == HOST => self.transition(Phase::Lobby),
-            _ => {}
+            _ => return,
         }
+        self.needs_snapshot = true;
     }
 
-    fn simulate(&mut self, dt: f32, mut inputs: impl FnMut() -> [PilotInput; 2]) {
+    fn simulate(&mut self, dt: f32, mut inputs: impl FnMut() -> [PilotInput; MAX_PILOTS]) {
         if self.phase != Phase::Playing {
             return;
         }
@@ -209,6 +235,7 @@ impl Campaign {
         while self.pending_time >= STEP {
             self.pending_time -= STEP;
             self.simulation_time += STEP;
+            self.needs_snapshot = true;
             match self
                 .game
                 .step(inputs(), FIELD, STEP as f32, self.simulation_time)
@@ -261,15 +288,30 @@ impl GuestPeer {
             fire: self.input.fire || pressed.fire,
         }
     }
+
+    fn send(
+        &mut self,
+        audio: Option<&Frame>,
+        snapshot: Option<&Frame>,
+        now: Instant,
+    ) -> io::Result<()> {
+        if let Some(audio) = audio {
+            self.peer.queue_frame(audio.clone(), false, now)?;
+        }
+        if let Some(snapshot) = snapshot {
+            self.peer.queue_frame(snapshot.clone(), true, now)?;
+        }
+        self.peer.flush(now)
+    }
 }
 
 pub(super) struct Host {
     listener: TcpListener,
     advertiser: Option<Advertiser>,
     pending: Vec<Handshake>,
-    guest: Option<GuestPeer>,
+    guests: [Option<GuestPeer>; MAX_PILOTS],
     campaign: Campaign,
-    next_state: Instant,
+    next_heartbeat: Instant,
     pub status: Option<Status>,
     pub addresses: Vec<Ipv4Addr>,
 }
@@ -288,9 +330,9 @@ impl Host {
             listener,
             advertiser: Advertiser::new(address).ok(),
             pending: Vec::new(),
-            guest: None,
+            guests: std::array::from_fn(|_| None),
             campaign: Campaign::new(difficulty),
-            next_state: now,
+            next_heartbeat: now,
             status: None,
             addresses: net::local_addresses(),
         })
@@ -309,13 +351,16 @@ impl Host {
     }
 
     pub fn poll(&mut self, now: Instant) {
-        if self.receive_guest(now).is_err() {
-            self.lose_guest();
+        for slot in 1..MAX_PILOTS {
+            if self.receive_guest(slot, now).is_err() {
+                self.lose_guest(slot);
+            }
         }
         self.accept_connections(now);
         self.advance_handshakes(now);
 
-        let available = self.guest.is_none() && self.campaign.phase == Phase::Lobby;
+        let available =
+            self.campaign.game.pilot_count() < MAX_PILOTS && self.campaign.phase == Phase::Lobby;
         if let Some(advertiser) = &self.advertiser {
             if advertiser.poll(available).is_err() {
                 self.advertiser = None;
@@ -324,31 +369,40 @@ impl Host {
     }
 
     pub fn update(&mut self, dt: f32, host_input: PilotInput, now: Instant) -> Vec<AudioCue> {
-        let mut guest = self.guest.as_mut().filter(|guest| {
-            now.duration_since(guest.input_at) < INPUT_MAX_AGE
-                && guest.input_revision == self.campaign.revision
-        });
+        let revision = self.campaign.revision;
+        let guests = &mut self.guests;
         self.campaign.simulate(dt, || {
-            let guest_input = guest
-                .as_deref_mut()
-                .map_or_else(PilotInput::default, GuestPeer::input_for_step);
-            [host_input, guest_input]
+            let mut inputs = [PilotInput::default(); MAX_PILOTS];
+            inputs[HOST] = host_input;
+            for (input, guest) in inputs.iter_mut().zip(guests.iter_mut()).skip(1) {
+                if let Some(guest) = guest.as_mut().filter(|guest| {
+                    guest.input_revision == revision
+                        && now.duration_since(guest.input_at) < INPUT_MAX_AGE
+                }) {
+                    *input = guest.input_for_step();
+                }
+            }
+            inputs
         });
         let cues = self.campaign.game.drain_audio_cues();
-        if self.send_guest(&cues, now).is_err() {
-            self.lose_guest();
+        if self.send_guests(&cues, now).is_err() {
+            for slot in 1..MAX_PILOTS {
+                if self.guests[slot].is_some() {
+                    self.lose_guest(slot);
+                }
+            }
         }
         cues
     }
 
-    fn lose_guest(&mut self) {
-        self.guest = None;
-        self.campaign.remove_guest();
+    fn lose_guest(&mut self, slot: usize) {
+        self.guests[slot] = None;
+        self.campaign.remove_guest(slot);
         self.status = Some(Status::GuestLost);
     }
 
-    fn receive_guest(&mut self, now: Instant) -> io::Result<()> {
-        let Some(guest) = &mut self.guest else {
+    fn receive_guest(&mut self, slot: usize, now: Instant) -> io::Result<()> {
+        let Some(guest) = &mut self.guests[slot] else {
             return Ok(());
         };
         for message in guest.peer.receive::<FromClient>(now)? {
@@ -361,7 +415,7 @@ impl Host {
                 }
                 FromClient::Input { .. } => {}
                 FromClient::Command { revision, action } => {
-                    self.campaign.command(GUEST, revision, action)
+                    self.campaign.command(slot, revision, action)
                 }
                 FromClient::Hello(_) => return Err(ErrorKind::InvalidData.into()),
             }
@@ -369,24 +423,35 @@ impl Host {
         Ok(())
     }
 
-    fn send_guest(&mut self, cues: &[AudioCue], now: Instant) -> io::Result<()> {
-        let Some(guest) = &mut self.guest else {
+    fn send_guests(&mut self, cues: &[AudioCue], now: Instant) -> io::Result<()> {
+        if self.guests.iter().all(Option::is_none) {
             return Ok(());
-        };
-        if !cues.is_empty() {
-            guest.peer.queue(
+        }
+        let audio = if cues.is_empty() {
+            None
+        } else {
+            Some(Frame::compact(
                 &FromHost::<()>::Audio(cues.to_vec()),
                 SNAPSHOT_LIMIT,
-                false,
-                now,
-            )?;
-        }
-        if now >= self.next_state {
+            )?)
+        };
+        let snapshot = if self.campaign.needs_snapshot || now >= self.next_heartbeat {
             let state = FromHost::State(Box::new(self.campaign.snapshot()));
-            guest.peer.queue(&state, SNAPSHOT_LIMIT, true, now)?;
-            self.next_state = now + SEND_PERIOD;
+            let frame = Frame::compact(&state, SNAPSHOT_LIMIT)?;
+            self.campaign.needs_snapshot = false;
+            self.next_heartbeat = now + HEARTBEAT_PERIOD;
+            Some(frame)
+        } else {
+            None
+        };
+        for slot in 1..MAX_PILOTS {
+            if let Some(guest) = &mut self.guests[slot] {
+                if guest.send(audio.as_ref(), snapshot.as_ref(), now).is_err() {
+                    self.lose_guest(slot);
+                }
+            }
         }
-        guest.peer.flush(now)
+        Ok(())
     }
 
     fn accept_connections(&mut self, now: Instant) {
@@ -432,42 +497,47 @@ impl Host {
                 }
             };
 
-            let reject = if version != VERSION {
-                Some(Status::Incompatible)
-            } else if self.campaign.phase != Phase::Lobby || self.guest.is_some() {
-                Some(Status::Full)
+            let admission = if version != VERSION {
+                Err(Status::Incompatible)
+            } else if self.campaign.phase != Phase::Lobby {
+                Err(Status::Full)
             } else {
-                None
+                (1..MAX_PILOTS)
+                    .find(|&slot| self.guests[slot].is_none())
+                    .ok_or(Status::Full)
             };
-            if let Some(status) = reject {
-                let result = handshake.peer.queue(
-                    &FromHost::<()>::Reject(status),
-                    SNAPSHOT_LIMIT,
-                    false,
-                    now,
-                );
-                if result.is_ok() {
-                    handshake.rejecting = true;
-                } else {
-                    self.pending.swap_remove(index);
+            let slot = match admission {
+                Ok(slot) => slot,
+                Err(status) => {
+                    let result = handshake.peer.queue_handshake(
+                        &FromHost::<()>::Reject(status),
+                        SNAPSHOT_LIMIT,
+                        now,
+                    );
+                    if result.is_ok() {
+                        handshake.rejecting = true;
+                    } else {
+                        self.pending.swap_remove(index);
+                    }
+                    continue;
                 }
-                continue;
-            }
+            };
 
             let mut peer = self.pending.swap_remove(index).peer;
             if peer
-                .queue(
-                    &FromHost::<()>::Welcome(VERSION),
+                .queue_handshake(
+                    &FromHost::<()>::Welcome {
+                        version: VERSION,
+                        slot,
+                    },
                     SNAPSHOT_LIMIT,
-                    false,
                     now,
                 )
                 .is_ok()
             {
-                self.campaign.add_guest();
-                self.next_state = now;
+                self.campaign.add_guest(slot);
                 self.status = None;
-                self.guest = Some(GuestPeer {
+                self.guests[slot] = Some(GuestPeer {
                     peer,
                     input: PilotInput::default(),
                     pressed: PilotInput::default(),
@@ -486,7 +556,7 @@ enum GuestConnection {
 
 pub(super) struct Guest {
     connection: GuestConnection,
-    welcomed: bool,
+    pub slot: Option<usize>,
     pub state: Option<Snapshot<Game>>,
     next_input: Instant,
     last_input: PilotInput,
@@ -498,7 +568,7 @@ impl Guest {
         let receiver = net::connect(address).map_err(|_| Status::ConnectFailed)?;
         Ok(Self {
             connection: GuestConnection::Connecting(receiver),
-            welcomed: false,
+            slot: None,
             state: None,
             next_input: now,
             last_input: PilotInput::default(),
@@ -515,31 +585,38 @@ impl Guest {
             };
             let mut peer =
                 Connection::new(stream, SNAPSHOT_LIMIT, now).map_err(|_| Status::ConnectFailed)?;
-            peer.queue(&FromClient::Hello(VERSION), COMMAND_LIMIT, false, now)
+            peer.queue_handshake(&FromClient::Hello(VERSION), COMMAND_LIMIT, now)
                 .map_err(|_| Status::ConnectFailed)?;
             self.connection = GuestConnection::Peer(peer);
         }
 
         let mut cues = Vec::new();
         if let GuestConnection::Peer(peer) = &mut self.connection {
-            let error = if self.welcomed {
+            let error = if self.slot.is_some() {
                 Status::HostLost
             } else {
                 Status::ConnectFailed
             };
             for message in peer.receive::<FromHost<Game>>(now).map_err(|_| error)? {
                 match message {
-                    FromHost::Welcome(VERSION) if !self.welcomed => self.welcomed = true,
-                    FromHost::Welcome(_) => return Err(Status::Incompatible),
-                    FromHost::Reject(status) if !self.welcomed => return Err(status),
+                    FromHost::Welcome {
+                        version: VERSION,
+                        slot,
+                    } if self.slot.is_none() && (1..MAX_PILOTS).contains(&slot) => {
+                        self.slot = Some(slot);
+                    }
+                    FromHost::Welcome { .. } => return Err(Status::Incompatible),
+                    FromHost::Reject(status) if self.slot.is_none() => return Err(status),
                     FromHost::State(state)
-                        if self.welcomed
+                        if self
+                            .slot
+                            .is_some_and(|slot| state.game.pilots[slot].is_some())
                             && state.game.bounds == FIELD
-                            && state.game.pilots.iter().all(Option::is_some) =>
+                            && state.game.pilots[HOST].is_some() =>
                     {
                         self.state = Some(*state);
                     }
-                    FromHost::Audio(mut audio) if self.welcomed => cues.append(&mut audio),
+                    FromHost::Audio(mut audio) if self.slot.is_some() => cues.append(&mut audio),
                     _ => return Err(error),
                 }
             }
@@ -583,9 +660,9 @@ impl Guest {
             self.last_revision = revision;
             self.next_input = now
                 + if state.phase == Phase::Playing {
-                    SEND_PERIOD
+                    INPUT_PERIOD
                 } else {
-                    Duration::from_secs(1)
+                    HEARTBEAT_PERIOD
                 };
         }
         peer.flush(now).map_err(|_| Status::HostLost)
@@ -598,6 +675,8 @@ mod tests {
     use crate::components::MissionObjective;
     use crate::systems::get_mission;
     use std::net::SocketAddr;
+
+    const GUEST: usize = 1;
 
     fn create_host() -> Host {
         Host::listen(
@@ -660,6 +739,56 @@ mod tests {
     }
 
     #[test]
+    fn guest_receives_each_battle_update_at_sixty_fps() {
+        let mut host = create_host();
+        let mut guest = connect(&mut host);
+        guest_command(&mut guest, Action::Ready);
+        wait_for(&mut host, &mut guest, |host, _| host.campaign.ready[GUEST]);
+        host_command(&mut host, Action::Advance);
+        host_command(&mut host, Action::Advance);
+        wait_for_phase(&mut host, &mut guest, Phase::Playing);
+
+        let start = Instant::now();
+        let input = PilotInput {
+            right: true,
+            ..PilotInput::default()
+        };
+        for frame in 1..=4 {
+            let now = start + Duration::from_secs_f64(STEP * f64::from(frame));
+            host.update(STEP as f32, input, now);
+            let expected = host.campaign.game.solo_pilot().ship.rotation;
+            for _ in 0..100 {
+                guest.poll(now).unwrap();
+                if guest
+                    .state
+                    .as_ref()
+                    .unwrap()
+                    .game
+                    .solo_pilot()
+                    .ship
+                    .rotation
+                    == expected
+                {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            assert_eq!(
+                guest
+                    .state
+                    .as_ref()
+                    .unwrap()
+                    .game
+                    .solo_pilot()
+                    .ship
+                    .rotation,
+                expected,
+                "guest missed simulation update on frame {frame}",
+            );
+        }
+    }
+
+    #[test]
     fn guest_tap_survives_a_batched_release_and_waits_for_a_simulation_step() {
         let mut host = create_host();
         let mut guest = connect(&mut host);
@@ -681,13 +810,13 @@ mod tests {
             .unwrap();
         for _ in 0..100 {
             host.poll(Instant::now());
-            let remote = host.guest.as_ref().unwrap();
+            let remote = host.guests[GUEST].as_ref().unwrap();
             if remote.pressed.fire && !remote.input.fire {
                 break;
             }
             std::thread::sleep(Duration::from_millis(1));
         }
-        let remote = host.guest.as_ref().unwrap();
+        let remote = host.guests[GUEST].as_ref().unwrap();
         assert!(remote.pressed.fire);
         assert!(!remote.input.fire);
 
@@ -826,15 +955,69 @@ mod tests {
     }
 
     #[test]
+    fn four_pilots_share_a_battle_with_independent_input_and_disconnects() {
+        let mut host = create_host();
+        let [mut first, mut second, mut third] = std::array::from_fn(|_| connect(&mut host));
+        assert_eq!(
+            [first.slot, second.slot, third.slot],
+            [Some(1), Some(2), Some(3)]
+        );
+
+        guest_command(&mut first, Action::Ready);
+        guest_command(&mut third, Action::Ready);
+        wait_for(&mut host, &mut first, |host, _| {
+            host.snapshot().ready_guests() == 2
+        });
+        host_command(&mut host, Action::Advance);
+        assert_eq!(host.campaign.phase, Phase::Lobby);
+        guest_command(&mut second, Action::Ready);
+        wait_for(&mut host, &mut second, |host, _| {
+            host.snapshot().guests_ready()
+        });
+        host_command(&mut host, Action::Advance);
+        host_command(&mut host, Action::Advance);
+        for guest in [&mut first, &mut second, &mut third] {
+            wait_for_phase(&mut host, guest, Phase::Playing);
+            let game = &guest.state.as_ref().unwrap().game;
+            assert_eq!(game.bounds, FIELD);
+            assert_eq!(game.pilot_count(), MAX_PILOTS);
+        }
+        let mut input = PilotInput {
+            left: true,
+            ..PilotInput::default()
+        };
+        first.send(None, input, Instant::now()).unwrap();
+        input.left = false;
+        input.right = true;
+        third.send(None, input, Instant::now()).unwrap();
+        let both_turning = |_: &Host, guest: &Guest| {
+            let pilots = &guest.state.as_ref().unwrap().game.pilots;
+            pilots[1].as_ref().unwrap().ship.rotation < 0.0
+                && pilots[2].as_ref().unwrap().ship.rotation == 0.0
+                && pilots[3].as_ref().unwrap().ship.rotation > 0.0
+        };
+        wait_for(&mut host, &mut third, both_turning);
+        wait_for(&mut host, &mut first, both_turning);
+
+        drop(second);
+        wait_for(&mut host, &mut third, |_, guest| {
+            guest.state.as_ref().unwrap().game.pilots[2].is_none()
+        });
+        assert_eq!(host.campaign.phase, Phase::Playing);
+        assert!(host.guests[1].is_some() && host.guests[3].is_some());
+        assert_eq!(third.slot, Some(3));
+    }
+
+    #[test]
     fn loopback_declines_extra_guest_and_incompatible_protocol() {
         let mut host = create_host();
-        let first = connect(&mut host);
+        let guests: [_; MAX_PILOTS - 1] = std::array::from_fn(|_| connect(&mut host));
         let mut extra = Guest::new(address(&host), Instant::now()).unwrap();
         let wrong = TcpStream::connect(address(&host)).unwrap();
         let mut incompatible = Connection::new(wrong, SNAPSHOT_LIMIT, Instant::now()).unwrap();
         let now = Instant::now();
         incompatible
-            .queue(&FromClient::Hello(VERSION + 1), COMMAND_LIMIT, false, now)
+            .queue_handshake(&FromClient::Hello(VERSION - 1), COMMAND_LIMIT, now)
             .unwrap();
         incompatible.flush(now).unwrap();
         let mut full = false;
@@ -860,7 +1043,11 @@ mod tests {
             std::thread::sleep(Duration::from_millis(2));
         }
         assert!(full && version);
-        assert!(first.welcomed && host.guest.is_some());
+        assert_eq!(host.campaign.game.pilot_count(), MAX_PILOTS);
+        assert!(guests
+            .iter()
+            .enumerate()
+            .all(|(index, guest)| guest.slot == Some(index + 1)));
     }
 
     #[test]
@@ -923,7 +1110,7 @@ mod tests {
     fn wait_until_guest_leaves(host: &mut Host) {
         for _ in 0..500 {
             host.poll(Instant::now());
-            if host.guest.is_none() {
+            if host.guests[GUEST].is_none() {
                 break;
             }
             std::thread::sleep(Duration::from_millis(2));
@@ -949,7 +1136,7 @@ mod tests {
     #[test]
     fn surviving_pilot_can_finish_and_destroyed_pilot_respawns() {
         let mut campaign = Campaign::new(Difficulty::Nebula);
-        campaign.add_guest();
+        campaign.add_guest(GUEST);
         campaign.game.solo_pilot_mut().ship.scrap = 21;
         assert!(matches!(
             campaign
@@ -964,7 +1151,7 @@ mod tests {
         campaign.game.solo_pilot_mut().ship.health = 0.0;
         campaign.game.mission_progress.enemies_defeated = 100;
         campaign.game.mission_progress.asteroids_destroyed = 100;
-        campaign.simulate(0.05, || [PilotInput::default(); 2]);
+        campaign.simulate(0.05, || [PilotInput::default(); MAX_PILOTS]);
         assert_eq!(campaign.phase, Phase::Success);
 
         campaign.command(HOST, campaign.revision, Action::Advance);
@@ -987,7 +1174,7 @@ mod tests {
             let boss = campaign.game.boss.as_ref().unwrap();
             (boss.max_health, boss.summon_timer)
         };
-        campaign.add_guest();
+        campaign.add_guest(GUEST);
         campaign.game.prepare_lan_mission();
         campaign.game.start_mission();
         let boss = campaign.game.boss.as_ref().unwrap();

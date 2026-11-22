@@ -1,7 +1,7 @@
 use crate::audio::AudioCue;
 use crate::components::*;
 use crate::game::constants::*;
-use crate::game::Pilot;
+use crate::game::{Pilot, MAX_PILOTS};
 use crate::systems::wrap_around;
 use macroquad::prelude::*;
 
@@ -100,7 +100,7 @@ fn player_shot(pilot: &mut Pilot, input: PilotInput) -> Option<Bullet> {
     None
 }
 
-pub(super) fn update_pilots(game: &mut super::Game, inputs: [PilotInput; 2], dt: f32) {
+pub(super) fn update_pilots(game: &mut super::Game, inputs: [PilotInput; MAX_PILOTS], dt: f32) {
     for (pilot, input) in game.pilots.iter_mut().zip(inputs) {
         if let Some(pilot) = pilot.as_mut().filter(|pilot| pilot.is_alive()) {
             update_ship_movement(pilot, input, game.bounds, dt);

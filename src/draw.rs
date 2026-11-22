@@ -438,18 +438,48 @@ fn draw_enemy_direction_hint(from_left: bool, spawn_y: f32, t: f32, bounds: Vec2
     draw_triangle(tip, base_left, base_right, color);
 }
 
-pub fn render_game(game: &Game, lan_slot: Option<usize>, resources: &Resources) {
-    let bounds = if lan_slot.is_some() {
+#[derive(Clone, Copy)]
+pub struct LanView {
+    pub slot: usize,
+    pub area: Rect,
+}
+
+pub fn render_game(game: &Game, resources: &Resources) {
+    render_battle_world(game, None, resources);
+    render_battle_hud(game, None, resources);
+}
+
+pub fn render_battle_world(game: &Game, lan: Option<LanView>, resources: &Resources) {
+    let bounds = if lan.is_some() {
         game.bounds
     } else {
         vec2(screen_width(), screen_height())
     };
-    let local_slot = lan_slot.unwrap_or(0);
-    for item in &game.loot_items {
+    let visible = |pos, padding| {
+        lan.is_none_or(|view| {
+            let area = view.area;
+            Rect::new(
+                area.x - padding,
+                area.y - padding,
+                area.w + padding * 2.0,
+                area.h + padding * 2.0,
+            )
+            .contains(pos)
+        })
+    };
+    for item in game
+        .loot_items
+        .iter()
+        .filter(|item| visible(item.pos, item.radius * 2.25 + 44.0))
+    {
         draw_loot(item, bounds, resources);
     }
 
-    for b in &game.bullets {
+    for b in game
+        .bullets
+        .iter()
+        .filter(|b| visible(b.pos, b.radius * 1.5))
+    {
         let rotation = b.vel.y.atan2(b.vel.x) + std::f32::consts::FRAC_PI_2;
         let size = b.radius * 2.0;
         if b.style == BulletStyle::Enemy {
@@ -476,30 +506,45 @@ pub fn render_game(game: &Game, lan_slot: Option<usize>, resources: &Resources) 
         );
     }
 
-    for a in &game.asteroids {
+    for a in game
+        .asteroids
+        .iter()
+        .filter(|a| visible(a.pos, a.radius * 1.5))
+    {
         draw_asteroid(a, resources);
     }
 
-    for e in &game.enemy_ships {
+    for e in game.enemy_ships.iter().filter(|e| visible(e.pos, 100.0)) {
         draw_enemy(e, bounds.x, resources);
     }
 
-    if let Some(ref boss) = game.boss {
+    if let Some(boss) = game
+        .boss
+        .as_ref()
+        .filter(|boss| visible(boss.pos, BOSS_SIZE))
+    {
         draw_boss(boss, bounds.x, resources);
     }
 
-    for ex in &game.explosions {
+    for ex in game.explosions.iter().filter(|ex| {
+        let sprite = &resources.explosion;
+        let size = (sprite.width() / ex.max_frames as f32).max(sprite.height());
+        visible(ex.pos, size * ex.scale / 2.0)
+    }) {
         draw_explosion(ex, resources);
     }
 
     for (slot, pilot) in game.pilots.iter().enumerate() {
-        if let Some(pilot) = pilot.as_ref().filter(|pilot| pilot.is_alive()) {
+        if let Some(pilot) = pilot
+            .as_ref()
+            .filter(|pilot| pilot.is_alive() && visible(pilot.ship.pos, 100.0))
+        {
             draw_ship(&pilot.ship, resources);
-            if lan_slot.is_some() {
+            if let Some(view) = lan {
                 let pos = pilot.ship.pos;
-                let color = if slot == local_slot { SKYBLUE } else { GOLD };
+                let color = if slot == view.slot { SKYBLUE } else { GOLD };
                 draw_text_with_font(
-                    if slot == 0 { "1" } else { "2" },
+                    &(slot + 1).to_string(),
                     pos.x - 7.0,
                     pos.y + 37.0,
                     14.0,
@@ -509,6 +554,14 @@ pub fn render_game(game: &Game, lan_slot: Option<usize>, resources: &Resources) 
             }
         }
     }
+}
+
+pub fn render_battle_hud(game: &Game, lan: Option<LanView>, resources: &Resources) {
+    let bounds = lan.map_or_else(
+        || vec2(screen_width(), screen_height()),
+        |view| vec2(view.area.w, view.area.h),
+    );
+    let local_slot = lan.map_or(0, |view| view.slot);
     let Some(pilot) = &game.pilots[local_slot] else {
         return;
     };
@@ -531,7 +584,7 @@ pub fn render_game(game: &Game, lan_slot: Option<usize>, resources: &Resources) 
         ));
     }
     draw_text_with_font(&status_text, 20.0, 30.0, 24.0, WHITE, resources);
-    if lan_slot.is_some() && !pilot.is_alive() {
+    if lan.is_some() && !pilot.is_alive() {
         draw_text_with_font(
             resources.lang.t("lan_spectating"),
             20.0,
@@ -605,15 +658,72 @@ pub fn render_game(game: &Game, lan_slot: Option<usize>, resources: &Resources) 
         resources,
     );
 
+    let origin_y = lan.map_or(0.0, |view| view.area.y);
     if let Some(boss) = &game.boss {
         if let Some(wave) = boss.pending_summon {
             for (from_left, y, _) in wave.arrivals(boss.phase) {
-                draw_enemy_direction_hint(from_left, y, -wave.remaining, bounds);
+                draw_enemy_direction_hint(from_left, y - origin_y, -wave.remaining, bounds);
             }
         }
     } else if game.difficulty == Difficulty::Nebula {
         if let Some((from_left, spawn_y, _)) = game.pending_enemy_hint {
-            draw_enemy_direction_hint(from_left, spawn_y, get_time() as f32, bounds);
+            draw_enemy_direction_hint(from_left, spawn_y - origin_y, get_time() as f32, bounds);
+        }
+    }
+
+    if let Some(view) = lan {
+        draw_lan_minimap(game, view);
+    }
+}
+
+fn draw_lan_minimap(game: &Game, view: LanView) {
+    const WIDTH: f32 = 168.0;
+    let scale = WIDTH / game.bounds.x;
+    let height = game.bounds.y * scale;
+    let origin = vec2(view.area.w - WIDTH - 68.0, 20.0);
+    let area = view.area;
+    draw_rectangle(
+        origin.x,
+        origin.y,
+        WIDTH,
+        height,
+        Color::new(0.0, 0.0, 0.0, 0.65),
+    );
+    draw_rectangle_lines(origin.x, origin.y, WIDTH, height, 1.0, GRAY);
+    draw_rectangle_lines(
+        origin.x + area.x * scale,
+        origin.y + area.y * scale,
+        area.w * scale,
+        area.h * scale,
+        1.0,
+        SKYBLUE,
+    );
+    let dot = |pos: Vec2, radius, color| {
+        let pos = origin + pos.clamp(Vec2::ZERO, game.bounds) * scale;
+        draw_circle(pos.x, pos.y, radius, color);
+    };
+    for asteroid in &game.asteroids {
+        dot(asteroid.pos, 1.5, GRAY);
+    }
+    for enemy in &game.enemy_ships {
+        if !enemy.power_ups.is_invisible() {
+            dot(enemy.pos, 2.0, RED);
+        }
+    }
+    if let Some(boss) = game
+        .boss
+        .as_ref()
+        .filter(|boss| !boss.power_ups.is_invisible())
+    {
+        dot(boss.pos, 3.5, RED);
+    }
+    for (slot, pilot) in game.pilots.iter().enumerate() {
+        if let Some(pilot) = pilot.as_ref().filter(|pilot| pilot.is_alive()) {
+            dot(
+                pilot.ship.pos,
+                3.0,
+                if slot == view.slot { SKYBLUE } else { GOLD },
+            );
         }
     }
 }

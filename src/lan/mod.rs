@@ -7,7 +7,7 @@ use crate::components::Difficulty;
 use crate::resources::Resources;
 use macroquad::prelude::*;
 use net::Discovery;
-use session::{Guest, Host, Status};
+use session::{Guest, Host, Status, HOST};
 use std::net::SocketAddrV4;
 use std::time::Instant;
 use ui::{BrowserAction, SessionUi};
@@ -101,7 +101,9 @@ pub fn frame(
             host.poll(now);
             let state = host.snapshot();
             let revision = state.revision;
-            let controls = mode.ui.session(&state, Some(host), player_name, res, audio);
+            let controls = mode
+                .ui
+                .session(&state, HOST, Some(host), player_name, res, audio);
             if controls.leave {
                 leave = Some(Status::Left);
             } else {
@@ -121,14 +123,14 @@ pub fn frame(
                 for cue in cues {
                     audio.play_sfx(&res.audio, cue);
                 }
-                if let Some(state) = &guest.state {
+                if let (Some(state), Some(slot)) = (&guest.state, guest.slot) {
                     let view = session::Snapshot {
                         game: &state.game,
                         phase: state.phase,
                         revision: state.revision,
                         ready: state.ready,
                     };
-                    let controls = mode.ui.session(&view, None, player_name, res, audio);
+                    let controls = mode.ui.session(&view, slot, None, player_name, res, audio);
                     if controls.leave {
                         leave = Some(Status::Left);
                     } else {

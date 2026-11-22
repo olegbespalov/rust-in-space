@@ -482,16 +482,10 @@ impl Localization {
                 "Warte auf einen Gast...",
             ),
             (
-                "lan_guest_joined",
-                "Guest connected",
-                "Гость подключён",
-                "Gast verbunden",
-            ),
-            (
-                "lan_guest_ready",
-                "Guest ready",
-                "Гость готов",
-                "Gast bereit",
+                "lan_ready_count",
+                "Guests ready",
+                "Готовность гостей",
+                "Gäste bereit",
             ),
             (
                 "lan_start",
@@ -537,9 +531,9 @@ impl Localization {
             ),
             (
                 "lan_wait_guest_ready",
-                "Waiting for the guest to be ready...",
-                "Ожидание готовности гостя...",
-                "Warte auf die Bereitschaft des Gasts...",
+                "Waiting for guests to be ready...",
+                "Ожидание готовности гостей...",
+                "Warte auf die Bereitschaft der Gäste...",
             ),
             (
                 "lan_wait_briefing",

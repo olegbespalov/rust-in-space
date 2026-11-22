@@ -3,6 +3,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpListener, TcpStream, UdpSocket};
+use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
@@ -13,6 +14,7 @@ pub(super) const SNAPSHOT_LIMIT: usize = 1024 * 1024;
 const IO_BUDGET: usize = 128 * 1024;
 const FRAME_BUDGET: usize = 64;
 const QUEUE_LIMIT: usize = 32;
+const COMPACT_FRAME: u32 = 1 << 31;
 const DISCOVERY_INTERVAL: Duration = Duration::from_secs(1);
 const DISCOVERY_EXPIRY: Duration = Duration::from_secs(3);
 const DISCOVER: &[u8] = b"rust-in-space/lan/1/find";
@@ -68,8 +70,17 @@ pub(super) struct Connection {
     pub last_received: Instant,
 }
 
+#[derive(Clone)]
+pub(super) struct Frame(Rc<Vec<u8>>);
+
+impl Frame {
+    pub fn compact(message: &impl Serialize, limit: usize) -> io::Result<Self> {
+        Ok(Self(Rc::new(encode(message, limit, true)?)))
+    }
+}
+
 struct Outbound {
-    bytes: Vec<u8>,
+    encoded: Frame,
     written: usize,
     replaceable: bool,
 }
@@ -95,6 +106,22 @@ impl Connection {
         replaceable: bool,
         now: Instant,
     ) -> io::Result<()> {
+        self.queue_frame(Frame::compact(message, limit)?, replaceable, now)
+    }
+
+    pub fn queue_handshake(
+        &mut self,
+        message: &impl Serialize,
+        limit: usize,
+        now: Instant,
+    ) -> io::Result<()> {
+        self.queue_frame(Frame(Rc::new(encode(message, limit, false)?)), false, now)
+    }
+
+    pub fn queue_frame(&mut self, frame: Frame, replaceable: bool, now: Instant) -> io::Result<()> {
+        if self.output.is_empty() {
+            self.write_progress = now;
+        }
         if replaceable {
             self.output
                 .retain(|frame| !frame.replaceable || frame.written != 0);
@@ -102,12 +129,8 @@ impl Connection {
         if self.output.len() >= QUEUE_LIMIT {
             return Err(io::Error::new(ErrorKind::WouldBlock, "LAN send queue full"));
         }
-        let bytes = encode(message, limit)?;
-        if self.output.is_empty() {
-            self.write_progress = now;
-        }
         self.output.push_back(Outbound {
-            bytes,
+            encoded: frame,
             written: 0,
             replaceable,
         });
@@ -117,14 +140,15 @@ impl Connection {
     pub fn flush(&mut self, now: Instant) -> io::Result<()> {
         let mut budget = IO_BUDGET;
         while let Some(frame) = self.output.front_mut().filter(|_| budget > 0) {
-            let end = (frame.written + budget).min(frame.bytes.len());
-            match self.stream.write(&frame.bytes[frame.written..end]) {
+            let bytes = &frame.encoded.0;
+            let end = (frame.written + budget).min(bytes.len());
+            match self.stream.write(&bytes[frame.written..end]) {
                 Ok(0) => return Err(ErrorKind::WriteZero.into()),
                 Ok(n) => {
                     self.write_progress = now;
                     budget -= n;
                     frame.written += n;
-                    if frame.written == frame.bytes.len() {
+                    if frame.written == bytes.len() {
                         self.output.pop_front();
                     }
                 }
@@ -180,9 +204,13 @@ impl Connection {
     }
 }
 
-fn encode(message: &impl Serialize, limit: usize) -> io::Result<Vec<u8>> {
+fn encode(message: &impl Serialize, limit: usize, compact: bool) -> io::Result<Vec<u8>> {
     let mut frame = vec![0; 4];
-    serde_json::to_writer(&mut frame, message)?;
+    if compact {
+        rmp_serde::encode::write(&mut frame, message).map_err(io::Error::other)?;
+    } else {
+        serde_json::to_writer(&mut frame, message)?;
+    }
     let len = frame.len() - 4;
     if len > limit {
         return Err(io::Error::new(
@@ -190,7 +218,9 @@ fn encode(message: &impl Serialize, limit: usize) -> io::Result<Vec<u8>> {
             "LAN frame too large",
         ));
     }
-    frame[..4].copy_from_slice(&(len as u32).to_be_bytes());
+    // Keep JSON handshakes compatible so older peers receive a version rejection.
+    let header = len as u32 | if compact { COMPACT_FRAME } else { 0 };
+    frame[..4].copy_from_slice(&header.to_be_bytes());
     Ok(frame)
 }
 
@@ -211,7 +241,8 @@ impl FrameReader {
         let Some(header) = self.bytes.first_chunk::<4>() else {
             return Ok(None);
         };
-        let len = u32::from_be_bytes(*header) as usize;
+        let header = u32::from_be_bytes(*header);
+        let len = (header & !COMPACT_FRAME) as usize;
         if len == 0 || len > self.limit {
             return Err(io::Error::new(
                 ErrorKind::InvalidData,
@@ -221,7 +252,12 @@ impl FrameReader {
         let Some(body) = self.bytes.get(4..4 + len) else {
             return Ok(None);
         };
-        let message = serde_json::from_slice(body)?;
+        let message = if header & COMPACT_FRAME != 0 {
+            rmp_serde::from_slice(body)
+                .map_err(|error| io::Error::new(ErrorKind::InvalidData, error))?
+        } else {
+            serde_json::from_slice(body)?
+        };
         self.bytes.drain(..4 + len);
         Ok(Some(message))
     }
@@ -329,8 +365,8 @@ mod tests {
 
     #[test]
     fn frames_handle_partial_reads_and_coalesced_messages() {
-        let a = encode(&42, COMMAND_LIMIT).unwrap();
-        let b = encode(&43, COMMAND_LIMIT).unwrap();
+        let a = encode(&42, COMMAND_LIMIT, false).unwrap();
+        let b = encode(&43, COMMAND_LIMIT, true).unwrap();
         let mut reader = FrameReader::new(COMMAND_LIMIT);
         reader.bytes.extend_from_slice(&a[..2]);
         assert_eq!(reader.next::<u32>().unwrap(), None);
@@ -349,12 +385,60 @@ mod tests {
             &[0, 0, 0, 0][..],
             &[0, 0, 0, 9][..],
             &[0, 0, 0, 1, b'!'][..],
+            &[0x80, 0, 0, 9][..],
+            &[0x80, 0, 0, 1, 0xc1][..],
         ] {
             let mut reader = FrameReader::new(8);
             reader.bytes.extend_from_slice(bytes);
             assert!(reader.next::<u32>().is_err());
         }
-        assert!(encode(&1234, 3).is_err());
+        assert!(encode(&1234, 3, false).is_err());
+    }
+
+    #[test]
+    fn combat_snapshot_is_smaller_with_messagepack() {
+        use super::super::session::{Phase, Snapshot, FIELD};
+        use crate::components::{Bullet, BulletStyle, ShipKind};
+        use crate::game::{Game, MAX_PILOTS};
+        use macroquad::prelude::vec2;
+
+        let mut game = Game::new(FIELD);
+        game.set_pilot(1, ShipKind::Delta);
+        game.prepare_lan_mission();
+        game.start_mission();
+        for index in 0..24 {
+            game.bullets.push(Bullet {
+                pos: vec2(180.25 + 30.0 * index as f32, 250.5),
+                vel: vec2(480.0, 90.0),
+                life_time: 1.5,
+                style: BulletStyle::Player,
+                homing: false,
+                damage: 10.0,
+                radius: 4.0,
+            });
+        }
+        let state = Snapshot {
+            game: &game,
+            phase: Phase::Playing,
+            revision: 2,
+            ready: [false; MAX_PILOTS],
+        };
+        let json = encode(&state, SNAPSHOT_LIMIT, false).unwrap();
+        let compact = encode(&state, SNAPSHOT_LIMIT, true).unwrap();
+        println!(
+            "Combat snapshot: {} B JSON, {} B MessagePack",
+            json.len(),
+            compact.len()
+        );
+        assert!(compact.len() * 2 < json.len());
+
+        let mut reader = FrameReader::new(SNAPSHOT_LIMIT);
+        reader.bytes = compact;
+        let received = reader.next::<Snapshot<Game>>().unwrap().unwrap();
+        assert_eq!(received.phase, Phase::Playing);
+        assert_eq!(received.game.bullets.len(), game.bullets.len());
+        assert_eq!(received.game.asteroids.len(), game.asteroids.len());
+        assert_eq!(received.game.bullets[23].pos, game.bullets[23].pos);
     }
 
     #[test]

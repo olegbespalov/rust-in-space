@@ -269,8 +269,10 @@ async fn main() {
                         game.solo_pilot().ship.engine.current_thrust,
                     );
 
+                    let mut inputs = [PilotInput::default(); MAX_PILOTS];
+                    inputs[0] = PilotInput::keyboard();
                     let outcome = game.step(
-                        [PilotInput::keyboard(), PilotInput::default()],
+                        inputs,
                         vec2(screen_width(), screen_height()),
                         dt,
                         get_time(),
@@ -296,14 +298,14 @@ async fn main() {
                     }
 
                     if matches!(state, GameState::Playing) {
-                        render_game(&game, None, &resources);
+                        render_game(&game, &resources);
                     }
                 }
             }
 
             GameState::Paused => {
                 // Render the game in paused state (frozen frame)
-                render_game(&game, None, &resources);
+                render_game(&game, &resources);
                 let (resume, main_menu) = render_pause(&resources);
 
                 if resume || (!main_menu && is_key_pressed(KeyCode::Enter)) {

@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 use player::create_ship;
 pub use player::PilotInput;
 
+pub const MAX_PILOTS: usize = 4;
+const SPAWN_OFFSETS: [Vec2; MAX_PILOTS] = [
+    vec2(-60.0, 0.0),
+    vec2(60.0, 0.0),
+    vec2(0.0, -60.0),
+    vec2(0.0, 60.0),
+];
+
 pub const UPGRADABLE_IDS: [UpgradeId; 5] = [
     UpgradeId::ReinforcedHull,
     UpgradeId::WeaponTuning,
@@ -136,7 +144,7 @@ impl MissionProgress {
 
 #[derive(Serialize, Deserialize)]
 pub struct Game {
-    pub pilots: [Option<Pilot>; 2],
+    pub pilots: [Option<Pilot>; MAX_PILOTS],
     pub bounds: Vec2,
     pub bullets: Vec<Bullet>,
     pub asteroids: Vec<Asteroid>,
@@ -168,7 +176,9 @@ pub enum BattleOutcome {
 impl Game {
     pub fn new(bounds: Vec2) -> Self {
         Self {
-            pilots: [Some(Pilot::new(ShipKind::Alpha, bounds / 2.0)), None],
+            pilots: std::array::from_fn(|slot| {
+                (slot == 0).then(|| Pilot::new(ShipKind::Alpha, bounds / 2.0))
+            }),
             bounds,
             bullets: Vec::new(),
             asteroids: Vec::new(),
@@ -215,7 +225,7 @@ impl Game {
         self.bullets.clear();
         self.enemy_ships.clear();
         self.loot_items.clear();
-        let cooperative = self.pilots[1].is_some();
+        let cooperative = self.pilot_count() > 1;
         self.boss = self
             .current_mission
             .objectives
@@ -245,18 +255,10 @@ impl Game {
         };
         self.pending_enemy_hint = None;
 
-        for (slot, pilot) in self.pilots.iter_mut().enumerate() {
+        for (pilot, offset) in self.pilots.iter_mut().zip(SPAWN_OFFSETS) {
             if let Some(pilot) = pilot {
-                let offset = if cooperative {
-                    if slot == 0 {
-                        -60.0
-                    } else {
-                        60.0
-                    }
-                } else {
-                    0.0
-                };
-                pilot.start_mission(self.bounds / 2.0 + vec2(offset, 0.0));
+                let offset = if cooperative { offset } else { Vec2::ZERO };
+                pilot.start_mission(self.bounds / 2.0 + offset);
             }
         }
     }
@@ -268,13 +270,13 @@ impl Game {
     pub fn prepare_lan_mission(&mut self) {
         self.current_mission = lan_mission(
             get_mission(self.current_mission.level_id),
-            self.pilots[1].is_some(),
+            self.pilot_count() > 1,
         );
     }
 
     pub fn step(
         &mut self,
-        inputs: [PilotInput; 2],
+        inputs: [PilotInput; MAX_PILOTS],
         bounds: Vec2,
         dt: f32,
         now: f64,
@@ -305,6 +307,10 @@ impl Game {
         self.pilots.iter().flatten().any(Pilot::is_alive)
     }
 
+    pub fn pilot_count(&self) -> usize {
+        self.pilots.iter().flatten().count()
+    }
+
     pub fn cycle_difficulty(&mut self) {
         self.difficulty = match self.difficulty {
             Difficulty::Nebula => Difficulty::Supernova,
@@ -315,7 +321,7 @@ impl Game {
 }
 
 fn nearest_pilot(
-    pilots: &[Option<Pilot>; 2],
+    pilots: &[Option<Pilot>; MAX_PILOTS],
     pos: Vec2,
     eligible: impl Fn(&Pilot) -> bool,
 ) -> Option<usize> {
