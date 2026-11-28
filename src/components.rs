@@ -30,7 +30,7 @@ pub struct Mission {
     pub asteroid_count: usize,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MissionObjective {
     DefeatEnemies(u32),
     DestroyAsteroids(u32),

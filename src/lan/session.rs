@@ -828,7 +828,7 @@ impl Guest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components::{Asteroid, MissionObjective};
+    use crate::components::{Asteroid, EnemyType, MissionObjective};
     use crate::systems::get_mission;
     use std::net::SocketAddr;
 
@@ -1259,6 +1259,17 @@ mod tests {
         );
         host_command(&mut host, Action::Advance);
         wait_for_phase(&mut host, &mut guest, Phase::Playing);
+        host.campaign.game.asteroids.clear();
+        wait_for(&mut host, &mut guest, |_, guest| {
+            guest
+                .state
+                .as_ref()
+                .unwrap()
+                .game
+                .enemy_ships
+                .iter()
+                .any(|enemy| enemy.enemy_type == EnemyType::Interceptor)
+        });
         host.campaign.game.pilots[HOST]
             .as_mut()
             .unwrap()

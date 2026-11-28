@@ -526,6 +526,102 @@ mod tests {
     use super::*;
 
     #[test]
+    fn campaign_objectives_are_reachable_in_solo_and_coop() {
+        let bounds = vec2(1280.0, 720.0);
+        let asteroid_target = vec2(200.0, 200.0);
+        for cooperative in [false, true] {
+            for difficulty in [
+                Difficulty::Nebula,
+                Difficulty::Supernova,
+                Difficulty::BlackHole,
+            ] {
+                let mut game = Game::new(bounds);
+                game.difficulty = difficulty;
+                if cooperative {
+                    game.set_pilot(1, ShipKind::Alpha);
+                }
+
+                // Include missions 1–5 and all three generated objective sets (6–8).
+                for level in 1..=8 {
+                    if cooperative {
+                        game.prepare_lan_mission();
+                    }
+                    game.start_mission();
+                    let objectives = game.current_mission.objectives.clone();
+                    for &objective in &objectives {
+                        if let MissionObjective::CollectScrap(target) = objective {
+                            // Exercise scrap pickup without relying on random drops.
+                            let pos = game.solo_pilot().ship.pos;
+                            let mut scrap =
+                                crate::systems::spawn_loot(pos, LootType::Scrap(target), 10.0);
+                            scrap.vel = Vec2::ZERO;
+                            scrap.drift_vel = Vec2::ZERO;
+                            game.loot_items.push(scrap);
+                        }
+                    }
+
+                    let mut outcome = BattleOutcome::Playing;
+                    let dt = 0.25;
+                    for tick in 1..=720 {
+                        // Remove combat difficulty while retaining the actual spawn and objective logic.
+                        for enemy in &mut game.enemy_ships {
+                            enemy.health = 0.0;
+                        }
+                        if let Some(boss) = &mut game.boss {
+                            boss.health = 0.0;
+                        }
+                        for asteroid in &mut game.asteroids {
+                            asteroid.pos = asteroid_target;
+                            asteroid.vel = Vec2::ZERO;
+                        }
+                        if !game.asteroids.is_empty()
+                            && objectives.iter().any(|&objective| {
+                                matches!(objective, MissionObjective::DestroyAsteroids(_))
+                                    && !game.mission_progress.meets(objective)
+                            })
+                        {
+                            game.bullets.push(Bullet {
+                                pos: asteroid_target,
+                                vel: Vec2::ZERO,
+                                owner: Some(0),
+                                life_time: BULLET_LIFETIME,
+                                style: BulletStyle::Player,
+                                homing: false,
+                                damage: PLAYER_BULLET_DAMAGE,
+                                radius: PLAYER_BULLET_RADIUS,
+                            });
+                        }
+
+                        outcome = game.step(
+                            [PilotInput::default(); MAX_PILOTS],
+                            bounds,
+                            dt,
+                            f64::from(tick) * f64::from(dt),
+                        );
+                        if !matches!(outcome, BattleOutcome::Playing) {
+                            break;
+                        }
+                    }
+
+                    for objective in objectives {
+                        let amount = game.mission_progress.amount(objective);
+                        assert!(
+                            game.mission_progress.meets(objective),
+                            "mission {level}, coop={cooperative}: {objective:?} at {amount}/{}",
+                            objective.target(),
+                        );
+                    }
+                    assert!(
+                        matches!(outcome, BattleOutcome::Success),
+                        "mission {level}, coop={cooperative}"
+                    );
+                    game.next_mission();
+                }
+            }
+        }
+    }
+
+    #[test]
     fn coop_scales_every_count_and_preserves_duration_and_boss_objectives() {
         use MissionObjective::*;
         let base = Mission {
