@@ -176,6 +176,12 @@ pub(super) struct SessionUi {
     menu: bool,
 }
 
+pub(super) struct GuestView<'a> {
+    pub prediction: &'a mut Prediction,
+    pub world: &'a Game,
+    pub dt: f32,
+}
+
 #[derive(Default)]
 pub(super) struct Controls {
     pub action: Option<Action>,
@@ -196,7 +202,7 @@ impl SessionUi {
         state: &SnapshotView<'_>,
         slot: usize,
         host: Option<&Host>,
-        prediction: Option<(&mut Prediction, f32)>,
+        guest: Option<GuestView<'_>>,
         res: &Resources,
         audio: &mut AudioState,
     ) -> Controls {
@@ -271,10 +277,17 @@ impl SessionUi {
                 if !self.menu && pilot.is_alive() {
                     controls.input = PilotInput::keyboard();
                 }
-                let local_ship = prediction.and_then(|(prediction, dt)| {
-                    prediction.advance(state.revision, pilot, state.game.bounds, controls.input, dt)
+                let (world, local_ship) = guest.map_or((state.game, None), |guest| {
+                    let ship = guest.prediction.advance(
+                        state.revision,
+                        pilot,
+                        state.game.bounds,
+                        controls.input,
+                        guest.dt,
+                    );
+                    (guest.world, ship)
                 });
-                self.battle(state, slot, local_ship.as_ref(), res);
+                self.battle(state, world, slot, local_ship.as_ref(), res);
             }
             Phase::Success => {
                 let progress = ((get_time() - self.phase_started_at) / VICTORY_DURATION)
@@ -432,11 +445,11 @@ impl SessionUi {
     fn battle(
         &mut self,
         state: &SnapshotView<'_>,
+        game: &Game,
         slot: usize,
         ship: Option<&Ship>,
         res: &Resources,
     ) {
-        let game = state.game;
         let view_size = view_size(game.bounds);
         let switch = !self.menu && is_key_pressed(KeyCode::Tab);
         let focus = battle_focus(game, slot, self.followed_slot, switch);
@@ -447,6 +460,7 @@ impl SessionUi {
             area: battle_area(game, focus, view_size, ship.filter(|_| focus == slot)),
             names: std::array::from_fn(|index| state.player_name(index)),
             local_ship: ship,
+            world: game,
         };
         let target = self
             .field
@@ -469,7 +483,7 @@ impl SessionUi {
 
         camera.target = view_size / 2.0;
         set_camera(&camera);
-        render_battle_hud(game, Some(view), res);
+        render_battle_hud(state.game, Some(view), res);
         set_default_camera();
 
         let window = vec2(screen_width(), screen_height());

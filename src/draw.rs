@@ -560,6 +560,7 @@ pub struct LanView<'a> {
     pub area: Rect,
     pub names: [&'a str; MAX_PILOTS],
     pub local_ship: Option<&'a Ship>,
+    pub world: &'a Game,
 }
 
 impl<'a> LanView<'a> {
@@ -827,20 +828,21 @@ pub fn render_battle_hud(game: &Game, lan: Option<LanView<'_>>, resources: &Reso
     );
 
     let origin_y = lan.map_or(0.0, |view| view.area.y);
-    if let Some(boss) = &game.boss {
+    let world = lan.map_or(game, |view| view.world);
+    if let Some(boss) = &world.boss {
         if let Some(wave) = boss.pending_summon {
             for (from_left, y, _) in wave.arrivals(boss.phase) {
                 draw_enemy_direction_hint(from_left, y - origin_y, -wave.remaining, bounds);
             }
         }
     } else if game.difficulty == Difficulty::Nebula {
-        if let Some((from_left, spawn_y, _)) = game.pending_enemy_hint {
+        if let Some((from_left, spawn_y, _)) = world.pending_enemy_hint {
             draw_enemy_direction_hint(from_left, spawn_y - origin_y, get_time() as f32, bounds);
         }
     }
 
     if let Some(view) = lan {
-        draw_lan_minimap(game, view, resources);
+        draw_lan_minimap(world, view, resources);
     }
 }
 

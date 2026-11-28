@@ -1,4 +1,5 @@
 use super::net::{self, Advertiser, Connection, Frame, COMMAND_LIMIT, SNAPSHOT_LIMIT};
+use super::playback::Playback;
 use super::prediction::{InputProgress, Prediction};
 use crate::audio::AudioCue;
 use crate::components::{Difficulty, ShipKind, UpgradeId, DEFAULT_PLAYER_NAME};
@@ -13,7 +14,7 @@ use std::time::{Duration, Instant};
 
 pub(super) const FIELD: Vec2 = vec2(1920.0, 1080.0);
 pub(super) const HOST: usize = 0;
-const VERSION: u16 = 12;
+const VERSION: u16 = 13;
 const MAX_NAME_CHARS: usize = 24;
 pub(super) const STEP: f64 = 1.0 / 60.0;
 const INPUT_PERIOD: Duration = Duration::from_nanos(33_333_334);
@@ -78,6 +79,7 @@ pub(super) struct Snapshot<G, N = PlayerNames> {
     pub game: G,
     pub phase: Phase,
     pub revision: u64,
+    pub tick: u64,
     pub input_ack: [InputProgress; MAX_PILOTS],
     pub ready: [bool; MAX_PILOTS],
     pub names: N,
@@ -100,6 +102,7 @@ impl Snapshot<Game> {
             game: &self.game,
             phase: self.phase,
             revision: self.revision,
+            tick: self.tick,
             input_ack: self.input_ack,
             ready: self.ready,
             names: &self.names,
@@ -163,6 +166,7 @@ pub(super) struct Campaign {
     needs_snapshot: bool,
     pending_time: f64,
     simulation_time: f64,
+    simulation_tick: u64,
 }
 
 impl Campaign {
@@ -181,6 +185,7 @@ impl Campaign {
             needs_snapshot: false,
             pending_time: 0.0,
             simulation_time: 0.0,
+            simulation_tick: 0,
         }
     }
 
@@ -189,6 +194,7 @@ impl Campaign {
             game: &self.game,
             phase: self.phase,
             revision: self.revision,
+            tick: self.simulation_tick,
             input_ack: Default::default(),
             ready: self.ready,
             names: &self.names,
@@ -281,6 +287,7 @@ impl Campaign {
                 }
                 self.game.prepare_lan_mission();
                 self.simulation_time = 0.0;
+                self.simulation_tick = 0;
                 self.transition(Phase::Briefing);
             }
             (Phase::Briefing, Action::Advance) if slot == HOST => {
@@ -328,6 +335,7 @@ impl Campaign {
         while self.pending_time >= STEP {
             self.pending_time -= STEP;
             self.simulation_time += STEP;
+            self.simulation_tick += 1;
             self.needs_snapshot = true;
             match self
                 .game
@@ -705,6 +713,7 @@ pub(super) struct Guest {
     pub slot: Option<usize>,
     pub state: Option<Snapshot<Game>>,
     pub prediction: Prediction,
+    pub playback: Playback,
     next_input: Instant,
     last_sent_sequence: u64,
 }
@@ -717,6 +726,7 @@ impl Guest {
             slot: None,
             state: None,
             prediction: Prediction::default(),
+            playback: Playback::default(),
             next_input: now,
             last_sent_sequence: 0,
         })
@@ -741,7 +751,7 @@ impl Guest {
         }
 
         let mut cues = Vec::new();
-        let mut newest = None;
+        let mut states = Vec::new();
         if let GuestConnection::Peer(peer) = &mut self.connection {
             let error = if self.slot.is_some() {
                 Status::HostLost
@@ -765,7 +775,7 @@ impl Guest {
                             && state.game.bounds == FIELD
                             && state.game.pilots[HOST].is_some() =>
                     {
-                        newest = Some(*state);
+                        states.push(state);
                     }
                     FromHost::Audio(mut audio) if self.slot.is_some() => cues.append(&mut audio),
                     _ => return Err(error),
@@ -773,9 +783,15 @@ impl Guest {
             }
             peer.flush(now).map_err(|_| error)?;
         }
-        if let (Some(state), Some(slot)) = (newest, self.slot) {
-            self.prediction.reconcile(self.state.as_ref(), &state, slot);
-            self.state = Some(state);
+        if let (Some(newest), Some(slot)) = (states.pop(), self.slot) {
+            self.prediction
+                .reconcile(self.state.as_ref(), &newest, slot);
+            for state in states.into_iter().chain(std::iter::once(newest)) {
+                if let Some(previous) = self.state.take() {
+                    self.playback.record(previous, &state, slot);
+                }
+                self.state = Some(*state);
+            }
         }
         Ok(cues)
     }
@@ -897,6 +913,32 @@ mod tests {
                 .as_ref()
                 .is_some_and(|state| state.phase == phase)
         });
+    }
+
+    #[test]
+    fn guest_buffers_world_frames_while_using_the_latest_host_state() {
+        let mut host = create_host();
+        let mut guest = connect(&mut host);
+        host.campaign.transition(Phase::Playing);
+        for tick in 1..=4 {
+            host.campaign.simulation_tick = tick;
+            host.campaign.game.score = tick as u32;
+            host.campaign.needs_snapshot = true;
+            host.send_guests(&[], Instant::now()).unwrap();
+        }
+        for _ in 0..100 {
+            guest.poll(Instant::now()).unwrap();
+            if guest.state.as_ref().unwrap().tick == 4 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+
+        let latest = guest.state.as_ref().unwrap();
+        assert_eq!(latest.tick, 4);
+        assert_eq!(latest.game.score, 4);
+        assert_eq!(guest.playback.world(latest, 0.0).score, 1);
+        assert_eq!(guest.playback.world(latest, STEP as f32).score, 2);
     }
 
     #[test]

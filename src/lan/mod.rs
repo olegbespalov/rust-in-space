@@ -1,4 +1,5 @@
 mod net;
+mod playback;
 mod prediction;
 mod session;
 mod ui;
@@ -123,11 +124,16 @@ pub fn frame(
                     audio.play_sfx(&res.audio, cue);
                 }
                 if let (Some(state), Some(slot)) = (&guest.state, guest.slot) {
+                    let world = guest.playback.world(state, dt);
                     let controls = mode.ui.session(
                         &state.view(),
                         slot,
                         None,
-                        Some((&mut guest.prediction, dt)),
+                        Some(ui::GuestView {
+                            prediction: &mut guest.prediction,
+                            world,
+                            dt,
+                        }),
                         res,
                         audio,
                     );
