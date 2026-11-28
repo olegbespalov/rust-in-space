@@ -41,7 +41,7 @@ The Security workflow runs zizmor, Gitleaks, and cargo-audit on pushes and pull 
 2. After the commit passes CI, tag it with the same version prefixed by `v`, such as `v0.6.1`, and push the tag. The release workflow checks the tag against `Cargo.toml` before building.
 3. Wait for the **Release** workflow to succeed. It creates a draft with generated release notes or adds files to an existing draft for the same tag. It attaches a Linux AppImage, a Linux tarball, and ZIP packages for Intel and Apple Silicon Macs.
 4. In GitHub **Releases**, edit the draft's title and describe the player-facing changes. A new draft for a tag with a prerelease suffix such as `-beta.1` is marked as a prerelease automatically. If you created the draft yourself, set the prerelease checkbox as appropriate.
-5. Once the packages are attached and the notes are ready, click **Publish release**.
+5. Before clicking **Publish release**, confirm that the **Release** workflow succeeded and that the draft lists all four packages under **Assets**. If macOS signing is configured, check for both `.zip.sig` files as well.
 
 Packaged builds display the version from the release tag. The updater uses the latest stable release from GitHub's public API and verifies the downloaded asset against its GitHub SHA-256 digest.
 

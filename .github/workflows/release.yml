@@ -148,19 +148,27 @@ jobs:
             assets+=("$prefix-x86_64-apple-darwin.zip.sig" "$prefix-aarch64-apple-darwin.zip.sig")
           fi
 
-          if draft=$(gh release view "$TAG" --json isDraft --jq '.isDraft' 2>&1); then
-            if [[ "$draft" != true ]]; then
-              echo "::notice::Release $TAG is already published. Skipping asset upload."
-              exit 0
+          if release=$(gh release view "$TAG" --json isDraft,assets 2>&1); then
+            if jq -e '.isDraft' <<< "$release" > /dev/null; then
+              gh release upload "$TAG" "${assets[@]}" --clobber
+            else
+              for asset in "${assets[@]}"; do
+                if ! jq -e --arg name "${asset##*/}" \
+                  'any(.assets[]; .name == $name and .state == "uploaded" and .size > 0)' \
+                  <<< "$release" > /dev/null; then
+                  echo "::error::Release $TAG was published without ${asset##*/}. Restore the draft and rerun this job."
+                  exit 1
+                fi
+              done
+              echo "::notice::Release $TAG is already published with all expected assets."
             fi
-            gh release upload "$TAG" "${assets[@]}" --clobber
-          elif [[ "$draft" == 'release not found' ]]; then
+          elif [[ "$release" == 'release not found' ]]; then
             flags=(--draft --verify-tag --generate-notes)
             if [[ "${TAG%%+*}" == *-* ]]; then
               flags+=(--prerelease)
             fi
             gh release create "$TAG" "${assets[@]}" "${flags[@]}"
           else
-            echo "$draft" >&2
+            echo "$release" >&2
             exit 1
           fi
